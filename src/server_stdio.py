@@ -14,10 +14,11 @@ from typing import Any
 import httpx
 from mcp.server.fastmcp import FastMCP
 
-from .openapi_parser import OpenAPIParser
 from .api_client import APIClient
-from .config import config
 from .cache_manager import CacheManager, fetch_with_cache
+from .config import config
+from .openapi_parser import OpenAPIParser
+from .query_templates import get_query_templates
 
 # Initialize FastMCP server
 mcp = FastMCP("softwareone-marketplace")
@@ -200,11 +201,31 @@ async def marketplace_query(
     # Check if there are still unresolved path parameters
     remaining_params = re.findall(r'\{(\w+)\}', path)
     if remaining_params:
+        # Create example path_params dict with realistic examples
+        example_values = {
+            "id": "PRD-1234-5678",
+            "productId": "PRD-1234-5678",
+            "orderId": "ORD-1234-5678-9012",
+            "agreementId": "AGR-1234-5678-9012",
+            "subscriptionId": "SUB-1234-5678-9012",
+            "accountId": "ACC-1234-5678",
+            "userId": "USR-1234-5678",
+            "lineId": "LIN-1234-5678",
+            "assetId": "AST-1234-5678"
+        }
+        
+        example_dict = {p: example_values.get(p, f"<{p}_value>") for p in remaining_params}
+        
+        # Build hint string
+        hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
+        hint = f"You must provide path_params dictionary. For example: path_params={{{', '.join(hint_parts)}}}"
+        
         return {
-            "error": f"Missing required path parameters: {', '.join(remaining_params)}",
+            "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
             "resource": resource,
             "path_template": endpoint_info["path"],
-            "hint": f"Provide path_params like: {{{', '.join([f'{p}: value' for p in remaining_params])}}}"
+            "example": f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
+            "hint": hint
         }
     
     # Build query parameters
@@ -234,7 +255,44 @@ async def marketplace_query(
         result = await api_client.get(path, params=params)
         return result
     except Exception as e:
-        return {"error": str(e), "resource": resource, "path": path}
+        # Preserve API error details for debugging
+        error_response = {
+            "error": str(e),
+            "resource": resource,
+            "path": path
+        }
+        
+        # If it's an HTTP error, try to include response body
+        import httpx
+        if isinstance(e, httpx.HTTPStatusError):
+            error_response["status_code"] = e.response.status_code
+            error_response["request_url"] = str(e.request.url)
+            try:
+                # Try to parse error response body
+                error_body = e.response.json()
+                error_response["api_error_details"] = error_body
+            except:
+                # If not JSON, include raw text
+                error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
+        
+        return error_response
+
+
+@mcp.tool()
+async def marketplace_quick_queries() -> dict[str, Any]:
+    """
+    Get pre-built query templates for common use cases.
+    
+    Returns ready-to-use query examples organized by category. These templates
+    help you quickly perform common tasks without learning RQL syntax.
+    
+    Returns:
+        Dictionary of query templates organized by category
+    
+    Example: marketplace_quick_queries() shows templates for finding recent
+    orders, active products, specific vendors, etc.
+    """
+    return get_query_templates()
 
 
 @mcp.tool()
@@ -358,10 +416,23 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
         await initialize_server()
     
     if resource not in endpoints_registry:
-        return {
-            "error": f"Unknown resource: {resource}",
-            "hint": "Use marketplace_resources() to see all available resources"
+        # Find similar resources to suggest
+        similar_resources = []
+        resource_lower = resource.lower()
+        for r in endpoints_registry.keys():
+            if resource_lower in r.lower() or r.lower() in resource_lower:
+                similar_resources.append(r)
+        
+        error_response = {
+            "error": f"Unknown resource: '{resource}'",
+            "hint": "Use marketplace_resources() to see all available resources",
+            "available_categories": list(set(r.split('.')[0] for r in endpoints_registry.keys()))
         }
+        
+        if similar_resources[:5]:  # Show up to 5 suggestions
+            error_response["did_you_mean"] = similar_resources[:5]
+        
+        return error_response
     
     endpoint_info = endpoints_registry[resource]
     
@@ -386,6 +457,71 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
         if "enum" in param_schema and param_in == "query":
             enum_fields[param_name] = param_schema["enum"]
     
+    # Find related resources (children and siblings)
+    related_resources = {
+        "children": [],
+        "parent": None,
+        "siblings": []
+    }
+    
+    resource_path = endpoint_info["path"]
+    for other_resource, other_info in endpoints_registry.items():
+        if other_resource == resource:
+            continue
+        
+        other_path = other_info["path"]
+        
+        # Child resources: start with current path and go deeper
+        if other_path.startswith(resource_path + "/") and other_resource.startswith(resource + "."):
+            related_resources["children"].append({
+                "resource": other_resource,
+                "summary": other_info["summary"]
+            })
+        
+        # Parent resource: current path extends parent
+        if resource_path.startswith(other_path + "/") and resource.startswith(other_resource + "."):
+            # Only set if this is the immediate parent (not grandparent)
+            if not related_resources["parent"] or len(other_path) > len(related_resources["parent"]["path"]):
+                related_resources["parent"] = {
+                    "resource": other_resource,
+                    "summary": other_info["summary"],
+                    "path": other_path
+                }
+        
+        # Sibling resources: same parent category
+        resource_parts = resource.split('.')
+        other_parts = other_resource.split('.')
+        if len(resource_parts) >= 2 and len(other_parts) >= 2:
+            if resource_parts[0] == other_parts[0] and resource_parts[1] == other_parts[1]:
+                # Same subcategory, not self
+                if len(resource_parts) == len(other_parts) and other_resource != resource:
+                    related_resources["siblings"].append({
+                        "resource": other_resource,
+                        "summary": other_info["summary"]
+                    })
+    
+    # Limit siblings to top 5 most relevant
+    if len(related_resources["siblings"]) > 5:
+        related_resources["siblings"] = related_resources["siblings"][:5]
+    
+    # Limit children to top 10 most common
+    if len(related_resources["children"]) > 10:
+        related_resources["children"] = related_resources["children"][:10]
+    
+    # Build query examples
+    examples = [f"marketplace_query(resource='{resource}', limit=10)"]
+    
+    # Add example with enum filter if available
+    if enum_fields:
+        first_enum_field = list(enum_fields.keys())[0]
+        first_enum_value = enum_fields[first_enum_field][0]
+        examples.append(f"marketplace_query(resource='{resource}', rql='eq({first_enum_field},{first_enum_value})', limit=10)")
+    
+    # Add example with path params if needed
+    if path_params_info:
+        example_params = {k: f"<{k}_value>" for k in path_params_info.keys()}
+        examples.append(f"marketplace_query(resource='{resource}', path_params={example_params}, select='+id,+name')")
+    
     result = {
         "resource": resource,
         "path": endpoint_info["path"],
@@ -400,19 +536,29 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
             "order": "Sort order (e.g., -created for descending, +name for ascending)",
             "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})"
         },
-        "example_usage": f"marketplace_query(resource='{resource}', limit=10)"
+        "example_queries": examples
     }
     
     # Add enum fields if any found
     if enum_fields:
         result["enum_fields"] = enum_fields
+        result["filtering_tips"] = f"Filter by {', '.join(enum_fields.keys())} using RQL: eq({list(enum_fields.keys())[0]},<value>)"
     
     # Add path parameters info if any found
     if path_params_info:
         result["path_parameters"] = path_params_info
-        # Update example to show path_params usage
-        example_params = {k: f"<{k}_value>" for k in path_params_info.keys()}
-        result["example_usage"] = f"marketplace_query(resource='{resource}', path_params={example_params}, limit=10)"
+        param_list = ', '.join([f"{k}=<value>" for k in path_params_info.keys()])
+        result["path_params_required"] = f"This resource requires path parameters: {param_list}"
+    
+    # Add related resources if found
+    if related_resources["parent"] or related_resources["children"] or related_resources["siblings"]:
+        result["related_resources"] = {}
+        if related_resources["parent"]:
+            result["related_resources"]["parent"] = related_resources["parent"]
+        if related_resources["children"]:
+            result["related_resources"]["children"] = related_resources["children"]
+        if related_resources["siblings"]:
+            result["related_resources"]["similar"] = related_resources["siblings"]
     
     return result
 

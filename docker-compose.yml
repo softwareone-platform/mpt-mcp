@@ -137,7 +137,6 @@ services:
       - ./tests:/app/tests
       - ./config:/app/config
       - ./pytest.ini:/app/pytest.ini
-      - ./.coverage:/app/.coverage
     
     command: python -m pytest --cov=src --cov-report=term-missing --cov-report=html
     
