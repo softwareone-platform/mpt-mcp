@@ -1,0 +1,51 @@
+name: Run Tests
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run linter (ruff)
+      run: |
+        pip install ruff
+        ruff check src/ tests/
+
+    - name: Run type checker (mypy)
+      run: |
+        pip install mypy
+        mypy src/ --ignore-missing-imports
+      continue-on-error: true
+
+    - name: Run tests with pytest
+      run: |
+        pytest tests/ -v --cov=src --cov-report=term-missing
+      env:
+        # Set test environment variables if needed
+        PYTHONPATH: ${{ github.workspace }}
+
+    - name: Upload coverage reports
+      uses: codecov/codecov-action@v4
+      if: always()
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        fail_ci_if_error: false

@@ -1,0 +1,90 @@
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# Logs
+*.log
+logs/
+
+# Cache & Data
+.pytest_cache/
+.mypy_cache/
+.coverage
+.cache/
+cache-data/
+*.db
+*.sqlite
+*.sqlite3
+
+# Test reports
+htmlcov/
+.tox/
+.nox/
+coverage.xml
+*.cover
+.hypothesis/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker volumes (if running docker compose with local volumes)
+.docker-data/
+data/
+
+# Temporary files
+*.tmp
+*.temp
+.~*
+
+# Documentation (keep only essential docs)
+archive/
+*_SUMMARY.md
+*_FIXES.md
+*_NOTES.md
+CHANGELOG*.md
+
+
+# Scripts folder (deployment and operations - not published)
+scripts/*
+!scripts/README.md

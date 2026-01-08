@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "softwareone-marketplace": {
+      "url": "https://mpt-mcp-m3visbsita-ez.a.run.app/mcp",
+      "transport": "mcp",
+      "timeout": 30000,
+      "headers": {
+        "X-MPT-Authorization": "your_api_token_here",
+        "X-MPT-Endpoint": "https://api.platform.softwareone.com"
+      }
+    }
+  }
+}

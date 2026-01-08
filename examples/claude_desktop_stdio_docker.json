@@ -1,0 +1,22 @@
+{
+  "mcpServers": {
+    "softwareone-marketplace": {
+      "command": "docker",
+      "args": [
+        "compose",
+        "-f",
+        "/absolute/path/to/mpt-mcp/docker-compose.yml",
+        "run",
+        "--rm",
+        "-T",
+        "stdio"
+      ],
+      "cwd": "/absolute/path/to/mpt-mcp",
+      "env": {
+        "MARKETPLACE_API_TOKEN": "your_api_token_here",
+        "MARKETPLACE_API_BASE_URL": "https://api.platform.softwareone.com"
+      }
+    }
+  }
+}
+

@@ -1,0 +1,149 @@
+services:
+  # Stdio service - for IDE integration (Claude Desktop, Cursor)
+  stdio:
+    build: .
+    container_name: mpt-mcp-stdio
+    environment:
+      # Required API Configuration
+      MARKETPLACE_API_BASE_URL: ${MARKETPLACE_API_BASE_URL:-https://api.platform.softwareone.com}
+      MARKETPLACE_API_TOKEN: ${MARKETPLACE_API_TOKEN}
+      OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
+      
+      # Python Configuration
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      # Mount cache for OpenAPI spec
+      - ./cache-data:/app/.cache
+    
+    command: python -m src.server_stdio
+    
+    stdin_open: true
+    tty: false
+    
+    profiles:
+      - stdio
+
+  # Development service - hot-reload enabled (HTTP Streamable multi-tenant)
+  dev:
+    build: .
+    container_name: mpt-mcp-dev
+    ports:
+      - "8080:8080"
+    environment:
+      # OpenAPI Spec URL (public, no auth required)
+      OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
+      
+      # Server Configuration
+      PORT: "8080"
+      SSE_DEFAULT_BASE_URL: ${SSE_DEFAULT_BASE_URL:-https://api.platform.softwareone.com}
+      
+      # Development settings
+      DEBUG: "true"
+      PYTHONUNBUFFERED: "1"
+      
+      # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
+      # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header.
+      # Middleware captures the request and passes headers to the marketplace API.
+    
+    volumes:
+      # Mount source code for live development
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./tests:/app/tests
+      - ./.cache:/app/.cache
+      
+      # Exclude Python cache
+      - /app/src/__pycache__
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Production service - no hot-reload, optimized (HTTP Streamable multi-tenant)
+  prod:
+    build: .
+    container_name: mpt-mcp-prod
+    ports:
+      - "8080:8080"
+    environment:
+      # OpenAPI Spec URL (public, no auth required)
+      OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
+      
+      # Server Configuration
+      PORT: "8080"
+      SSE_DEFAULT_BASE_URL: ${SSE_DEFAULT_BASE_URL:-https://api.platform.softwareone.com}
+      
+      # Production settings
+      DEBUG: "false"
+      REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30}
+      
+      # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
+      # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header
+    
+    volumes:
+      # Only mount cache for persistence (no source code)
+      - cache-prod:/app/.cache
+    
+    restart: unless-stopped
+    
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+  
+  # Test service - runs all tests with pytest
+  test:
+    build: .
+    container_name: mpt-mcp-test
+    environment:
+      # Test configuration (optional API token for integration tests)
+      MARKETPLACE_API_BASE_URL: ${MARKETPLACE_API_BASE_URL:-https://api.platform.softwareone.com}
+      MARKETPLACE_API_TOKEN: ${MARKETPLACE_API_TOKEN:-}
+      OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      # Mount source and tests
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./config:/app/config
+      - ./pytest.ini:/app/pytest.ini
+    
+    command: python -m pytest
+    
+    profiles:
+      - test
+  
+  # Test with coverage
+  test-cov:
+    build: .
+    container_name: mpt-mcp-test-cov
+    environment:
+      MARKETPLACE_API_BASE_URL: ${MARKETPLACE_API_BASE_URL:-https://api.platform.softwareone.com}
+      MARKETPLACE_API_TOKEN: ${MARKETPLACE_API_TOKEN:-}
+      OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./config:/app/config
+      - ./pytest.ini:/app/pytest.ini
+      - ./.coverage:/app/.coverage
+    
+    command: python -m pytest --cov=src --cov-report=term-missing --cov-report=html
+    
+    profiles:
+      - test
+
+volumes:
+  cache-prod:
+

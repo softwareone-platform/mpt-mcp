@@ -1,0 +1,72 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+*.md
+docs/
+archive/
+examples/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+venv/
+ENV/
+env/
+.venv
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+
+# Tests
+tests/
+.pytest_cache/
+.tox/
+.nox/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# Cache & temporary data
+.cache/
+cache-data/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+logs/
+*.tmp
+*.temp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+Dockerfile
+.dockerignore
+docker-compose.yml
+.docker-data/
+
+# Deployment configs (not needed in image)
+railway.toml
+fly.toml
+render.yaml
+
+# Development configs
+pytest.ini
+.env.local
+.env.*.local

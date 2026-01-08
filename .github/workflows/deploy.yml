@@ -1,0 +1,98 @@
+name: Deploy to Google Cloud Run
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.12'
+        cache: 'pip'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Run tests
+      run: |
+        pytest tests/ -v
+      env:
+        PYTHONPATH: ${{ github.workspace }}
+
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+    
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Authenticate to Google Cloud
+      uses: google-github-actions/auth@v2
+      with:
+        workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+        service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+    - name: Set up Cloud SDK
+      uses: google-github-actions/setup-gcloud@v2
+
+    - name: Configure Docker for GCR
+      run: |
+        gcloud auth configure-docker
+
+    - name: Build and push Docker image
+      run: |
+        docker build -t gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }} .
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }}
+        docker tag gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }} gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:latest
+        docker push gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:latest
+
+    - name: Deploy to Cloud Run
+      run: |
+        gcloud run deploy mpt-mcp \
+          --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }} \
+          --platform managed \
+          --region ${{ secrets.GCP_REGION }} \
+          --allow-unauthenticated \
+          --memory 1Gi \
+          --cpu 1 \
+          --timeout 300 \
+          --concurrency 80 \
+          --min-instances 0 \
+          --max-instances 10 \
+          --set-env-vars HTTP_HOST=0.0.0.0,HTTP_DEFAULT_BASE_URL=https://api.platform.softwareone.com
+
+    - name: Get Service URL
+      id: service-url
+      run: |
+        SERVICE_URL=$(gcloud run services describe mpt-mcp --platform managed --region ${{ secrets.GCP_REGION }} --format 'value(status.url)')
+        echo "url=$SERVICE_URL" >> $GITHUB_OUTPUT
+        echo "✅ Deployed to: $SERVICE_URL"
+
+    - name: Create deployment summary
+      run: |
+        echo "## 🚀 Deployment Successful" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Service URL:** ${{ steps.service-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Image:** gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Region:** ${{ secrets.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### MCP Endpoint" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.service-url.outputs.url }}/mcp" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
