@@ -88,11 +88,17 @@ jobs:
       run: |
         echo "## 🚀 Deployment Successful" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "**Service URL:** ${{ steps.service-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Direct URL:** ${{ steps.service-url.outputs.url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Custom Domain:** https://mcp.platform.softwareone.com" >> $GITHUB_STEP_SUMMARY
         echo "**Image:** gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "**Region:** ${{ secrets.GCP_REGION }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        echo "### MCP Endpoint" >> $GITHUB_STEP_SUMMARY
+        echo "### MCP Endpoint (Use Custom Domain)" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
-        echo "${{ steps.service-url.outputs.url }}/mcp" >> $GITHUB_STEP_SUMMARY
+        echo "https://mcp.platform.softwareone.com/mcp" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Health Check" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "curl https://mcp.platform.softwareone.com/health" >> $GITHUB_STEP_SUMMARY
         echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
