@@ -25,6 +25,7 @@ mcp = FastMCP("softwareone-marketplace")
 # Global instances
 api_client: APIClient | None = None
 endpoints_registry: dict[str, dict[str, Any]] = {}
+openapi_spec: dict[str, Any] = {}
 cache_manager: CacheManager | None = None
 _initialized: bool = False
 
@@ -36,7 +37,7 @@ async def initialize_server(force_refresh: bool = False):
     Args:
         force_refresh: Force refresh cache even if valid cache exists
     """
-    global api_client, endpoints_registry, cache_manager, _initialized
+    global api_client, endpoints_registry, openapi_spec, cache_manager, _initialized
     
     # Skip if already initialized (unless force refresh)
     if _initialized and not force_refresh:
@@ -80,6 +81,9 @@ async def initialize_server(force_refresh: bool = False):
 
         # Parse OpenAPI spec and extract GET endpoints
         tools = await openapi_parser.extract_get_endpoints(spec)
+        
+        # Store the full OpenAPI spec for schema lookups
+        openapi_spec = spec
         
         # Store endpoint information in memory registry
         for tool in tools:
@@ -411,6 +415,139 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
         result["example_usage"] = f"marketplace_query(resource='{resource}', path_params={example_params}, limit=10)"
     
     return result
+
+
+@mcp.tool()
+async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
+    """
+    Get the complete JSON schema for a marketplace resource.
+    
+    This returns the detailed schema including all fields, types, nested structures, and descriptions. Useful for understanding what fields are available for filtering and what the response structure will be.
+    
+    Args:
+        resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
+    
+    Returns:
+        Complete JSON schema with field types, descriptions, enums, and examples
+    
+    Example: marketplace_resource_schema(resource=catalog.products) returns full schema showing all product fields like id, name, status, vendor, etc.
+    """
+    # Ensure server is initialized
+    if not _initialized:
+        await initialize_server()
+    
+    # Use the global OpenAPI spec
+    if not openapi_spec:
+        return {
+            "error": "OpenAPI spec not loaded",
+            "hint": "Server initialization may have failed"
+        }
+    
+    if resource not in endpoints_registry:
+        return {
+            "error": f"Unknown resource: {resource}",
+            "hint": "Use marketplace_resources() to see all available resources",
+            "available_categories": list(set(r.split('.')[0] for r in endpoints_registry.keys()))
+        }
+    
+    endpoint_info = endpoints_registry[resource]
+    path = endpoint_info["path"]
+    
+    # Find the endpoint in the OpenAPI spec
+    paths = openapi_spec.get("paths", {})
+    if path not in paths:
+        return {
+            "error": f"Path {path} not found in OpenAPI spec",
+            "resource": resource
+        }
+    
+    path_item = paths[path]
+    if "get" not in path_item:
+        return {
+            "error": f"GET operation not found for {path}",
+            "resource": resource
+        }
+    
+    get_op = path_item["get"]
+    
+    # Extract response schema
+    responses = get_op.get("responses", {})
+    schema_info = {
+        "resource": resource,
+        "path": path,
+        "summary": get_op.get("summary", ""),
+        "description": get_op.get("description", ""),
+    }
+    
+    if "200" in responses:
+        response_200 = responses["200"]
+        content = response_200.get("content", {})
+        
+        if "application/json" in content:
+            json_content = content["application/json"]
+            if "schema" in json_content:
+                schema = json_content["schema"]
+                
+                # If schema references components, try to resolve it
+                if "$ref" in schema:
+                    ref_path = schema["$ref"].split("/")
+                    ref_schema = openapi_spec
+                    for part in ref_path:
+                        if part and part != "#":
+                            ref_schema = ref_schema.get(part, {})
+                    schema = ref_schema
+                
+                schema_info["response_schema"] = schema
+                
+                # Extract field information from properties
+                if "properties" in schema:
+                    fields = {}
+                    for field_name, field_schema in schema["properties"].items():
+                        field_info = {
+                            "type": field_schema.get("type", "unknown"),
+                            "description": field_schema.get("description", "")
+                        }
+                        
+                        if "enum" in field_schema:
+                            field_info["enum"] = field_schema["enum"]
+                            field_info["valid_values"] = field_schema["enum"]
+                        
+                        if "example" in field_schema:
+                            field_info["example"] = field_schema["example"]
+                        
+                        if "format" in field_schema:
+                            field_info["format"] = field_schema["format"]
+                        
+                        # For nested objects, show structure
+                        if field_schema.get("type") == "object" and "properties" in field_schema:
+                            nested_fields = {}
+                            for nested_name, nested_schema in list(field_schema["properties"].items())[:5]:
+                                nested_fields[nested_name] = {
+                                    "type": nested_schema.get("type", "unknown"),
+                                    "description": nested_schema.get("description", "")
+                                }
+                            field_info["nested_fields"] = nested_fields
+                        
+                        fields[field_name] = field_info
+                    
+                    schema_info["fields"] = fields
+                    
+                    # Add filtering hints
+                    schema_info["filtering_hints"] = {
+                        "simple_filters": [f"eq({f},value)" for f in list(fields.keys())[:5]],
+                        "search_fields": [f"ilike({f},*keyword*)" for f, info in list(fields.items())[:3] if info.get("type") == "string"],
+                        "enum_filters": [f"eq({f},{info['enum'][0]})" for f, info in fields.items() if "enum" in info][:3]
+                    }
+    
+    # Add common query patterns
+    schema_info["common_queries"] = {
+        "basic": f"{resource}?limit=10",
+        "with_filters": f"{resource}?eq(status,Active)&limit=20",
+        "with_sorting": f"{resource}?order=-id&limit=10",
+        "full_example": f"{resource}?eq(status,Active)&order=-id&select=+id,+name,+status&limit=50"
+    }
+    
+    return schema_info
 
 
 if __name__ == "__main__":

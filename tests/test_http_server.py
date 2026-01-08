@@ -139,12 +139,14 @@ class TestHTTPServerTools:
     """Test that HTTP server exposes only production-ready tools"""
     
     @pytest.mark.unit
-    def test_production_tools_only(self):
+    @pytest.mark.asyncio
+    async def test_production_tools_only(self):
         """Test that only production tools are exposed (no debug tools)"""
         from src.server import mcp
         
-        # Get list of registered tools
-        tool_names = [tool.name for tool in mcp.list_tools()]
+        # Get list of registered tools (async)
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
         
         # These production tools SHOULD exist
         expected_tools = [
@@ -164,12 +166,14 @@ class TestHTTPServerTools:
             "Debug tool marketplace_refresh_cache should not be in production server"
     
     @pytest.mark.unit
-    def test_tool_functions_exist(self):
+    @pytest.mark.asyncio
+    async def test_tool_functions_exist(self):
         """Test that all expected tool functions are registered"""
         from src.server import mcp
         
-        # Get list of registered tools
-        tool_names = [tool.name for tool in mcp.list_tools()]
+        # Get list of registered tools (async)
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
         
         # Production tools
         expected_tools = [
@@ -183,12 +187,14 @@ class TestHTTPServerTools:
             assert tool_name in tool_names, f"Missing production tool: {tool_name}"
     
     @pytest.mark.unit
-    def test_debug_tools_not_in_production(self):
+    @pytest.mark.asyncio
+    async def test_debug_tools_not_in_production(self):
         """Test that debug/internal tools are not exposed in production server"""
         from src.server import mcp
         
-        # Get list of registered tools
-        tool_names = [tool.name for tool in mcp.list_tools()]
+        # Get list of registered tools (async)
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
         
         # Debug tools that should NOT be in production
         debug_tools = [

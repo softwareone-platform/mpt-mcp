@@ -28,12 +28,14 @@ class TestSTDIOServerTools:
     """Test that STDIO server has both production and debug tools"""
     
     @pytest.mark.unit
-    def test_production_tools_exist(self):
+    @pytest.mark.asyncio
+    async def test_production_tools_exist(self):
         """Test that production tools are registered in STDIO server"""
         from src.server_stdio import mcp
         
-        # Get list of registered tools
-        tool_names = [tool.name for tool in mcp.list_tools()]
+        # Get list of registered tools (async)
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
         
         # Production tools SHOULD exist
         expected_tools = [
@@ -47,12 +49,14 @@ class TestSTDIOServerTools:
             assert tool_name in tool_names, f"Missing production tool: {tool_name}"
     
     @pytest.mark.unit
-    def test_debug_tools_exist(self):
+    @pytest.mark.asyncio
+    async def test_debug_tools_exist(self):
         """Test that debug/cache tools ARE available in STDIO server (for local dev)"""
         from src.server_stdio import mcp
         
-        # Get list of registered tools
-        tool_names = [tool.name for tool in mcp.list_tools()]
+        # Get list of registered tools (async)
+        tools = await mcp.list_tools()
+        tool_names = [tool.name for tool in tools]
         
         # Debug tools that SHOULD be in STDIO server for local development
         debug_tools = [
@@ -65,14 +69,18 @@ class TestSTDIOServerTools:
                 f"Debug tool {tool_name} should be available in STDIO server for local development"
     
     @pytest.mark.unit
-    def test_tool_count_difference(self):
+    @pytest.mark.asyncio
+    async def test_tool_count_difference(self):
         """Test that STDIO server has MORE tools than HTTP server (includes debug tools)"""
         from src.server_stdio import mcp as stdio_mcp
         from src.server import mcp as http_mcp
         
-        # Get tool counts
-        stdio_tools = [tool.name for tool in stdio_mcp.list_tools()]
-        http_tools = [tool.name for tool in http_mcp.list_tools()]
+        # Get tool counts (async)
+        stdio_tools_list = await stdio_mcp.list_tools()
+        http_tools_list = await http_mcp.list_tools()
+        
+        stdio_tools = [tool.name for tool in stdio_tools_list]
+        http_tools = [tool.name for tool in http_tools_list]
         
         # STDIO should have at least as many tools as HTTP (actually more due to debug tools)
         assert len(stdio_tools) >= len(http_tools), \
