@@ -141,7 +141,8 @@ async def marketplace_query(
     offset: int | None = None,
     page: int | None = None,
     select: str | None = None,
-    order: str | None = None
+    order: str | None = None,
+    path_params: dict[str, str] | None = None
 ) -> dict[str, Any]:
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
@@ -156,6 +157,7 @@ async def marketplace_query(
         page: Page number (alternative to offset)
         select: Fields to include/exclude (e.g., +name,+description or -metadata)
         order: Sort order (e.g., -created for descending, +name for ascending)
+        path_params: Path parameters for resources requiring IDs (e.g., {id: PRD-1234-5678} for catalog.products.by_id, {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines)
     
     Returns:
         API response with data and pagination information
@@ -183,6 +185,23 @@ async def marketplace_query(
     
     endpoint_info = endpoints_registry[resource]
     path = endpoint_info["path"]
+    
+    # Replace path parameters (e.g., {id}, {productId}, etc.)
+    import re
+    if path_params:
+        for param_name, param_value in path_params.items():
+            # Replace {param_name} in the path
+            path = path.replace(f"{{{param_name}}}", str(param_value))
+    
+    # Check if there are still unresolved path parameters
+    remaining_params = re.findall(r'\{(\w+)\}', path)
+    if remaining_params:
+        return {
+            "error": f"Missing required path parameters: {', '.join(remaining_params)}",
+            "resource": resource,
+            "path_template": endpoint_info["path"],
+            "hint": f"Provide path_params like: {{{', '.join([f'{p}: value' for p in remaining_params])}}}"
+        }
     
     # Build query parameters
     params = {}
@@ -342,7 +361,28 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     
     endpoint_info = endpoints_registry[resource]
     
-    return {
+    # Extract enum values from parameters
+    enum_fields = {}
+    path_params_info = {}
+    
+    for param in endpoint_info.get("parameters", []):
+        param_name = param.get("name")
+        param_in = param.get("in")
+        param_schema = param.get("schema", {})
+        
+        # Track path parameters
+        if param_in == "path":
+            path_params_info[param_name] = {
+                "type": param_schema.get("type", "string"),
+                "description": param.get("description", f"Path parameter: {param_name}"),
+                "required": param.get("required", True)
+            }
+        
+        # Extract enum values for query parameters
+        if "enum" in param_schema and param_in == "query":
+            enum_fields[param_name] = param_schema["enum"]
+    
+    result = {
         "resource": resource,
         "path": endpoint_info["path"],
         "summary": endpoint_info["summary"],
@@ -352,10 +392,25 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
             "limit": "Maximum number of items to return",
             "offset": "Number of items to skip",
             "page": "Page number",
-            "select": "Fields to include/exclude"
+            "select": "Fields to include/exclude",
+            "order": "Sort order (e.g., -created for descending, +name for ascending)",
+            "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})"
         },
-        "example_usage": f"marketplace_query(resource='{resource}', rql='limit=10')"
+        "example_usage": f"marketplace_query(resource='{resource}', limit=10)"
     }
+    
+    # Add enum fields if any found
+    if enum_fields:
+        result["enum_fields"] = enum_fields
+    
+    # Add path parameters info if any found
+    if path_params_info:
+        result["path_parameters"] = path_params_info
+        # Update example to show path_params usage
+        example_params = {k: f"<{k}_value>" for k in path_params_info.keys()}
+        result["example_usage"] = f"marketplace_query(resource='{resource}', path_params={example_params}, limit=10)"
+    
+    return result
 
 
 if __name__ == "__main__":
