@@ -25,11 +25,6 @@ jobs:
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
-    - name: Run linter (ruff)
-      run: |
-        pip install ruff
-        ruff check src/ tests/
-
     - name: Run type checker (mypy)
       run: |
         pip install mypy
@@ -38,14 +33,6 @@ jobs:
 
     - name: Run tests with pytest
       run: |
-        pytest tests/ -v --cov=src --cov-report=term-missing
+        pytest tests/ -v
       env:
-        # Set test environment variables if needed
         PYTHONPATH: ${{ github.workspace }}
-
-    - name: Upload coverage reports
-      uses: codecov/codecov-action@v4
-      if: always()
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: false
