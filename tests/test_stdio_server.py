@@ -29,8 +29,11 @@ class TestSTDIOServerTools:
     
     @pytest.mark.unit
     def test_production_tools_exist(self):
-        """Test that production tools are available in STDIO server"""
-        from src import server_stdio
+        """Test that production tools are registered in STDIO server"""
+        from src.server_stdio import mcp
+        
+        # Get list of registered tools
+        tool_names = [tool.name for tool in mcp.list_tools()]
         
         # Production tools SHOULD exist
         expected_tools = [
@@ -41,14 +44,15 @@ class TestSTDIOServerTools:
         ]
         
         for tool_name in expected_tools:
-            assert hasattr(server_stdio, tool_name), f"Missing production tool: {tool_name}"
-            tool_func = getattr(server_stdio, tool_name)
-            assert callable(tool_func), f"Tool {tool_name} is not callable"
+            assert tool_name in tool_names, f"Missing production tool: {tool_name}"
     
     @pytest.mark.unit
     def test_debug_tools_exist(self):
         """Test that debug/cache tools ARE available in STDIO server (for local dev)"""
-        from src import server_stdio
+        from src.server_stdio import mcp
+        
+        # Get list of registered tools
+        tool_names = [tool.name for tool in mcp.list_tools()]
         
         # Debug tools that SHOULD be in STDIO server for local development
         debug_tools = [
@@ -57,27 +61,23 @@ class TestSTDIOServerTools:
         ]
         
         for tool_name in debug_tools:
-            assert hasattr(server_stdio, tool_name), \
+            assert tool_name in tool_names, \
                 f"Debug tool {tool_name} should be available in STDIO server for local development"
-            tool_func = getattr(server_stdio, tool_name)
-            assert callable(tool_func), f"Debug tool {tool_name} is not callable"
     
     @pytest.mark.unit
     def test_tool_count_difference(self):
         """Test that STDIO server has MORE tools than HTTP server (includes debug tools)"""
-        from src import server_stdio, server
+        from src.server_stdio import mcp as stdio_mcp
+        from src.server import mcp as http_mcp
         
-        # Get callable functions that start with 'marketplace_'
-        stdio_tools = [name for name in dir(server_stdio) 
-                       if name.startswith('marketplace_') and callable(getattr(server_stdio, name))]
-        http_tools = [name for name in dir(server) 
-                      if name.startswith('marketplace_') and callable(getattr(server, name))]
+        # Get tool counts
+        stdio_tools = [tool.name for tool in stdio_mcp.list_tools()]
+        http_tools = [tool.name for tool in http_mcp.list_tools()]
         
         # STDIO should have at least as many tools as HTTP (actually more due to debug tools)
         assert len(stdio_tools) >= len(http_tools), \
-            "STDIO server should have at least as many tools as HTTP server"
+            f"STDIO server should have at least as many tools as HTTP server. STDIO: {len(stdio_tools)}, HTTP: {len(http_tools)}"
         
         # Specifically, STDIO should have cache management tools
-        stdio_only_tools = set(stdio_tools) - set(http_tools)
-        assert 'marketplace_cache_info' in stdio_only_tools or 'marketplace_cache_info' in stdio_tools, \
+        assert 'marketplace_cache_info' in stdio_tools, \
             "STDIO server should have marketplace_cache_info for debugging"

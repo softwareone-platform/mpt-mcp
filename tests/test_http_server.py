@@ -144,27 +144,32 @@ class TestHTTPServerTools:
         from src.server import mcp
         
         # Get list of registered tools
-        # FastMCP stores tools internally - we need to check the app
-        app = mcp.streamable_http_app()
-        
-        # The tools should be accessible through the MCP protocol
-        # We'll verify by checking that debug tools are NOT in the module
-        import src.server as server_module
+        tool_names = [tool.name for tool in mcp.list_tools()]
         
         # These production tools SHOULD exist
-        assert hasattr(server_module, 'marketplace_query')
-        assert hasattr(server_module, 'marketplace_resources')
-        assert hasattr(server_module, 'marketplace_resource_info')
-        assert hasattr(server_module, 'marketplace_resource_schema')
+        expected_tools = [
+            'marketplace_query',
+            'marketplace_resources',
+            'marketplace_resource_info',
+            'marketplace_resource_schema'
+        ]
+        
+        for tool_name in expected_tools:
+            assert tool_name in tool_names, f"Missing production tool: {tool_name}"
         
         # Debug tool should NOT exist in production server
-        assert not hasattr(server_module, 'marketplace_cache_info')
-        assert not hasattr(server_module, 'marketplace_refresh_cache')
+        assert 'marketplace_cache_info' not in tool_names, \
+            "Debug tool marketplace_cache_info should not be in production server"
+        assert 'marketplace_refresh_cache' not in tool_names, \
+            "Debug tool marketplace_refresh_cache should not be in production server"
     
     @pytest.mark.unit
     def test_tool_functions_exist(self):
-        """Test that all expected tool functions are defined"""
-        from src import server
+        """Test that all expected tool functions are registered"""
+        from src.server import mcp
+        
+        # Get list of registered tools
+        tool_names = [tool.name for tool in mcp.list_tools()]
         
         # Production tools
         expected_tools = [
@@ -175,14 +180,15 @@ class TestHTTPServerTools:
         ]
         
         for tool_name in expected_tools:
-            assert hasattr(server, tool_name), f"Missing production tool: {tool_name}"
-            tool_func = getattr(server, tool_name)
-            assert callable(tool_func), f"Tool {tool_name} is not callable"
+            assert tool_name in tool_names, f"Missing production tool: {tool_name}"
     
     @pytest.mark.unit
     def test_debug_tools_not_in_production(self):
         """Test that debug/internal tools are not exposed in production server"""
-        from src import server
+        from src.server import mcp
+        
+        # Get list of registered tools
+        tool_names = [tool.name for tool in mcp.list_tools()]
         
         # Debug tools that should NOT be in production
         debug_tools = [
@@ -191,5 +197,5 @@ class TestHTTPServerTools:
         ]
         
         for tool_name in debug_tools:
-            assert not hasattr(server, tool_name), \
+            assert tool_name not in tool_names, \
                 f"Debug tool {tool_name} should not be in production server"
