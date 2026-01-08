@@ -86,5 +86,4 @@ CHANGELOG*.md
 
 # Operational docs and scripts (deployment info - not published)
 docs/
-scripts/*
-!scripts/README.md
+scripts/
