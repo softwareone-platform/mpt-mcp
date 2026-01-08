@@ -146,34 +146,23 @@ async def marketplace_query(
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
     
-    Supports both simple queries and advanced RQL filtering, sorting, and pagination.
-    See: https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
+    Supports both simple queries and advanced RQL filtering, sorting, and pagination. See documentation at https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
     
     Args:
-        resource: The resource to query (e.g., 'catalog.products', 'commerce.orders')
-        rql: Advanced RQL query string for complex filtering and sorting
-             Examples: 'eq(status,Active)', 'and(eq(status,Active),gt(price,100))', 'ilike(name,*Microsoft*)'
+        resource: The resource to query (e.g., catalog.products, commerce.orders)
+        rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
         limit: Maximum number of items to return (e.g., 10, 50, 100)
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (e.g., '+name,+description', '-metadata')
-        order: Sort order (e.g., '-created' for descending, '+name' for ascending)
+        select: Fields to include/exclude (e.g., +name,+description or -metadata)
+        order: Sort order (e.g., -created for descending, +name for ascending)
     
     Returns:
         API response with data and pagination information
     
-    Available Resource Categories:
-    - Catalog: catalog.products, catalog.items, catalog.listings, catalog.authorizations
-    - Commerce: commerce.orders, commerce.requests, commerce.agreements, commerce.subscriptions
-    - Billing: billing.invoices, billing.statements, billing.journals, billing.ledgers
-    - Accounts: accounts.accounts, accounts.buyers, accounts.sellers, accounts.users
+    Available Resource Categories: Catalog (catalog.products, catalog.items, catalog.listings, catalog.authorizations), Commerce (commerce.orders, commerce.requests, commerce.agreements, commerce.subscriptions), Billing (billing.invoices, billing.statements, billing.journals, billing.ledgers), Accounts (accounts.accounts, accounts.buyers, accounts.sellers, accounts.users)
     
-    RQL Query Examples:
-    1. Simple pagination: limit=10, offset=0
-    2. Filter by status: rql='eq(status,Active)', limit=20
-    3. Search by name: rql='ilike(name,*Microsoft*)', limit=50
-    4. Complex filter: rql='and(eq(status,Active),gt(price,100))', order='-created'
-    5. Sort results: order='-created' or order='+name'
+    RQL Query Examples: Simple pagination (limit=10, offset=0), Filter by status (rql=eq(status,Active), limit=20), Search by name (rql=ilike(name,*Microsoft*), limit=50), Complex filter (rql=and(eq(status,Active),gt(price,100)), order=-created), Sort results (order=-created or order=+name)
     
     Use marketplace_resources() to see all available resources.
     """
@@ -336,7 +325,7 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     Get detailed information about a specific marketplace resource.
     
     Args:
-        resource: The resource identifier (e.g., 'catalog.products')
+        resource: The resource identifier (e.g., catalog.products)
     
     Returns:
         Detailed information about the resource including available parameters

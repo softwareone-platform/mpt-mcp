@@ -224,20 +224,16 @@ async def marketplace_query(
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
     
-    **Multi-Tenant Mode**: This server accepts client credentials via HTTP headers:
-    - `X-MPT-Authorization`: Your SoftwareOne API token (required, case-insensitive)
-    - `X-MPT-Endpoint`: Optional API endpoint (defaults to api.platform.softwareone.com, case-insensitive)
+    MULTI-TENANT MODE: This server accepts client credentials via HTTP headers. Pass X-MPT-Authorization with your SoftwareOne API token (required, case-insensitive). Optionally pass X-MPT-Endpoint to specify API endpoint (defaults to api.platform.softwareone.com, case-insensitive).
     
     Args:
-        resource: The resource to query (e.g., 'catalog.products', 'commerce.orders')
-        rql: Advanced RQL query string for complex filtering and sorting
-             Examples: 'eq(status,Active)', 'and(eq(status,Active),gt(price,100))', 'ilike(name,*Microsoft*)'
-             Note: Pagination and selection use key=value syntax: 'limit=100', 'select=+status', 'order=-created'
+        resource: The resource to query (e.g., catalog.products, commerce.orders)
+        rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
         limit: Maximum number of items to return (e.g., 10, 50, 100)
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (e.g., '+name,+description', '-metadata')
-        order: Sort order (e.g., '-created' for descending, '+name' for ascending)
+        select: Fields to include/exclude (e.g., +name,+description or -metadata)
+        order: Sort order (e.g., -created for descending, +name for ascending)
     
     Returns:
         API response with data and pagination information
@@ -309,19 +305,12 @@ async def marketplace_resources() -> dict[str, Any]:
     """
     List all available resources in the SoftwareOne Marketplace API with detailed information.
     
-    Returns a categorized list of all available API endpoints including:
-    - Resource paths and summaries
-    - Common filterable fields (when available)
-    - Example queries per resource
-    - Response structure hints
+    Returns a categorized list of all available API endpoints including resource paths and summaries, common filterable fields (when available), example queries per resource, and response structure hints.
     
     Returns:
         Detailed resource catalog organized by category
     
-    Example:
-        marketplace_resources()
-        # Shows all available resources like catalog.products, commerce.orders, etc.
-        # with filtering hints and example queries for each
+    Example: marketplace_resources() shows all available resources like catalog.products, commerce.orders, etc. with filtering hints and example queries for each.
     """
     await initialize_cache()
     
@@ -428,54 +417,12 @@ async def marketplace_resources() -> dict[str, Any]:
 
 
 @mcp.tool()
-async def marketplace_cache_info() -> dict[str, Any]:
-    """Get information about the OpenAPI spec cache."""
-    await initialize_cache()
-    
-    if not cache_manager:
-        return {"error": "Cache manager not initialized"}
-    
-    # Get the current endpoint from context
-    token, api_endpoint = get_current_credentials()
-    spec_url = f"{api_endpoint}/public/v1/openapi.json"
-    
-    is_cached = cache_manager.is_valid(spec_url)
-    cache_path = cache_manager._get_cache_path(spec_url)
-    
-    # Try to get endpoints count for this API
-    endpoints_count = 0
-    if token:
-        try:
-            endpoints_registry = await endpoint_registry.get_endpoints_registry(api_endpoint)
-            endpoints_count = len(endpoints_registry)
-        except:
-            pass
-    
-    cache_info = {
-        "api_endpoint": api_endpoint,
-        "spec_url": spec_url,
-        "is_cached": is_cached,
-        "cache_path": str(cache_path) if cache_path.exists() else None,
-        "ttl_hours": cache_manager.ttl_hours,
-        "endpoints_loaded": endpoints_count
-    }
-    
-    if is_cached and cache_path.exists():
-        import datetime
-        stat = cache_path.stat()
-        cache_info["cached_at"] = datetime.datetime.fromtimestamp(stat.st_mtime).isoformat()
-        cache_info["size_bytes"] = stat.st_size
-    
-    return cache_info
-
-
-@mcp.tool()
 async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     """
     Get detailed information about a specific marketplace resource.
     
     Args:
-        resource: The resource to get information about (e.g., 'catalog.products')
+        resource: The resource to get information about (e.g., catalog.products)
     
     Returns:
         Detailed resource information including path, parameters, and response schema
@@ -531,19 +478,15 @@ async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     """
     Get the complete JSON schema for a marketplace resource.
     
-    This returns the detailed schema including all fields, types, nested structures,
-    and descriptions. Useful for understanding what fields are available for filtering
-    and what the response structure will be.
+    This returns the detailed schema including all fields, types, nested structures, and descriptions. Useful for understanding what fields are available for filtering and what the response structure will be.
     
     Args:
-        resource: The resource to get the schema for (e.g., 'catalog.products', 'commerce.orders')
+        resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
     
     Returns:
         Complete JSON schema with field types, descriptions, enums, and examples
     
-    Example:
-        marketplace_resource_schema(resource='catalog.products')
-        # Returns full schema showing all product fields like id, name, status, vendor, etc.
+    Example: marketplace_resource_schema(resource=catalog.products) returns full schema showing all product fields like id, name, status, vendor, etc.
     """
     await initialize_cache()
     

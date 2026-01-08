@@ -11,6 +11,18 @@ This folder may contain:
 - Environment setup files with credentials
 - Operational tools with sensitive settings
 
+## 📁 Folder Structure
+
+```
+scripts/
+├── docs/                          # Documentation (gitignored)
+│   └── how-to-get-github-secrets.md  # GCP & GitHub Actions setup guide
+├── deploy-gcp.sh                  # Cloud Run deployment
+├── logs-gcp.sh                    # View Cloud Run logs
+├── set-env.sh                     # Environment variables
+└── README.md                      # This file (published)
+```
+
 ## 📁 Available Scripts
 
 ### `set-env.sh` (Gitignored - Create from Template)
@@ -178,5 +190,6 @@ gcloud projects get-iam-policy $GCP_PROJECT_ID
 ## 📚 Related Documentation
 
 - [Main README](../README.md) - Project overview and setup
+- [GitHub Secrets Setup](docs/how-to-get-github-secrets.md) - **Complete guide for GCP & GitHub Actions setup**
+- [GitHub Actions Setup](../docs/GITHUB_ACTIONS_SETUP.md) - CI/CD configuration details
 - [Custom Domain Setup](../docs/CUSTOM_DOMAIN.md) - Configure custom domain
-- [GitHub Actions Setup](../docs/GITHUB_ACTIONS_SETUP.md) - CI/CD configuration

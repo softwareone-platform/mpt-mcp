@@ -84,7 +84,7 @@ archive/
 *_NOTES.md
 CHANGELOG*.md
 
-
-# Scripts folder (deployment and operations - not published)
+# Operational docs and scripts (deployment info - not published)
+docs/
 scripts/*
 !scripts/README.md

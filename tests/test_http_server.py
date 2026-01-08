@@ -133,3 +133,63 @@ class TestHTTPServerConfiguration:
         assert token is None
         # Should return the default base URL
         assert endpoint in [config.sse_default_base_url, "https://api.platform.softwareone.com"]
+
+
+class TestHTTPServerTools:
+    """Test that HTTP server exposes only production-ready tools"""
+    
+    @pytest.mark.unit
+    def test_production_tools_only(self):
+        """Test that only production tools are exposed (no debug tools)"""
+        from src.server import mcp
+        
+        # Get list of registered tools
+        # FastMCP stores tools internally - we need to check the app
+        app = mcp.streamable_http_app()
+        
+        # The tools should be accessible through the MCP protocol
+        # We'll verify by checking that debug tools are NOT in the module
+        import src.server as server_module
+        
+        # These production tools SHOULD exist
+        assert hasattr(server_module, 'marketplace_query')
+        assert hasattr(server_module, 'marketplace_resources')
+        assert hasattr(server_module, 'marketplace_resource_info')
+        assert hasattr(server_module, 'marketplace_resource_schema')
+        
+        # Debug tool should NOT exist in production server
+        assert not hasattr(server_module, 'marketplace_cache_info')
+        assert not hasattr(server_module, 'marketplace_refresh_cache')
+    
+    @pytest.mark.unit
+    def test_tool_functions_exist(self):
+        """Test that all expected tool functions are defined"""
+        from src import server
+        
+        # Production tools
+        expected_tools = [
+            'marketplace_query',
+            'marketplace_resources', 
+            'marketplace_resource_info',
+            'marketplace_resource_schema'
+        ]
+        
+        for tool_name in expected_tools:
+            assert hasattr(server, tool_name), f"Missing production tool: {tool_name}"
+            tool_func = getattr(server, tool_name)
+            assert callable(tool_func), f"Tool {tool_name} is not callable"
+    
+    @pytest.mark.unit
+    def test_debug_tools_not_in_production(self):
+        """Test that debug/internal tools are not exposed in production server"""
+        from src import server
+        
+        # Debug tools that should NOT be in production
+        debug_tools = [
+            'marketplace_cache_info',
+            'marketplace_refresh_cache'
+        ]
+        
+        for tool_name in debug_tools:
+            assert not hasattr(server, tool_name), \
+                f"Debug tool {tool_name} should not be in production server"
