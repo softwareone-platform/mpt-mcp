@@ -155,6 +155,7 @@ mpt-mcp/
 ## 🔗 Links
 
 - [MCP Documentation](https://modelcontextprotocol.io)
+- [SoftwareOne Platform MCP Server Documentation](https://docs.platform.softwareone.com/developer-resources/mcp-server)
 - [Google Cloud Run Docs](https://cloud.google.com/run/docs)
 - [Cursor MCP Setup](https://docs.cursor.com/context/model-context-protocol)
 
