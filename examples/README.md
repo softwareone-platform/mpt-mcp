@@ -2,6 +2,24 @@
 
 Example configurations for different deployment scenarios.
 
+## VS Code Copilot
+
+1. Generate an API Token in the [SoftwareOne Marketplace Platform](https://platform.softwareone.com)
+
+2. Enable the MCP Gallery in VS Code settings: Set `chat.mcp.gallery.enabled` to `true`
+
+3. Copy the configuration to your project:
+
+```bash
+mkdir -p .vscode && cp vscode_copilot_mcp.json .vscode/mcp.json
+```
+
+4. Open Copilot Chat and ask it to use the SoftwareOne Marketplace tool
+
+**Note:** VS Code will prompt you for your API token on first use. Your token is securely stored and never exposed to the LLM.
+
+---
+
 ## Claude Desktop (stdio mode)
 
 ### Local Python
@@ -86,6 +104,7 @@ python python_client_example.py
 
 | File | Description | Use Case |
 |------|-------------|----------|
+| `vscode_copilot_mcp.json` | VS Code Copilot MCP config | VS Code with Copilot Chat |
 | `claude_desktop_stdio.json` | Claude Desktop with local Python | Local development |
 | `claude_desktop_stdio_docker.json` | Claude Desktop with Docker | Isolated environment |
 | `cursor_http.json` | Cursor with HTTP server | Remote/cloud deployment |
