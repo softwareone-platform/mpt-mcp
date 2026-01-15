@@ -1,0 +1,21 @@
+{
+    "servers": {
+        "softwareone-marketplace": {
+            "url": "https://mcp.platform.softwareone.com/mcp",
+            "transport": "mcp",
+            "timeout": 30000,
+            "headers": {
+                "X-MPT-Authorization": "${input:mpt-token}",
+                "X-MPT-Endpoint": "https://api.platform.softwareone.com/public"
+            }
+        }
+    },
+    "inputs": [
+        {
+            "type": "promptString",
+            "id": "mpt-token",
+            "description": "Enter your SoftwareOne Marketplace API token",
+            "password": true
+        }
+    ]
+}
