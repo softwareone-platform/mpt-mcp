@@ -6,32 +6,39 @@ on:
   workflow_dispatch:
 
 jobs:
-  test:
+  lint:
+    name: Lint with Ruff
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'pip'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Install dependencies
+    - name: Run Ruff linter
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        docker compose run --rm ruff
 
-    - name: Run tests
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: lint
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Run tests with Docker Compose
       run: |
-        pytest tests/ -v
-      env:
-        PYTHONPATH: ${{ github.workspace }}
+        docker compose run --rm test
 
   deploy:
-    needs: test
+    needs: [lint, test]
     runs-on: ubuntu-latest
     
     permissions:
@@ -64,7 +71,17 @@ jobs:
 
     - name: Deploy to Cloud Run
       run: |
-        gcloud run deploy mpt-mcp \
+        ENV_VARS="HTTP_HOST=0.0.0.0,HTTP_DEFAULT_BASE_URL=https://api.platform.softwareone.com"
+        if [ -n "${{ secrets.ANALYTICS_DATABASE_URL }}" ]; then
+          ENV_VARS="$ENV_VARS,ANALYTICS_DATABASE_URL=${{ secrets.ANALYTICS_DATABASE_URL }}"
+          # Extract Cloud SQL connection name from ANALYTICS_DATABASE_URL if present
+          # Format: postgresql+asyncpg://...?host=/cloudsql/PROJECT:REGION:INSTANCE
+          CLOUD_SQL_CONN=$(echo "${{ secrets.ANALYTICS_DATABASE_URL }}" | grep -oP '/cloudsql/\K[^?]+' || echo "")
+        fi
+        if [ -n "${{ secrets.GITBOOK_API_KEY }}" ] && [ -n "${{ secrets.GITBOOK_SPACE_ID }}" ]; then
+          ENV_VARS="$ENV_VARS,GITBOOK_API_KEY=${{ secrets.GITBOOK_API_KEY }},GITBOOK_SPACE_ID=${{ secrets.GITBOOK_SPACE_ID }}"
+        fi
+        DEPLOY_CMD="gcloud run deploy mpt-mcp \
           --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }} \
           --platform managed \
           --region ${{ secrets.GCP_REGION }} \
@@ -75,7 +92,11 @@ jobs:
           --concurrency 80 \
           --min-instances 0 \
           --max-instances 10 \
-          --set-env-vars HTTP_HOST=0.0.0.0,HTTP_DEFAULT_BASE_URL=https://api.platform.softwareone.com
+          --set-env-vars \"$ENV_VARS\""
+        if [ -n "$CLOUD_SQL_CONN" ]; then
+          DEPLOY_CMD="$DEPLOY_CMD --add-cloudsql-instances=$CLOUD_SQL_CONN"
+        fi
+        eval $DEPLOY_CMD
 
     - name: Get Service URL
       id: service-url

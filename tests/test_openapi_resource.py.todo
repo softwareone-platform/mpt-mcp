@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""
+Tests for OpenAPI specification resource exposure
+"""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+
+class TestOpenAPIResource:
+    """Test the api://openapi.json resource"""
+
+    @pytest.mark.asyncio
+    async def test_get_openapi_spec_resource_success(self):
+        """Test successful retrieval of OpenAPI spec"""
+        from src.server import get_openapi_spec_resource
+
+        mock_spec = {
+            "openapi": "3.0.0",
+            "info": {"title": "Test API", "version": "1.0.0"},
+            "paths": {
+                "/public/v1/catalog/products": {"get": {"summary": "List products"}},
+            },
+        }
+
+        # Mock get_current_credentials to return a token and endpoint
+        with patch("src.server.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
+            with patch("src.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
+                mock_get_spec.return_value = mock_spec
+
+                result = await get_openapi_spec_resource()
+
+                assert result == mock_spec
+                mock_get_spec.assert_called_once_with("https://api.test.com")
+
+    @pytest.mark.asyncio
+    async def test_get_openapi_spec_resource_no_token(self):
+        """Test that missing token raises error"""
+        from src.server import get_openapi_spec_resource
+
+        # Mock get_current_credentials to return no token
+        with patch("src.server.get_current_credentials", return_value=(None, "https://api.test.com")):
+            with pytest.raises(ValueError, match="Missing X-MPT-Authorization header"):
+                await get_openapi_spec_resource()
+
+    @pytest.mark.asyncio
+    async def test_get_openapi_spec_resource_fetch_error(self):
+        """Test handling of OpenAPI fetch errors"""
+        from src.server import get_openapi_spec_resource
+
+        # Mock get_current_credentials to return a token and endpoint
+        with patch("src.server.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
+            with patch("src.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
+                mock_get_spec.side_effect = Exception("Failed to fetch OpenAPI spec")
+
+                with pytest.raises(ValueError, match="Failed to retrieve OpenAPI specification"):
+                    await get_openapi_spec_resource()
+
+    @pytest.mark.asyncio
+    async def test_openapi_spec_cached_per_endpoint(self):
+        """Test that OpenAPI spec is cached per endpoint"""
+        from src.endpoint_registry import EndpointRegistry
+
+        registry = EndpointRegistry()
+
+        mock_spec1 = {
+            "openapi": "3.0.0",
+            "info": {"title": "API 1", "version": "1.0.0"},
+        }
+        mock_spec2 = {
+            "openapi": "3.0.0",
+            "info": {"title": "API 2", "version": "1.0.0"},
+        }
+
+        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+            # Configure mock to return different specs
+            mock_fetch.side_effect = [mock_spec1, mock_spec2]
+
+            # Get spec for first endpoint
+            spec1_first = await registry.get_openapi_spec("https://api1.test.com")
+            assert spec1_first == mock_spec1
+
+            # Get spec for same endpoint - should use cache
+            spec1_second = await registry.get_openapi_spec("https://api1.test.com")
+            assert spec1_second == mock_spec1
+
+            # Get spec for different endpoint
+            spec2 = await registry.get_openapi_spec("https://api2.test.com")
+            assert spec2 == mock_spec2
+
+            # Should have fetched only twice (once per endpoint)
+            assert mock_fetch.call_count == 2
+
+
+class TestOpenAPIResourceIntegration:
+    """Integration tests for OpenAPI resource with MCP"""
+
+    @pytest.mark.asyncio
+    async def test_openapi_resource_listed_in_resources(self):
+        """Test that api://openapi.json is listed in MCP resources"""
+        from src.server import mcp
+
+        resources = await mcp.list_resources()
+        resource_uris = [r.uri for r in resources]
+
+        assert "api://openapi.json" in resource_uris
+
+    @pytest.mark.asyncio
+    async def test_openapi_resource_has_correct_metadata(self):
+        """Test that OpenAPI resource has correct name and description"""
+        from src.server import mcp
+
+        resources = await mcp.list_resources()
+        openapi_resource = next((r for r in resources if r.uri == "api://openapi.json"), None)
+
+        assert openapi_resource is not None
+        assert "openapi" in openapi_resource.name.lower() or "specification" in openapi_resource.name.lower()
+        assert openapi_resource.description  # Should have a description
+
+    @pytest.mark.asyncio
+    async def test_openapi_resource_mime_type(self):
+        """Test that OpenAPI resource specifies JSON mime type"""
+        from src.server import mcp
+
+        resources = await mcp.list_resources()
+        openapi_resource = next((r for r in resources if r.uri == "api://openapi.json"), None)
+
+        assert openapi_resource is not None
+        # MimeType might be None or 'application/json'
+        if openapi_resource.mimeType:
+            assert "json" in openapi_resource.mimeType.lower()
+
+
+class TestEndpointRegistryOpenAPI:
+    """Test endpoint registry OpenAPI spec management"""
+
+    @pytest.mark.asyncio
+    async def test_registry_initializes_empty(self):
+        """Test that registry starts with no cached specs"""
+        from src.endpoint_registry import EndpointRegistry
+
+        registry = EndpointRegistry()
+        assert len(registry._openapi_cache) == 0
+
+    @pytest.mark.asyncio
+    async def test_registry_caches_spec_after_fetch(self):
+        """Test that registry caches spec after fetching"""
+        from src.endpoint_registry import EndpointRegistry
+
+        registry = EndpointRegistry()
+
+        mock_spec = {
+            "openapi": "3.0.0",
+            "info": {"title": "Test API", "version": "1.0.0"},
+        }
+
+        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = mock_spec
+
+            endpoint = "https://api.test.com"
+            spec = await registry.get_openapi_spec(endpoint)
+
+            assert spec == mock_spec
+            assert endpoint in registry._openapi_cache
+            assert registry._openapi_cache[endpoint] == mock_spec
+
+    @pytest.mark.asyncio
+    async def test_registry_normalizes_endpoint(self):
+        """Test that registry normalizes endpoints before caching"""
+        from src.endpoint_registry import EndpointRegistry
+
+        registry = EndpointRegistry()
+
+        mock_spec = {
+            "openapi": "3.0.0",
+            "info": {"title": "Test API", "version": "1.0.0"},
+        }
+
+        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = mock_spec
+
+            # Request with trailing slash
+            endpoint1 = "https://api.test.com/"
+            spec1 = await registry.get_openapi_spec(endpoint1)
+
+            # Request without trailing slash
+            endpoint2 = "https://api.test.com"
+            spec2 = await registry.get_openapi_spec(endpoint2)
+
+            # Should use the same cache entry (normalized)
+            assert spec1 == spec2
+            # Should have only fetched once
+            assert mock_fetch.call_count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_openapi_spec_function(self):
+        """Test the module-level get_openapi_spec function"""
+        from src.endpoint_registry import get_openapi_spec
+
+        mock_spec = {
+            "openapi": "3.0.0",
+            "info": {"title": "Test API", "version": "1.0.0"},
+        }
+
+        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+            mock_fetch.return_value = mock_spec
+
+            endpoint = "https://api.test.com"
+            spec = await get_openapi_spec(endpoint)
+
+            assert spec == mock_spec
+            mock_fetch.assert_called_once()

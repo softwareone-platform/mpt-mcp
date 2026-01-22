@@ -7,32 +7,36 @@ on:
     branches: [ main, master ]
 
 jobs:
-  test:
+  lint:
+    name: Lint with Ruff
     runs-on: ubuntu-latest
     
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
 
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.12'
-        cache: 'pip'
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
 
-    - name: Install dependencies
+    - name: Run Ruff linter
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
+        docker compose run --rm ruff
 
-    - name: Run type checker (mypy)
-      run: |
-        pip install mypy
-        mypy src/ --ignore-missing-imports
-      continue-on-error: true
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
 
-    - name: Run tests with pytest
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Run Ruff linter (fail fast)
       run: |
-        pytest tests/ -v
-      env:
-        PYTHONPATH: ${{ github.workspace }}
+        docker compose run --rm ruff
+
+    - name: Run tests (Ruff runs via pytest-ruff plugin)
+      run: |
+        docker compose run --rm test

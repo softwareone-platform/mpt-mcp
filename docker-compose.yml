@@ -11,10 +11,22 @@ services:
       
       # Python Configuration
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/app"
     
     volumes:
+      # Mount source code for live development
+      - ./src:/app/src
+      - ./config:/app/config
+      - ./conftest.py:/app/conftest.py
+      - ./pytest.ini:/app/pytest.ini
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
       # Mount cache for OpenAPI spec
       - ./cache-data:/app/.cache
+      
+      # Exclude Python cache
+      - /app/src/__pycache__
     
     command: python -m src.server_stdio
     
@@ -30,6 +42,9 @@ services:
     container_name: mpt-mcp-dev
     ports:
       - "8080:8080"
+    depends_on:
+      analytics-db:
+        condition: service_healthy
     environment:
       # OpenAPI Spec URL (public, no auth required)
       OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
@@ -38,9 +53,21 @@ services:
       PORT: "8080"
       SSE_DEFAULT_BASE_URL: ${SSE_DEFAULT_BASE_URL:-https://api.platform.softwareone.com}
       
+      # GitBook Documentation Integration (Optional)
+      GITBOOK_API_KEY: ${GITBOOK_API_KEY:-}
+      GITBOOK_SPACE_ID: ${GITBOOK_SPACE_ID:-}
+      GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
+      GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
+      GITBOOK_PUBLIC_URL: ${GITBOOK_PUBLIC_URL:-}
+      
+      # Analytics Database (Optional) - hardcoded for Docker internal network
+      # Note: Do NOT use ${ANALYTICS_DATABASE_URL} here as it's set by db-local.sh for host access
+      ANALYTICS_DATABASE_URL: postgresql+asyncpg://mcp_user:mcp_password@analytics-db:5432/mcp_analytics
+      
       # Development settings
       DEBUG: "true"
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/app"
       
       # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
       # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header.
@@ -51,7 +78,14 @@ services:
       - ./src:/app/src
       - ./config:/app/config
       - ./tests:/app/tests
+      - ./conftest.py:/app/conftest.py
+      - ./pytest.ini:/app/pytest.ini
+      - ./pyproject.toml:/app/pyproject.toml
       - ./.cache:/app/.cache
+      
+      # Mount Alembic for live development
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
       
       # Exclude Python cache
       - /app/src/__pycache__
@@ -79,6 +113,13 @@ services:
       PORT: "8080"
       SSE_DEFAULT_BASE_URL: ${SSE_DEFAULT_BASE_URL:-https://api.platform.softwareone.com}
       
+      # GitBook Documentation Integration (Optional)
+      GITBOOK_API_KEY: ${GITBOOK_API_KEY:-}
+      GITBOOK_SPACE_ID: ${GITBOOK_SPACE_ID:-}
+      GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
+      GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
+      GITBOOK_PUBLIC_URL: ${GITBOOK_PUBLIC_URL:-}
+      
       # Production settings
       DEBUG: "false"
       REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30}
@@ -99,7 +140,7 @@ services:
       retries: 3
       start_period: 10s
   
-  # Test service - runs all tests with pytest
+  # Test service - runs Ruff checks and all tests with pytest
   test:
     build: .
     container_name: mpt-mcp-test
@@ -109,15 +150,54 @@ services:
       MARKETPLACE_API_TOKEN: ${MARKETPLACE_API_TOKEN:-}
       OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/app"
     
     volumes:
       # Mount source and tests
       - ./src:/app/src
       - ./tests:/app/tests
       - ./config:/app/config
+      - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
     
-    command: python -m pytest
+    command: sh -c "echo '=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest (with pytest-ruff plugin) ===' && python -m pytest"
+    
+    profiles:
+      - test
+  
+  # Ruff service - runs only Ruff linter and formatter
+  ruff:
+    build: .
+    container_name: mpt-mcp-ruff
+    environment:
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml
+    
+    command: sh -c "ruff check src/ tests/ && ruff format --check src/ tests/"
+    
+    profiles:
+      - test
+  
+  # Ruff fix service - runs Ruff with auto-fix
+  ruff-fix:
+    build: .
+    container_name: mpt-mcp-ruff-fix
+    environment:
+      PYTHONUNBUFFERED: "1"
+    
+    volumes:
+      - ./src:/app/src
+      - ./tests:/app/tests
+      - ./pyproject.toml:/app/pyproject.toml
+    
+    command: sh -c "ruff check --fix src/ tests/ && ruff format src/ tests/ && echo '\n✅ Ruff fixes applied!'"
     
     profiles:
       - test
@@ -131,18 +211,60 @@ services:
       MARKETPLACE_API_TOKEN: ${MARKETPLACE_API_TOKEN:-}
       OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
       PYTHONUNBUFFERED: "1"
+      PYTHONPATH: "/app"
     
     volumes:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./config:/app/config
+      - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
+      - ./pyproject.toml:/app/pyproject.toml
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
     
     command: python -m pytest --cov=src --cov-report=term-missing --cov-report=html
     
     profiles:
       - test
 
+  # PostgreSQL service for analytics (local development)
+  analytics-db:
+    image: postgres:16-alpine
+    container_name: mpt-mcp-analytics-db
+    environment:
+      POSTGRES_DB: mcp_analytics
+      POSTGRES_USER: mcp_user
+      POSTGRES_PASSWORD: mcp_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - analytics-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp_user -d mcp_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+  
+  # Alembic migration service
+  migrate:
+    build: .
+    container_name: mpt-mcp-migrate
+    environment:
+      ANALYTICS_DATABASE_URL: postgresql://mcp_user:mcp_password@analytics-db:5432/mcp_analytics
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - ./alembic:/app/alembic
+      - ./alembic.ini:/app/alembic.ini
+      - ./src:/app/src
+    command: alembic upgrade head
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+    profiles:
+      - analytics
+
 volumes:
   cache-prod:
+  analytics-data:
 
