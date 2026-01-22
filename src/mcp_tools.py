@@ -124,6 +124,34 @@ async def execute_marketplace_query(
                 "hint": hint,
             }
 
+        # Auto-detect audit field usage in RQL and ensure audit is selected
+        # The API requires select=audit when filtering/sorting by audit fields
+        audit_fields_pattern = re.compile(r"audit\.(created|updated|completed|processing|quoted)\.(at|by)")
+        uses_audit_fields = bool(rql and audit_fields_pattern.search(rql))
+        uses_audit_in_order = bool(order and "audit" in order.lower())
+
+        # Store original select value for potential retry
+        original_select = select
+        auto_added_audit = False
+
+        # Check if audit is already in select
+        has_audit_in_select = False
+        if select:
+            # Parse select string (e.g., "+id,+name,audit" or "+audit.created.at")
+            select_parts = [s.strip() for s in select.split(",")]
+            has_audit_in_select = any(part == "audit" or part == "+audit" or part.startswith("audit.") or part.startswith("+audit.") for part in select_parts)
+
+        # Auto-add audit to select if needed
+        if (uses_audit_fields or uses_audit_in_order) and not has_audit_in_select:
+            auto_added_audit = True
+            if select:
+                # Append audit to existing select
+                select = f"{select},audit"
+            else:
+                # Create new select with audit
+                select = "audit"
+            log("   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)")
+
         # Build query parameters
         params = {}
         if rql:
@@ -173,6 +201,7 @@ async def execute_marketplace_query(
 
             error_response = {"error": str(e), "resource": resource, "path": api_path}
             response_code = None
+            should_retry_without_audit = False
 
             # If it's an HTTP error, try to include response body
             if isinstance(e, httpx.HTTPStatusError):
@@ -183,9 +212,77 @@ async def execute_marketplace_query(
                     # Try to parse error response body
                     error_body = e.response.json()
                     error_response["api_error_details"] = error_body
+
+                    # If we auto-added audit and got a 400, retry without it
+                    if response_code == 400 and auto_added_audit:
+                        log("   🔄 400 error after auto-adding 'audit' - retrying without it...")
+                        should_retry_without_audit = True
+                    # Check for audit field filtering errors and provide helpful hint
+                    elif response_code == 400 and error_body.get("errors"):
+                        errors = error_body.get("errors", {})
+                        # Check if any error mentions "Unknown expression group" for audit fields
+                        for field, error_list in errors.items():
+                            if isinstance(error_list, list) and any("Unknown expression group" in str(err) for err in error_list):
+                                if "audit" in field.lower() or any("audit" in str(err).lower() for err in error_list):
+                                    error_response["hint"] = (
+                                        "When filtering or sorting by audit fields (e.g., audit.created.at), "
+                                        "you must include 'audit' in the select parameter. "
+                                        "Example: select='audit' or select='+id,+name,audit'"
+                                    )
+                                    break
                 except Exception:
                     # If not JSON, include raw text
                     error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
+                    # If we auto-added audit and got a 400, still try retry
+                    if response_code == 400 and auto_added_audit:
+                        log("   🔄 400 error after auto-adding 'audit' - retrying without it...")
+                        should_retry_without_audit = True
+
+            # Retry without auto-added audit if we got a 400
+            if should_retry_without_audit:
+                log(f"   🔄 Retrying query without auto-added 'audit' (using original select: {original_select or 'None'})")
+                retry_params = {}
+                if rql:
+                    retry_params["rql"] = rql
+                if limit is not None:
+                    retry_params["limit"] = limit
+                if offset is not None:
+                    retry_params["offset"] = offset
+                if page is not None:
+                    retry_params["page"] = page
+                if original_select:
+                    retry_params["select"] = original_select
+                if order:
+                    retry_params["order"] = order
+
+                try:
+                    result = await api_client.get(api_path, params=retry_params)
+                    result_count = None
+                    if "$meta" in result:
+                        result_count = result["$meta"].get("pagination", {}).get("total")
+                        log(f"   ✅ Retry successful: {result_count or '?'} total items")
+
+                    # Log successful API query after retry
+                    if analytics_logger and config and config.analytics_enabled:
+                        await analytics_logger.log_api_query(
+                            api_resource=resource,
+                            api_path=api_path,
+                            api_method="GET",
+                            api_status_code=200,
+                            api_response_time_ms=int((time.time() - start_time) * 1000),
+                            result_count=result_count,
+                            rql_filter=rql,
+                            limit_value=limit,
+                            offset_value=offset,
+                            order_by=order,
+                            select_fields=original_select,
+                            tool_name="marketplace_query",
+                        )
+
+                    return result
+                except Exception as retry_e:
+                    log(f"   ❌ Retry also failed: {retry_e}")
+                    # Fall through to return original error
 
             # Log failed API query
             if analytics_logger and config and config.analytics_enabled:
