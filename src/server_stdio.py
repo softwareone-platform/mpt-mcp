@@ -159,8 +159,8 @@ async def marketplace_query(
         limit: Maximum number of items to return (e.g., 10, 50, 100)
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (e.g., +name,+description or -metadata)
-        order: Sort order (e.g., -created for descending, +name for ascending)
+        select: Fields to include/exclude (e.g., +name,+description or -metadata). IMPORTANT: When filtering or sorting by audit fields (e.g., audit.created.at), you must include 'audit' in select. The server will auto-add this if detected.
+        order: Sort order (e.g., -created for descending, +name for ascending). When using audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id
                      {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines
