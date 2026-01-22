@@ -2,7 +2,8 @@
 Pydantic models for type safety and validation
 """
 
-from typing import Any, Optional
+from typing import Any
+
 from pydantic import BaseModel, Field
 
 
@@ -10,9 +11,9 @@ class APIResponse(BaseModel):
     """Standard API response model"""
 
     success: bool
-    data: Optional[Any] = None
-    error: Optional[str] = None
-    message: Optional[str] = None
+    data: Any | None = None
+    error: str | None = None
+    message: str | None = None
 
 
 class EndpointInfo(BaseModel):
@@ -21,7 +22,7 @@ class EndpointInfo(BaseModel):
     method: str
     path: str
     summary: str
-    description: Optional[str] = None
+    description: str | None = None
     parameters: list[dict[str, Any]] = Field(default_factory=list)
     responses: dict[str, Any] = Field(default_factory=dict)
 
@@ -37,8 +38,8 @@ class ToolResponse(BaseModel):
     """Tool execution response"""
 
     success: bool
-    data: Optional[Any] = None
-    error: Optional[str] = None
+    data: Any | None = None
+    error: str | None = None
 
 
 class CallToolResponse(BaseModel):
@@ -46,4 +47,3 @@ class CallToolResponse(BaseModel):
 
     content: list[dict[str, Any]]
     is_error: bool = False
-

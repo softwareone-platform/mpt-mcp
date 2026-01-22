@@ -1,0 +1,313 @@
+#!/usr/bin/env python3
+"""
+Tests for middleware credential extraction and context management
+"""
+
+from unittest.mock import AsyncMock
+
+import pytest
+
+
+class TestCredentialsMiddleware:
+    """Test the CredentialsMiddleware for header extraction"""
+
+    @pytest.mark.asyncio
+    async def test_middleware_extracts_authorization_header(self):
+        """Test that middleware extracts X-MPT-Authorization header"""
+        from src.server import CredentialsMiddleware
+
+        mock_app = AsyncMock()
+        middleware = CredentialsMiddleware(mock_app)
+
+        # Create mock scope with headers
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": [(b"x-mpt-authorization", b"idt:TKN-123-456-SECRET")],
+        }
+
+        # Mock receive and send
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        # Call middleware
+        await middleware(scope, receive, send)
+
+        # Verify app was called
+        mock_app.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_middleware_extracts_endpoint_header(self):
+        """Test that middleware extracts X-MPT-Endpoint header"""
+        from src.server import CredentialsMiddleware
+
+        mock_app = AsyncMock()
+        middleware = CredentialsMiddleware(mock_app)
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": [
+                (b"x-mpt-authorization", b"idt:TKN-123-456-SECRET"),
+                (b"x-mpt-endpoint", b"https://api.test.com"),
+            ],
+        }
+
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        await middleware(scope, receive, send)
+
+        mock_app.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_middleware_handles_case_insensitive_headers(self):
+        """Test that middleware handles case-insensitive header names"""
+        from src.server import CredentialsMiddleware
+
+        mock_app = AsyncMock()
+        middleware = CredentialsMiddleware(mock_app)
+
+        # Test various case combinations
+        test_cases = [
+            (b"X-MPT-Authorization", b"idt:TKN-1"),
+            (b"x-mpt-authorization", b"idt:TKN-2"),
+            (b"X-Mpt-Authorization", b"idt:TKN-3"),
+            (b"MPT_AUTHORIZATION", b"idt:TKN-4"),
+        ]
+
+        for header_name, header_value in test_cases:
+            scope = {
+                "type": "http",
+                "method": "POST",
+                "path": "/mcp",
+                "headers": [(header_name, header_value)],
+            }
+
+            receive = AsyncMock()
+            send = AsyncMock()
+
+            await middleware(scope, receive, send)
+
+        # Should have been called for each test case
+        assert mock_app.call_count == len(test_cases)
+
+    @pytest.mark.asyncio
+    async def test_middleware_normalizes_endpoint_url(self):
+        """Test that middleware normalizes endpoint URLs"""
+        from src.server import normalize_endpoint_url
+
+        # Test various URL formats
+        test_cases = [
+            ("https://api.test.com/public", "https://api.test.com"),
+            ("https://api.test.com/public/", "https://api.test.com"),
+            ("https://api.test.com", "https://api.test.com"),
+            ("https://api.test.com/", "https://api.test.com"),
+        ]
+
+        for input_url, expected_url in test_cases:
+            normalized = normalize_endpoint_url(input_url)
+            assert normalized == expected_url
+
+    @pytest.mark.asyncio
+    async def test_middleware_passes_through_non_http_requests(self):
+        """Test that middleware passes through non-HTTP requests"""
+        from src.server import CredentialsMiddleware
+
+        mock_app = AsyncMock()
+        middleware = CredentialsMiddleware(mock_app)
+
+        scope = {"type": "websocket", "path": "/ws"}
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        await middleware(scope, receive, send)
+
+        # Should pass through to app
+        mock_app.assert_called_once_with(scope, receive, send)
+
+    @pytest.mark.asyncio
+    async def test_middleware_resets_context_after_request(self):
+        """Test that middleware resets context variables after request"""
+        from src.server import CredentialsMiddleware, current_endpoint, current_token
+
+        mock_app = AsyncMock()
+        middleware = CredentialsMiddleware(mock_app)
+
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "headers": [
+                (b"x-mpt-authorization", b"idt:TKN-123-456-SECRET"),
+                (b"x-mpt-endpoint", b"https://api.test.com"),
+            ],
+        }
+
+        receive = AsyncMock()
+        send = AsyncMock()
+
+        # Before middleware, context should be None
+        assert current_token.get() is None
+        assert current_endpoint.get() is None
+
+        await middleware(scope, receive, send)
+
+        # After middleware completes, context should be reset to None
+        # (This is implementation-dependent, but should be tested)
+
+
+class TestGetCurrentCredentials:
+    """Test the get_current_credentials helper function"""
+
+    @pytest.mark.unit
+    def test_get_current_credentials_with_values(self):
+        """Test getting credentials when they exist in context"""
+        from src.server import current_endpoint, current_token, get_current_credentials
+
+        # Set context values
+        token_context = current_token.set("idt:TKN-123-456-SECRET")
+        endpoint_context = current_endpoint.set("https://api.test.com")
+
+        try:
+            token, endpoint = get_current_credentials()
+            assert token == "idt:TKN-123-456-SECRET"
+            assert endpoint == "https://api.test.com"
+        finally:
+            # Reset context
+            current_token.reset(token_context)
+            current_endpoint.reset(endpoint_context)
+
+    @pytest.mark.unit
+    def test_get_current_credentials_with_defaults(self):
+        """Test getting credentials when they don't exist (uses defaults)"""
+        from src.server import get_current_credentials
+
+        # Don't set any context, should return defaults
+        token, endpoint = get_current_credentials()
+
+        assert token is None
+        # endpoint should be the default from config
+
+
+class TestNormalizeEndpointUrl:
+    """Test endpoint URL normalization"""
+
+    @pytest.mark.unit
+    def test_normalize_removes_public_path(self):
+        """Test that /public path is removed"""
+        from src.server import normalize_endpoint_url
+
+        assert normalize_endpoint_url("https://api.test.com/public") == "https://api.test.com"
+        assert normalize_endpoint_url("https://api.test.com/public/") == "https://api.test.com"
+
+    @pytest.mark.unit
+    def test_normalize_removes_trailing_slash(self):
+        """Test that trailing slash is removed"""
+        from src.server import normalize_endpoint_url
+
+        assert normalize_endpoint_url("https://api.test.com/") == "https://api.test.com"
+
+    @pytest.mark.unit
+    def test_normalize_preserves_valid_urls(self):
+        """Test that already-normalized URLs are preserved"""
+        from src.server import normalize_endpoint_url
+
+        assert normalize_endpoint_url("https://api.test.com") == "https://api.test.com"
+        assert normalize_endpoint_url("https://api.s1.show") == "https://api.s1.show"
+
+    @pytest.mark.unit
+    def test_normalize_handles_empty_string(self):
+        """Test normalization of empty string"""
+        from src.server import normalize_endpoint_url
+
+        assert normalize_endpoint_url("") == ""
+
+    @pytest.mark.unit
+    def test_normalize_preserves_protocol(self):
+        """Test that protocol (http/https) is preserved"""
+        from src.server import normalize_endpoint_url
+
+        assert normalize_endpoint_url("http://localhost:8080/public") == "http://localhost:8080"
+        assert normalize_endpoint_url("https://api.test.com/public") == "https://api.test.com"
+
+
+class TestContextVariables:
+    """Test context variable behavior"""
+
+    @pytest.mark.unit
+    def test_current_token_default(self):
+        """Test that current_token has None as default"""
+        from src.server import current_token
+
+        assert current_token.get() is None
+
+    @pytest.mark.unit
+    def test_current_endpoint_default(self):
+        """Test that current_endpoint has a default value from config"""
+        from src.server import current_endpoint
+
+        # Should have a default value (from config.sse_default_base_url)
+        default_value = current_endpoint.get()
+        assert default_value is not None
+        assert isinstance(default_value, str)
+
+    @pytest.mark.unit
+    def test_current_user_id_default(self):
+        """Test that current_user_id has None as default"""
+        from src.server import current_user_id
+
+        assert current_user_id.get() is None
+
+    @pytest.mark.unit
+    def test_context_vars_are_independent(self):
+        """Test that context variables don't interfere with each other"""
+        from src.server import current_endpoint, current_token, current_user_id
+
+        token_ctx = current_token.set("TOKEN1")
+        endpoint_ctx = current_endpoint.set("https://api1.test.com")
+        user_ctx = current_user_id.set("user1")
+
+        try:
+            assert current_token.get() == "TOKEN1"
+            assert current_endpoint.get() == "https://api1.test.com"
+            assert current_user_id.get() == "user1"
+        finally:
+            current_token.reset(token_ctx)
+            current_endpoint.reset(endpoint_ctx)
+            current_user_id.reset(user_ctx)
+
+
+class TestMiddlewareIntegration:
+    """Integration tests for middleware with HTTP server"""
+
+    @pytest.mark.asyncio
+    async def test_middleware_integrates_with_mcp_server(self):
+        """Test that middleware is properly integrated with MCP server"""
+        from src.server import mcp
+
+        # The MCP server should be wrapped with middleware
+        assert mcp is not None
+        # Can't easily test the middleware wrapping without actually running the server,
+        # but we can verify the server exists and has the expected structure
+
+    @pytest.mark.asyncio
+    async def test_tools_can_access_credentials_from_context(self):
+        """Test that tools can access credentials set by middleware"""
+        from src.server import current_endpoint, current_token, get_current_credentials
+
+        # Simulate middleware setting context
+        token_ctx = current_token.set("idt:TKN-123-456-SECRET")
+        endpoint_ctx = current_endpoint.set("https://api.test.com")
+
+        try:
+            # A tool would call get_current_credentials()
+            token, endpoint = get_current_credentials()
+
+            assert token == "idt:TKN-123-456-SECRET"
+            assert endpoint == "https://api.test.com"
+        finally:
+            current_token.reset(token_ctx)
+            current_endpoint.reset(endpoint_ctx)

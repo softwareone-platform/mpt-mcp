@@ -6,11 +6,11 @@ A Model Context Protocol server for the SoftwareOne Marketplace API
 __version__ = "2.0.0"
 __author__ = "SoftwareOne"
 
-from .server_stdio import mcp
 from .api_client import APIClient
-from .config import config
 from .cache_manager import CacheManager
+from .config import config
 from .openapi_parser import OpenAPIParser
+from .server_stdio import mcp
 
 __all__ = [
     "mcp",
@@ -19,5 +19,3 @@ __all__ = [
     "CacheManager",
     "OpenAPIParser",
 ]
-
-

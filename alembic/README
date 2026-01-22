@@ -1,0 +1,41 @@
+Generic single-database configuration for MCP Analytics.
+
+## Usage
+
+### Create a new migration
+
+```bash
+# Auto-generate migration from model changes
+alembic revision --autogenerate -m "Add new column"
+
+# Create empty migration
+alembic revision -m "Custom migration"
+```
+
+### Apply migrations
+
+```bash
+# Upgrade to latest
+alembic upgrade head
+
+# Upgrade one version
+alembic upgrade +1
+
+# Downgrade one version
+alembic downgrade -1
+
+# Show current version
+alembic current
+
+# Show migration history
+alembic history
+```
+
+### Environment Variables
+
+Set `ANALYTICS_DATABASE_URL` to override the database URL in alembic.ini:
+
+```bash
+export ANALYTICS_DATABASE_URL="postgresql+asyncpg://user:pass@localhost/analytics"
+alembic upgrade head
+```

@@ -1,0 +1,315 @@
+"""
+Token Validator with In-Memory Cache
+
+Validates API tokens against the Marketplace Platform API and caches results
+to avoid repeated validation calls.
+"""
+
+import asyncio
+import hashlib
+import logging
+from datetime import datetime, timedelta
+
+import httpx
+
+logger = logging.getLogger(__name__)
+
+
+def _hash_token(token: str, api_base_url: str) -> str:
+    """
+    Create a secure hash of token + endpoint for cache key.
+
+    This prevents storing full tokens in memory, reducing risk if memory is dumped.
+
+    Args:
+        token: The API token
+        api_base_url: The API endpoint
+
+    Returns:
+        SHA256 hash as hex string
+    """
+    # Combine token and endpoint to ensure uniqueness per endpoint
+    combined = f"{token}|{api_base_url}"
+    return hashlib.sha256(combined.encode()).hexdigest()
+
+
+class TokenValidationCache:
+    """
+    In-memory cache for token validations with TTL
+
+    Caches token validation results to avoid repeated API calls.
+    Cache entries expire after a configurable TTL.
+
+    SECURITY: Uses SHA256 hash of token+endpoint as cache key instead of
+    storing full tokens in memory. This prevents token exposure if memory is dumped.
+    """
+
+    def __init__(self, ttl_minutes: int = 60):
+        """
+        Initialize token validation cache
+
+        Args:
+            ttl_minutes: Time-to-live for cache entries in minutes (default: 60)
+        """
+        self.ttl = timedelta(minutes=ttl_minutes)
+        # Cache format: {hash(token+endpoint): (is_valid, expiry_time, token_info)}
+        # SECURITY: Keys are SHA256 hashes, not raw tokens
+        self._cache: dict[str, tuple[bool, datetime, dict | None]] = {}
+        self._lock = asyncio.Lock()
+        logger.info(f"🔐 Token validation cache initialized (TTL: {ttl_minutes}m, secure hash keys)")
+
+    async def get(self, token: str, api_base_url: str) -> tuple[bool, dict | None] | None:
+        """
+        Get cached validation result for a token
+
+        Args:
+            token: The API token to check
+            api_base_url: The API endpoint
+
+        Returns:
+            Tuple of (is_valid, token_info) if cached and not expired, None otherwise
+        """
+        cache_key = _hash_token(token, api_base_url)
+
+        async with self._lock:
+            if cache_key in self._cache:
+                is_valid, expiry, token_info = self._cache[cache_key]
+
+                # Check if cache entry is still valid
+                if datetime.now() < expiry:
+                    logger.debug(f"✅ Token validation cache hit (expires in {(expiry - datetime.now()).seconds}s)")
+                    return (is_valid, token_info)
+                else:
+                    # Cache expired, remove it
+                    logger.debug("⏰ Token validation cache expired, removing")
+                    del self._cache[cache_key]
+
+            return None
+
+    async def set(self, token: str, api_base_url: str, is_valid: bool, token_info: dict | None = None):
+        """
+        Cache validation result for a token
+
+        Args:
+            token: The API token
+            api_base_url: The API endpoint
+            is_valid: Whether the token is valid
+            token_info: Optional token metadata from API response
+        """
+        cache_key = _hash_token(token, api_base_url)
+
+        async with self._lock:
+            expiry = datetime.now() + self.ttl
+            self._cache[cache_key] = (is_valid, expiry, token_info)
+            logger.debug(f"💾 Cached token validation (valid={is_valid}, expires in {self.ttl.seconds}s)")
+
+    async def invalidate(self, token: str, api_base_url: str):
+        """
+        Invalidate a specific token in the cache
+
+        Args:
+            token: The API token to invalidate
+            api_base_url: The API endpoint
+        """
+        cache_key = _hash_token(token, api_base_url)
+
+        async with self._lock:
+            if cache_key in self._cache:
+                del self._cache[cache_key]
+                logger.debug("🗑️  Invalidated token from cache")
+
+    async def clear(self):
+        """Clear all cached validations"""
+        async with self._lock:
+            self._cache.clear()
+            logger.info("🗑️  Cleared all token validation cache")
+
+    def get_stats(self) -> dict:
+        """Get cache statistics"""
+        now = datetime.now()
+        valid_count = sum(1 for _, expiry, _ in self._cache.values() if expiry > now)
+        expired_count = len(self._cache) - valid_count
+
+        return {
+            "total_entries": len(self._cache),
+            "valid_entries": valid_count,
+            "expired_entries": expired_count,
+            "ttl_minutes": self.ttl.total_seconds() / 60,
+        }
+
+
+# Global token validation cache
+_token_cache: TokenValidationCache | None = None
+
+
+def get_token_cache(ttl_minutes: int = 60) -> TokenValidationCache:
+    """Get or create the global token validation cache"""
+    global _token_cache
+
+    if _token_cache is None:
+        _token_cache = TokenValidationCache(ttl_minutes=ttl_minutes)
+
+    return _token_cache
+
+
+def parse_token_id(token: str) -> str | None:
+    """
+    Parse token ID from a token string
+
+    Expected format: idt:TKN-XXXX-XXXX:secret_part
+
+    Args:
+        token: The full token string
+
+    Returns:
+        Token ID (e.g., "TKN-1234-5678") or None if invalid format
+    """
+    try:
+        # Token format: idt:TKN-XXXX-XXXX:secret
+        parts = token.split(":")
+        if len(parts) >= 2 and parts[1].startswith("TKN-"):
+            return parts[1]
+        return None
+    except Exception as e:
+        logger.warning(f"Failed to parse token ID: {e}")
+        return None
+
+
+async def validate_token(token: str, api_base_url: str, use_cache: bool = True) -> tuple[bool, dict | None, str | None]:
+    """
+    Validate an API token against the Marketplace Platform
+
+    Calls GET /public/v1/accounts/api-tokens/{token_id}
+    to verify the token is valid and active.
+
+    Args:
+        token: The API token to validate
+        api_base_url: The API endpoint base URL (e.g., "https://api.platform.softwareone.com")
+        use_cache: Whether to use cached validation results (default: True)
+
+    Returns:
+        Tuple of (is_valid, token_info, error_message)
+        - is_valid: True if token is valid
+        - token_info: Token metadata from API (if valid)
+        - error_message: Error description (if invalid)
+    """
+    cache = get_token_cache()
+
+    # Check cache first
+    if use_cache:
+        cached_result = await cache.get(token, api_base_url)
+        if cached_result is not None:
+            is_valid, token_info = cached_result
+
+            # Log with account info if available
+            if is_valid and token_info:
+                account_name = token_info.get("account", {}).get("name", "Unknown")
+                account_id = token_info.get("account", {}).get("id", "Unknown")
+                logger.info(f"🔐 Token validation (CACHED): ✅ Valid - {account_name} ({account_id})")
+            else:
+                logger.info("🔐 Token validation (CACHED): ❌ Invalid")
+
+            return (is_valid, token_info, None if is_valid else "Token invalid (cached)")
+
+    # Parse token ID
+    token_id = parse_token_id(token)
+    if not token_id:
+        error = "Invalid token format. Expected: idt:TKN-XXXX-XXXX:secret"
+        logger.warning(f"❌ {error}")
+        return (False, None, error)
+
+    # Validate against API
+    validation_url = f"{api_base_url.rstrip('/')}/public/v1/accounts/api-tokens/{token_id}"
+
+    try:
+        logger.info(f"🔐 Validating token {token_id} against {api_base_url} (API call)...")
+
+        async with httpx.AsyncClient(follow_redirects=True) as client:
+            response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, timeout=10.0)
+
+            if response.status_code == 200:
+                token_info = response.json()
+
+                # Extract account information for logging
+                account_id = token_info.get("account", {}).get("id", "Unknown")
+                account_name = token_info.get("account", {}).get("name", "Unknown")
+                token_name = token_info.get("name", "Unnamed Token")
+                account_type = token_info.get("account", {}).get("type", "Unknown")
+                token_status = token_info.get("status", "Unknown")
+
+                # Check if token is active
+                if token_status != "Active":
+                    error = f"Token exists but is not active (status: {token_status})"
+                    logger.warning(f"❌ Token {token_id}: {error}")
+
+                    # Cache inactive token as invalid
+                    await cache.set(token, api_base_url, False, token_info)
+
+                    return (False, token_info, error)
+
+                logger.info(
+                    f"✅ Token {token_id} validated successfully\n   Token Name: {token_name}\n   Account: {account_name} ({account_id})\n   Type: {account_type}\n   Status: {token_status}"
+                )
+
+                # Cache successful validation
+                await cache.set(token, api_base_url, True, token_info)
+
+                return (True, token_info, None)
+
+            elif response.status_code == 401:
+                error = "Token authentication failed (401 Unauthorized)"
+                logger.warning(f"❌ {error}")
+
+                # Cache failed validation (but with shorter TTL)
+                await cache.set(token, api_base_url, False, None)
+
+                return (False, None, error)
+
+            elif response.status_code == 404:
+                error = f"Token {token_id} not found (404)"
+                logger.warning(f"❌ {error}")
+
+                # Cache failed validation
+                await cache.set(token, api_base_url, False, None)
+
+                return (False, None, error)
+
+            else:
+                error = f"Token validation failed with status {response.status_code}"
+                logger.warning(f"❌ {error}")
+
+                # Don't cache unexpected errors (might be transient)
+                return (False, None, error)
+
+    except httpx.TimeoutException:
+        error = "Token validation timed out"
+        logger.error(f"❌ {error}")
+        # Don't cache timeouts (transient issue)
+        return (False, None, error)
+
+    except httpx.HTTPError as e:
+        error = f"Token validation failed: {str(e)}"
+        logger.error(f"❌ {error}")
+        # Don't cache HTTP errors (might be transient)
+        return (False, None, error)
+
+    except Exception as e:
+        error = f"Unexpected error during token validation: {str(e)}"
+        logger.error(f"❌ {error}")
+        # Don't cache unexpected errors
+        return (False, None, error)
+
+
+async def validate_token_for_resources(token: str, api_base_url: str) -> tuple[bool, str | None]:
+    """
+    Validate token for resource access (simplified interface)
+
+    Args:
+        token: The API token
+        api_base_url: The API endpoint base URL
+
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    is_valid, token_info, error = await validate_token(token, api_base_url)
+    return (is_valid, error)

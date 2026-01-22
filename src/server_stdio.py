@@ -6,19 +6,23 @@ This version uses standard I/O for local Cursor integration.
 Uses a streamlined tool approach with discriminator pattern.
 """
 
-import asyncio
 import json
 import sys
 from typing import Any
 
-import httpx
 from mcp.server.fastmcp import FastMCP
 
 from .api_client import APIClient
 from .cache_manager import CacheManager, fetch_with_cache
 from .config import config
+from .mcp_tools import (
+    execute_marketplace_query,
+    execute_marketplace_quick_queries,
+    execute_marketplace_resource_info,
+    execute_marketplace_resource_schema,
+    execute_marketplace_resources,
+)
 from .openapi_parser import OpenAPIParser
-from .query_templates import get_query_templates
 
 # Initialize FastMCP server
 mcp = FastMCP("softwareone-marketplace")
@@ -34,20 +38,24 @@ _initialized: bool = False
 async def initialize_server(force_refresh: bool = False):
     """
     Initialize the server with API client and discover endpoints
-    
+
     Args:
         force_refresh: Force refresh cache even if valid cache exists
     """
     global api_client, endpoints_registry, openapi_spec, cache_manager, _initialized
-    
+
     # Skip if already initialized (unless force refresh)
     if _initialized and not force_refresh:
         return
-    
+
     # Use stderr for all logging
     import sys
+
     def log(message):
         print(message, file=sys.stderr, flush=True)
+
+    # STDIO is for local development - don't use analytics
+    log("📊 Analytics disabled (STDIO mode is for local development)")
 
     # Validate configuration
     errors = config.validate()
@@ -57,11 +65,7 @@ async def initialize_server(force_refresh: bool = False):
             log(f"  - {error}")
         raise ValueError("Invalid configuration")
 
-    api_client = APIClient(
-        base_url=config.marketplace_api_base_url,
-        token=config.marketplace_api_token,
-        timeout=config.request_timeout
-    )
+    api_client = APIClient(base_url=config.marketplace_api_base_url, token=config.marketplace_api_token, timeout=config.request_timeout)
 
     # Initialize cache manager (24 hour TTL)
     cache_manager = CacheManager(cache_dir=".cache", ttl_hours=24)
@@ -71,39 +75,34 @@ async def initialize_server(force_refresh: bool = False):
     try:
         # Fetch OpenAPI spec (with caching)
         log(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
-        
+
         # Try to fetch with cache
-        spec = await fetch_with_cache(
-            url=config.openapi_spec_url,
-            cache_manager=cache_manager,
-            force_refresh=force_refresh,
-            timeout=10.0
-        )
+        spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh, timeout=10.0)
 
         # Parse OpenAPI spec and extract GET endpoints
         tools = await openapi_parser.extract_get_endpoints(spec)
-        
+
         # Store the full OpenAPI spec for schema lookups
         openapi_spec = spec
-        
+
         # Store endpoint information in memory registry
         for tool in tools:
             tool_info = json.loads(tool.description)
             path = tool_info.get("path", "")
-            
+
             # Create a resource identifier from the path
             # Example: /public/v1/catalog/products -> catalog.products
             resource_id = _path_to_resource_id(path)
-            
+
             endpoints_registry[resource_id] = {
                 "path": path,
                 "summary": tool_info.get("summary", ""),
                 "parameters": tool_info.get("parameters", []),
             }
-        
+
         log(f"✓ Discovered {len(endpoints_registry)} GET endpoints")
         log(f"✓ Stored in memory registry with {len(endpoints_registry)} resource IDs")
-        
+
         _initialized = True
 
     except Exception as e:
@@ -115,7 +114,7 @@ async def initialize_server(force_refresh: bool = False):
 def _path_to_resource_id(path: str) -> str:
     """
     Convert an API path to a resource identifier
-    
+
     Examples:
         /public/v1/catalog/products -> catalog.products
         /public/v1/catalog/items/{id} -> catalog.items.by_id
@@ -123,13 +122,13 @@ def _path_to_resource_id(path: str) -> str:
     """
     # Remove /public/v1/ prefix
     path = path.replace("/public/v1/", "")
-    
+
     # Replace path parameters with descriptive names
     path = path.replace("/{id}", ".by_id")
-    
+
     # Replace slashes with dots
     resource_id = path.replace("/", ".")
-    
+
     return resource_id
 
 
@@ -147,13 +146,13 @@ async def marketplace_query(
     page: int | None = None,
     select: str | None = None,
     order: str | None = None,
-    path_params: dict[str, str] | None = None
+    path_params: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
-    
+
     Supports both simple queries and advanced RQL filtering, sorting, and pagination. See documentation at https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
-    
+
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
         rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
@@ -162,15 +161,26 @@ async def marketplace_query(
         page: Page number (alternative to offset)
         select: Fields to include/exclude (e.g., +name,+description or -metadata)
         order: Sort order (e.g., -created for descending, +name for ascending)
-        path_params: Path parameters for resources requiring IDs (e.g., {id: PRD-1234-5678} for catalog.products.by_id, {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines)
-    
+        path_params: Path parameters for resources requiring IDs
+            Examples: {id: PRD-1234-5678} for catalog.products.by_id
+                     {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines
+
     Returns:
         API response with data and pagination information
-    
-    Available Resource Categories: Catalog (catalog.products, catalog.items, catalog.listings, catalog.authorizations), Commerce (commerce.orders, commerce.requests, commerce.agreements, commerce.subscriptions), Billing (billing.invoices, billing.statements, billing.journals, billing.ledgers), Accounts (accounts.accounts, accounts.buyers, accounts.sellers, accounts.users)
-    
-    RQL Query Examples: Simple pagination (limit=10, offset=0), Filter by status (rql=eq(status,Active), limit=20), Search by name (rql=ilike(name,*Microsoft*), limit=50), Complex filter (rql=and(eq(status,Active),gt(price,100)), order=-created), Sort results (order=-created or order=+name)
-    
+
+    Available Resource Categories:
+    - Catalog: catalog.products, catalog.items, catalog.listings, catalog.authorizations
+    - Commerce: commerce.orders, commerce.requests, commerce.agreements, commerce.subscriptions
+    - Billing: billing.invoices, billing.statements, billing.journals, billing.ledgers
+    - Accounts: accounts.accounts, accounts.buyers, accounts.sellers, accounts.users
+
+    RQL Query Examples:
+    - Pagination: limit=10, offset=0
+    - Filter: rql=eq(status,Active), limit=20
+    - Search: rql=ilike(name,*Microsoft*), limit=50
+    - Complex: rql=and(eq(status,Active),gt(price,100)), order=-created
+    - Sort: order=-created or order=+name
+
     Use marketplace_resources() to see all available resources.
     """
     # Ensure server is initialized
@@ -178,180 +188,83 @@ async def marketplace_query(
         await initialize_server()
     if not api_client:
         return {"error": "Server not initialized"}
-    
-    # Check if resource exists
-    if resource not in endpoints_registry:
-        available = _build_resource_enum()
-        return {
-            "error": f"Unknown resource: {resource}",
-            "available_resources": available[:20],  # Show first 20
-            "total_available": len(available)
-        }
-    
-    endpoint_info = endpoints_registry[resource]
-    path = endpoint_info["path"]
-    
-    # Replace path parameters (e.g., {id}, {productId}, etc.)
-    import re
-    if path_params:
-        for param_name, param_value in path_params.items():
-            # Replace {param_name} in the path
-            path = path.replace(f"{{{param_name}}}", str(param_value))
-    
-    # Check if there are still unresolved path parameters
-    remaining_params = re.findall(r'\{(\w+)\}', path)
-    if remaining_params:
-        # Create example path_params dict with realistic examples
-        example_values = {
-            "id": "PRD-1234-5678",
-            "productId": "PRD-1234-5678",
-            "orderId": "ORD-1234-5678-9012",
-            "agreementId": "AGR-1234-5678-9012",
-            "subscriptionId": "SUB-1234-5678-9012",
-            "accountId": "ACC-1234-5678",
-            "userId": "USR-1234-5678",
-            "lineId": "LIN-1234-5678",
-            "assetId": "AST-1234-5678"
-        }
-        
-        example_dict = {p: example_values.get(p, f"<{p}_value>") for p in remaining_params}
-        
-        # Build hint string
-        hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
-        hint = f"You must provide path_params dictionary. For example: path_params={{{', '.join(hint_parts)}}}"
-        
-        return {
-            "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
-            "resource": resource,
-            "path_template": endpoint_info["path"],
-            "example": f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
-            "hint": hint
-        }
-    
-    # Build query parameters
-    params = {}
-    
-    # Add RQL if provided
-    if rql:
-        params["rql"] = rql
-    
-    # Add pagination parameters
-    if limit is not None:
-        params["limit"] = limit
-    if offset is not None:
-        params["offset"] = offset
-    if page is not None:
-        params["page"] = page
-    
-    # Add select parameter
-    if select is not None:
-        params["select"] = select
-    
-    # Add order parameter
-    if order is not None:
-        params["order"] = order
-    
-    try:
-        result = await api_client.get(path, params=params)
-        return result
-    except Exception as e:
-        # Preserve API error details for debugging
-        error_response = {
-            "error": str(e),
-            "resource": resource,
-            "path": path
-        }
-        
-        # If it's an HTTP error, try to include response body
-        import httpx
-        if isinstance(e, httpx.HTTPStatusError):
-            error_response["status_code"] = e.response.status_code
-            error_response["request_url"] = str(e.request.url)
-            try:
-                # Try to parse error response body
-                error_body = e.response.json()
-                error_response["api_error_details"] = error_body
-            except:
-                # If not JSON, include raw text
-                error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
-        
-        return error_response
+
+    # Use shared implementation
+    return await execute_marketplace_query(
+        resource=resource,
+        rql=rql,
+        limit=limit,
+        offset=offset,
+        page=page,
+        select=select,
+        order=order,
+        path_params=path_params,
+        api_client=api_client,
+        endpoints_registry=endpoints_registry,
+        log_fn=None,  # STDIO doesn't have contextual logging
+        analytics_logger=None,  # STDIO mode - no analytics
+        config=config,
+    )
 
 
 @mcp.tool()
 async def marketplace_quick_queries() -> dict[str, Any]:
     """
     Get pre-built query templates for common use cases.
-    
+
     Returns ready-to-use query examples organized by category. These templates
     help you quickly perform common tasks without learning RQL syntax.
-    
+
     Returns:
         Dictionary of query templates organized by category
-    
+
     Example: marketplace_quick_queries() shows templates for finding recent
     orders, active products, specific vendors, etc.
     """
-    return get_query_templates()
+    return execute_marketplace_quick_queries()
 
 
 @mcp.tool()
 async def marketplace_resources() -> dict[str, Any]:
     """
     List all available marketplace resources that can be queried.
-    
+
     Returns a categorized list of all available API endpoints.
     """
     # Ensure server is initialized
     if not _initialized:
         await initialize_server()
-    
+
     if not endpoints_registry:
         return {"error": "Server not initialized or no endpoints available"}
-    
-    # Group resources by category
-    categories: dict[str, list[dict[str, str]]] = {}
-    
-    for resource_id, endpoint_info in sorted(endpoints_registry.items()):
-        # Extract category from resource_id (first part before dot)
-        parts = resource_id.split(".")
-        category = parts[0] if parts else "other"
-        
-        if category not in categories:
-            categories[category] = []
-        
-        categories[category].append({
-            "resource": resource_id,
-            "summary": endpoint_info["summary"],
-            "path": endpoint_info["path"]
-        })
-    
-    return {
-        "total_resources": len(endpoints_registry),
-        "categories": categories,
-        "usage": "Use marketplace_query(resource='category.resource', ...) to query any resource"
-    }
+
+    # Use shared implementation
+    return await execute_marketplace_resources(
+        api_base_url=config.marketplace_api_base_url,
+        user_id=None,  # STDIO is single-user
+        endpoints_registry=endpoints_registry,
+    )
 
 
 @mcp.tool()
 async def marketplace_cache_info() -> dict[str, Any]:
     """
     Get information about the OpenAPI spec cache.
-    
+
     Shows cache statistics, expiration time, and allows cache management.
-    
+
     Returns:
         Cache statistics and information
     """
     if not cache_manager:
         return {"error": "Cache manager not initialized"}
-    
+
     cache_info = cache_manager.get_cache_info()
-    
+
     return {
         "cache_status": "enabled",
         "cache_info": cache_info,
-        "note": "Cache reduces startup time and allows offline operation. Cache is automatically refreshed every 24 hours."
+        "note": "Cache reduces startup time and allows offline operation. Cache is automatically refreshed every 24 hours.",
     }
 
 
@@ -359,11 +272,11 @@ async def marketplace_cache_info() -> dict[str, Any]:
 async def marketplace_refresh_cache() -> dict[str, Any]:
     """
     Force refresh the OpenAPI spec cache.
-    
+
     ⚠️  DEVELOPMENT ONLY - Not available in production for security reasons.
-    
+
     Use this to manually update the endpoint registry if you know the API has changed.
-    
+
     Returns:
         Status message indicating cache refresh result
     """
@@ -372,356 +285,108 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
         return {
             "error": "Access denied",
             "message": "Cache refresh is only available in development mode (DEBUG=true).",
-            "hint": "This tool is disabled in production for security reasons."
+            "hint": "This tool is disabled in production for security reasons.",
         }
-    
+
     if not cache_manager:
         return {"error": "Cache manager not initialized"}
-    
+
     try:
         print("🔄 Force refreshing OpenAPI spec cache...")
-        
+
         # Invalidate current cache
         cache_manager.invalidate(config.openapi_spec_url)
-        
+
         # Re-initialize server (will fetch fresh data)
         await initialize_server(force_refresh=True)
-        
+
         return {
             "success": True,
             "message": f"Cache refreshed successfully. Loaded {len(endpoints_registry)} endpoints.",
-            "endpoints_count": len(endpoints_registry)
+            "endpoints_count": len(endpoints_registry),
         }
     except Exception as e:
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Failed to refresh cache. Check network connection."
-        }
+        return {"success": False, "error": str(e), "message": "Failed to refresh cache. Check network connection."}
 
 
 @mcp.tool()
 async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     """
     Get detailed information about a specific marketplace resource.
-    
+
     Args:
         resource: The resource identifier (e.g., catalog.products)
-    
+
     Returns:
         Detailed information about the resource including available parameters
     """
     # Ensure server is initialized
     if not _initialized:
         await initialize_server()
-    
-    if resource not in endpoints_registry:
-        # Find similar resources to suggest
-        similar_resources = []
-        resource_lower = resource.lower()
-        for r in endpoints_registry.keys():
-            if resource_lower in r.lower() or r.lower() in resource_lower:
-                similar_resources.append(r)
-        
-        error_response = {
-            "error": f"Unknown resource: '{resource}'",
-            "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list(set(r.split('.')[0] for r in endpoints_registry.keys()))
-        }
-        
-        if similar_resources[:5]:  # Show up to 5 suggestions
-            error_response["did_you_mean"] = similar_resources[:5]
-        
-        return error_response
-    
-    endpoint_info = endpoints_registry[resource]
-    
-    # Extract enum values from parameters
-    enum_fields = {}
-    path_params_info = {}
-    
-    for param in endpoint_info.get("parameters", []):
-        param_name = param.get("name")
-        param_in = param.get("in")
-        param_schema = param.get("schema", {})
-        
-        # Track path parameters
-        if param_in == "path":
-            path_params_info[param_name] = {
-                "type": param_schema.get("type", "string"),
-                "description": param.get("description", f"Path parameter: {param_name}"),
-                "required": param.get("required", True)
-            }
-        
-        # Extract enum values for query parameters
-        if "enum" in param_schema and param_in == "query":
-            enum_fields[param_name] = param_schema["enum"]
-    
-    # Find related resources (children and siblings)
-    related_resources = {
-        "children": [],
-        "parent": None,
-        "siblings": []
-    }
-    
-    resource_path = endpoint_info["path"]
-    for other_resource, other_info in endpoints_registry.items():
-        if other_resource == resource:
-            continue
-        
-        other_path = other_info["path"]
-        
-        # Child resources: start with current path and go deeper
-        if other_path.startswith(resource_path + "/") and other_resource.startswith(resource + "."):
-            related_resources["children"].append({
-                "resource": other_resource,
-                "summary": other_info["summary"]
-            })
-        
-        # Parent resource: current path extends parent
-        if resource_path.startswith(other_path + "/") and resource.startswith(other_resource + "."):
-            # Only set if this is the immediate parent (not grandparent)
-            if not related_resources["parent"] or len(other_path) > len(related_resources["parent"]["path"]):
-                related_resources["parent"] = {
-                    "resource": other_resource,
-                    "summary": other_info["summary"],
-                    "path": other_path
-                }
-        
-        # Sibling resources: same parent category
-        resource_parts = resource.split('.')
-        other_parts = other_resource.split('.')
-        if len(resource_parts) >= 2 and len(other_parts) >= 2:
-            if resource_parts[0] == other_parts[0] and resource_parts[1] == other_parts[1]:
-                # Same subcategory, not self
-                if len(resource_parts) == len(other_parts) and other_resource != resource:
-                    related_resources["siblings"].append({
-                        "resource": other_resource,
-                        "summary": other_info["summary"]
-                    })
-    
-    # Limit siblings to top 5 most relevant
-    if len(related_resources["siblings"]) > 5:
-        related_resources["siblings"] = related_resources["siblings"][:5]
-    
-    # Limit children to top 10 most common
-    if len(related_resources["children"]) > 10:
-        related_resources["children"] = related_resources["children"][:10]
-    
-    # Build query examples
-    examples = [f"marketplace_query(resource='{resource}', limit=10)"]
-    
-    # Add example with enum filter if available
-    if enum_fields:
-        first_enum_field = list(enum_fields.keys())[0]
-        first_enum_value = enum_fields[first_enum_field][0]
-        examples.append(f"marketplace_query(resource='{resource}', rql='eq({first_enum_field},{first_enum_value})', limit=10)")
-    
-    # Add example with path params if needed
-    if path_params_info:
-        example_params = {k: f"<{k}_value>" for k in path_params_info.keys()}
-        examples.append(f"marketplace_query(resource='{resource}', path_params={example_params}, select='+id,+name')")
-    
-    result = {
-        "resource": resource,
-        "path": endpoint_info["path"],
-        "summary": endpoint_info["summary"],
-        "parameters": endpoint_info["parameters"],
-        "common_parameters": {
-            "rql": "RQL query string for filtering and sorting",
-            "limit": "Maximum number of items to return",
-            "offset": "Number of items to skip",
-            "page": "Page number",
-            "select": "Fields to include/exclude",
-            "order": "Sort order (e.g., -created for descending, +name for ascending)",
-            "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})"
-        },
-        "example_queries": examples
-    }
-    
-    # Add enum fields if any found
-    if enum_fields:
-        result["enum_fields"] = enum_fields
-        result["filtering_tips"] = f"Filter by {', '.join(enum_fields.keys())} using RQL: eq({list(enum_fields.keys())[0]},<value>)"
-    
-    # Add path parameters info if any found
-    if path_params_info:
-        result["path_parameters"] = path_params_info
-        param_list = ', '.join([f"{k}=<value>" for k in path_params_info.keys()])
-        result["path_params_required"] = f"This resource requires path parameters: {param_list}"
-    
-    # Add related resources if found
-    if related_resources["parent"] or related_resources["children"] or related_resources["siblings"]:
-        result["related_resources"] = {}
-        if related_resources["parent"]:
-            result["related_resources"]["parent"] = related_resources["parent"]
-        if related_resources["children"]:
-            result["related_resources"]["children"] = related_resources["children"]
-        if related_resources["siblings"]:
-            result["related_resources"]["similar"] = related_resources["siblings"]
-    
-    return result
+
+    # Use shared implementation
+    return await execute_marketplace_resource_info(
+        resource=resource,
+        endpoints_registry=endpoints_registry,
+    )
 
 
 @mcp.tool()
 async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     """
     Get the complete JSON schema for a marketplace resource.
-    
-    This returns the detailed schema including all fields, types, nested structures, and descriptions. Useful for understanding what fields are available for filtering and what the response structure will be.
-    
+
+    Returns detailed information about the resource including available parameters, example queries, filterable fields, and response structure.
+
     Args:
         resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
-    
+
     Returns:
         Complete JSON schema with field types, descriptions, enums, and examples
-    
+
     Example: marketplace_resource_schema(resource=catalog.products) returns full schema showing all product fields like id, name, status, vendor, etc.
     """
     # Ensure server is initialized
     if not _initialized:
         await initialize_server()
-    
+
     # Use the global OpenAPI spec
     if not openapi_spec:
-        return {
-            "error": "OpenAPI spec not loaded",
-            "hint": "Server initialization may have failed"
-        }
-    
-    if resource not in endpoints_registry:
-        return {
-            "error": f"Unknown resource: {resource}",
-            "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list(set(r.split('.')[0] for r in endpoints_registry.keys()))
-        }
-    
-    endpoint_info = endpoints_registry[resource]
-    path = endpoint_info["path"]
-    
-    # Find the endpoint in the OpenAPI spec
-    paths = openapi_spec.get("paths", {})
-    if path not in paths:
-        return {
-            "error": f"Path {path} not found in OpenAPI spec",
-            "resource": resource
-        }
-    
-    path_item = paths[path]
-    if "get" not in path_item:
-        return {
-            "error": f"GET operation not found for {path}",
-            "resource": resource
-        }
-    
-    get_op = path_item["get"]
-    
-    # Extract response schema
-    responses = get_op.get("responses", {})
-    schema_info = {
-        "resource": resource,
-        "path": path,
-        "summary": get_op.get("summary", ""),
-        "description": get_op.get("description", ""),
-    }
-    
-    if "200" in responses:
-        response_200 = responses["200"]
-        content = response_200.get("content", {})
-        
-        if "application/json" in content:
-            json_content = content["application/json"]
-            if "schema" in json_content:
-                schema = json_content["schema"]
-                
-                # If schema references components, try to resolve it
-                if "$ref" in schema:
-                    ref_path = schema["$ref"].split("/")
-                    ref_schema = openapi_spec
-                    for part in ref_path:
-                        if part and part != "#":
-                            ref_schema = ref_schema.get(part, {})
-                    schema = ref_schema
-                
-                schema_info["response_schema"] = schema
-                
-                # Extract field information from properties
-                if "properties" in schema:
-                    fields = {}
-                    for field_name, field_schema in schema["properties"].items():
-                        field_info = {
-                            "type": field_schema.get("type", "unknown"),
-                            "description": field_schema.get("description", "")
-                        }
-                        
-                        if "enum" in field_schema:
-                            field_info["enum"] = field_schema["enum"]
-                            field_info["valid_values"] = field_schema["enum"]
-                        
-                        if "example" in field_schema:
-                            field_info["example"] = field_schema["example"]
-                        
-                        if "format" in field_schema:
-                            field_info["format"] = field_schema["format"]
-                        
-                        # For nested objects, show structure
-                        if field_schema.get("type") == "object" and "properties" in field_schema:
-                            nested_fields = {}
-                            for nested_name, nested_schema in list(field_schema["properties"].items())[:5]:
-                                nested_fields[nested_name] = {
-                                    "type": nested_schema.get("type", "unknown"),
-                                    "description": nested_schema.get("description", "")
-                                }
-                            field_info["nested_fields"] = nested_fields
-                        
-                        fields[field_name] = field_info
-                    
-                    schema_info["fields"] = fields
-                    
-                    # Add filtering hints
-                    schema_info["filtering_hints"] = {
-                        "simple_filters": [f"eq({f},value)" for f in list(fields.keys())[:5]],
-                        "search_fields": [f"ilike({f},*keyword*)" for f, info in list(fields.items())[:3] if info.get("type") == "string"],
-                        "enum_filters": [f"eq({f},{info['enum'][0]})" for f, info in fields.items() if "enum" in info][:3]
-                    }
-    
-    # Add common query patterns
-    schema_info["common_queries"] = {
-        "basic": f"{resource}?limit=10",
-        "with_filters": f"{resource}?eq(status,Active)&limit=20",
-        "with_sorting": f"{resource}?order=-id&limit=10",
-        "full_example": f"{resource}?eq(status,Active)&order=-id&select=+id,+name,+status&limit=50"
-    }
-    
-    return schema_info
+        return {"error": "OpenAPI spec not loaded", "hint": "Server initialization may have failed"}
+
+    # Use shared implementation
+    return await execute_marketplace_resource_schema(
+        resource=resource,
+        openapi_spec=openapi_spec,
+        endpoints_registry=endpoints_registry,
+    )
 
 
 if __name__ == "__main__":
     import sys
-    
+
     # Send all logs to stderr (stdout is for JSON-RPC only!)
     def log(message):
         print(message, file=sys.stderr, flush=True)
-    
+
     try:
         log("=" * 60)
         log("🚀 SoftwareOne Marketplace MCP Server (Stdio Mode)")
         log("=" * 60)
         log("\nServer will initialize on first tool call...")
-        log("Available tools: 5 (streamlined interface with caching)")
+        log("Available tools: 7 (streamlined interface with caching)")
         log("\n✓ Starting server on stdio...")
         log("=" * 60 + "\n")
-        
+
         # Start the MCP server (initialization happens on first tool call)
-        # mcp.run() is synchronous and manages its own event loop
         mcp.run()
-        
+
     except KeyboardInterrupt:
         log("\n\nShutting down server...")
         sys.exit(0)
     except Exception as e:
         log(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
-

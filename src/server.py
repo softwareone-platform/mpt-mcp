@@ -17,48 +17,64 @@ This HTTP server is designed for multi-tenant cloud deployments where each
 client provides their own API credentials. No server-side credentials needed!
 """
 
-import sys
-from typing import Any
-from contextvars import ContextVar
+import logging
 import os
+import sys
+from collections import defaultdict
+from contextvars import ContextVar
+from datetime import datetime, timedelta
+from typing import Any
 
 import anyio
 import uvicorn
+from alembic.config import Config as AlembicConfig
+from mcp.server.fastmcp import FastMCP
+from mcp.server.transport_security import TransportSecuritySettings
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
-from mcp.server.fastmcp import FastMCP
-from mcp.server.transport_security import TransportSecuritySettings
+from alembic import command
 
-from .api_client import APIClient
-from .cache_manager import CacheManager, fetch_with_cache
-from .config import config
-from .openapi_parser import OpenAPIParser
-from .query_templates import get_query_templates
+# Suppress noisy MCP library logs
+logging.getLogger("mcp.server.streamable_http").setLevel(logging.WARNING)
+logging.getLogger("mcp.server.lowlevel.server").setLevel(logging.WARNING)
+
 from . import endpoint_registry
+from .analytics import get_analytics_logger, initialize_analytics
+from .api_client import APIClient
+from .config import config
+from .documentation_cache import DocumentationCache
+from .gitbook_client import GitBookClient
+from .mcp_tools import (
+    execute_marketplace_query,
+    execute_marketplace_quick_queries,
+    execute_marketplace_resource_info,
+    execute_marketplace_resource_schema,
+    execute_marketplace_resources,
+)
 
 # ============================================================================
 # Context Variables for request-scoped data (like SSE server)
 # ============================================================================
 
 # Context variables for structured logging and credential passing
-_current_session_id: ContextVar[str | None] = ContextVar('current_session_id', default=None)
-_current_user_id: ContextVar[str | None] = ContextVar('current_user_id', default=None)
-_current_token: ContextVar[str | None] = ContextVar('current_token', default=None)
-_current_endpoint: ContextVar[str | None] = ContextVar('current_endpoint', default=None)
+_current_session_id: ContextVar[str | None] = ContextVar("current_session_id", default=None)
+_current_user_id: ContextVar[str | None] = ContextVar("current_user_id", default=None)
+_current_token: ContextVar[str | None] = ContextVar("current_token", default=None)
+_current_endpoint: ContextVar[str | None] = ContextVar("current_endpoint", default=None)
 
 
 def log(message: str, **kwargs):
     """Contextual logging with session and user info."""
     session_id = _current_session_id.get()
     user_id = _current_user_id.get()
-    
+
     context_parts = []
     if session_id:
         context_parts.append(f"sess:{session_id[:8]}")
     if user_id:
         context_parts.append(f"user:{user_id}")
-    
+
     prefix = f"[{('|'.join(context_parts))}] " if context_parts else ""
     print(f"{prefix}{message}", file=sys.stderr, flush=True, **kwargs)
 
@@ -67,35 +83,68 @@ def log(message: str, **kwargs):
 # Middleware to extract credentials from HTTP headers
 # ============================================================================
 
+# Rate limiter for request logs (avoid spamming logs with subscribe requests)
+_last_log_time: dict[str, datetime] = defaultdict(lambda: datetime.min)
+_log_cooldown = timedelta(seconds=30)  # Only log once per 30 seconds per user
+
+
 class CredentialsMiddleware:
     """
     ASGI middleware that extracts credentials from HTTP headers and stores
     them in ContextVars, making them available to tool functions.
-    
-    This is the same pattern as the SSE server but adapted for streamable-http.
+
+    Also validates tokens for capability discovery operations (list tools/resources)
+    to provide early feedback on invalid credentials.
     """
+
     def __init__(self, app):
         self.app = app
 
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             request = Request(scope, receive)
-            
+
             # Extract credentials from headers (case-insensitive)
-            auth_header = request.headers.get('x-mpt-authorization') or request.headers.get('X-MPT-Authorization')
-            endpoint_header = request.headers.get('x-mpt-endpoint') or request.headers.get('X-MPT-Endpoint')
-            
+            auth_header = request.headers.get("x-mpt-authorization") or request.headers.get("X-MPT-Authorization")
+            endpoint_header = request.headers.get("x-mpt-endpoint") or request.headers.get("X-MPT-Endpoint")
+
             # Extract user ID from token for logging
             user_id = None
             if auth_header:
                 user_id = APIClient._extract_user_id(auth_header)
-            
+
             # Extract session ID from query params or generate one
-            session_id = request.query_params.get('session_id')
-            
+            session_id = request.query_params.get("session_id")
+
+            # Extract client info from User-Agent for analytics
+            user_agent = request.headers.get("user-agent", "")
+            client_info = None
+            if "cursor" in user_agent.lower():
+                client_info = "Cursor"
+            elif "claude" in user_agent.lower():
+                client_info = "Claude Desktop"
+            elif user_agent:
+                client_info = user_agent.split("/")[0][:50]  # First part, max 50 chars
+
+            # Extract client IP address (works with Cloud Run and other proxies)
+            # Cloud Run sets X-Forwarded-For with the real client IP
+            client_ip = None
+            forwarded_for = request.headers.get("x-forwarded-for")
+            if forwarded_for:
+                # X-Forwarded-For can be a comma-separated list: "client, proxy1, proxy2"
+                # Take the first one (original client)
+                client_ip = forwarded_for.split(",")[0].strip()
+            else:
+                # Fallback to X-Real-IP (some proxies use this)
+                client_ip = request.headers.get("x-real-ip")
+                if not client_ip:
+                    # Last resort: use direct client host (may be proxy IP)
+                    if request.client:
+                        client_ip = request.client.host
+
             # Set context variables for this request
             token_ctx = user_ctx = session_ctx = endpoint_ctx = None
-            
+
             if auth_header:
                 token_ctx = _current_token.set(auth_header)
             if endpoint_header:
@@ -104,16 +153,39 @@ class CredentialsMiddleware:
                 user_ctx = _current_user_id.set(user_id)
             if session_id:
                 session_ctx = _current_session_id.set(session_id)
-            
+
+            # Set analytics context
+            analytics = get_analytics_logger()
+            if analytics and config.analytics_enabled:
+                analytics.set_context(
+                    token=auth_header or "",
+                    endpoint=endpoint_header or config.sse_default_base_url,
+                    client_info=client_info,
+                    client_ip=client_ip,
+                )
+
             try:
-                # Log request for debugging
-                if request.url.path == "/mcp":
-                    log(f"🔍 HTTP {request.method} {request.url.path}")
-                    log(f"   Token: {'✓ present' if auth_header else '✗ MISSING'}")
-                    log(f"   Endpoint: {endpoint_header or config.sse_default_base_url}")
-                    if user_id:
-                        log(f"   User: {user_id}")
-                
+                # Log meaningful requests only (skip GET which are just SSE checks)
+                # Use rate limiting to avoid log spam from subscribe requests
+                if request.url.path == "/mcp" and request.method == "POST":
+                    log_key = f"{user_id or 'anonymous'}@{endpoint_header or config.sse_default_base_url}"
+                    now = datetime.now()
+
+                    # Only log if cooldown period has passed
+                    if now - _last_log_time[log_key] >= _log_cooldown:
+                        endpoint_display = endpoint_header or config.sse_default_base_url
+                        # Shorten endpoint URL for cleaner logs
+                        if endpoint_display.startswith("https://"):
+                            endpoint_display = endpoint_display.replace("https://", "").split("/")[0]
+                        token_status = "✓" if auth_header else "✗"
+                        log(f"📨 {user_id or 'anonymous'} @ {endpoint_display} [{token_status}] (active)")
+                        _last_log_time[log_key] = now
+
+                # Note: We validate tokens on first tool call, not during capability discovery
+                # This avoids ASGI body reconstruction issues while still being secure
+                # Invalid tokens will fail when they try to actually use the tools
+
+                # Pass request through to FastMCP app
                 await self.app(scope, receive, send)
             finally:
                 # Reset context variables
@@ -134,17 +206,13 @@ class CredentialsMiddleware:
 # ============================================================================
 
 # Configure transport security for public API server
-transport_security = TransportSecuritySettings(
-    enable_dns_rebinding_protection=False,
-    allowed_hosts=["*"],
-    allowed_origins=["*"]
-)
+transport_security = TransportSecuritySettings(enable_dns_rebinding_protection=False, allowed_hosts=["*"], allowed_origins=["*"])
 
 # Get port from environment (Cloud Run sets PORT)
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"  # Bind to all interfaces for Cloud Run
 
-print(f"✅ Transport security configured for public API", file=sys.stderr, flush=True)
+print("✅ Transport security configured for public API", file=sys.stderr, flush=True)
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
 
 # Initialize FastMCP server with stateless HTTP mode
@@ -158,33 +226,96 @@ mcp = FastMCP(
     stateless_http=True,  # Each request is independent
 )
 
-# Global cache manager
-cache_manager: CacheManager | None = None
-_cache_initialized: bool = False
+# Global documentation cache
+documentation_cache: DocumentationCache | None = None
+_docs_cache_initialized: bool = False
 
 
-async def initialize_cache():
-    """Initialize the shared cache manager"""
-    global cache_manager, _cache_initialized
-    
-    if _cache_initialized:
+async def initialize_documentation_cache():
+    """Initialize the documentation cache from GitBook and register resources"""
+    global documentation_cache, _docs_cache_initialized
+
+    if _docs_cache_initialized:
         return
-    
-    cache_manager = CacheManager(cache_dir=".cache", ttl_hours=24)
-    _cache_initialized = True
-    log(f"✓ Cache manager initialized")
+
+    # Only initialize if GitBook credentials are provided
+    if config.gitbook_api_key and config.gitbook_space_id:
+        try:
+            gitbook_client = GitBookClient(api_key=config.gitbook_api_key, space_id=config.gitbook_space_id, base_url=config.gitbook_api_base_url)
+
+            # Validate credentials
+            if await gitbook_client.validate_credentials():
+                documentation_cache = DocumentationCache(
+                    gitbook_client=gitbook_client,
+                    refresh_interval_hours=config.gitbook_cache_refresh_hours,
+                    public_url=config.gitbook_public_url,
+                )
+
+                # Initial cache load
+                await documentation_cache.refresh()
+
+                # Register all documentation pages as static resources
+                doc_resources = await documentation_cache.list_resources()
+                log(f"📝 Registering {len(doc_resources)} documentation pages as MCP resources...")
+
+                for doc_data in doc_resources:
+                    doc_resource = DocResource(
+                        uri=doc_data["uri"],
+                        name=doc_data["name"],
+                        description=doc_data.get("description", ""),
+                        mime_type=doc_data.get("mimeType", "text/markdown"),
+                    )
+                    mcp._resource_manager.add_resource(doc_resource)
+
+                log(f"✅ Registered {len(doc_resources)} documentation resources")
+                log("✓ Documentation cache initialized")
+            else:
+                log("⚠️  GitBook credentials invalid, documentation cache disabled")
+                documentation_cache = DocumentationCache(gitbook_client=None)
+        except Exception as e:
+            log(f"⚠️  Failed to initialize documentation cache: {e}")
+            documentation_cache = DocumentationCache(gitbook_client=None)
+    else:
+        log("ℹ️  GitBook not configured, documentation cache disabled")
+        documentation_cache = DocumentationCache(gitbook_client=None)
+
+    _docs_cache_initialized = True
+
+
+# Create a simple Resource class for static documentation resources
+from mcp.server.fastmcp.resources import Resource
+
+
+class DocResource(Resource):
+    """Static documentation resource"""
+
+    async def read(self) -> str:
+        """Read the resource content from the documentation cache"""
+        if documentation_cache and documentation_cache.is_enabled:
+            content = await documentation_cache.get_resource(str(self.uri))
+            return content if content else ""
+        return ""
+
+
+# ============================================================================
+# Resource Discovery
+# ============================================================================
+# Note: We use MCP Resources for documentation (static, ~913 pages)
+# API endpoint discovery is handled via marketplace_resources() tool
+# This is simpler and works better with MCP's architecture
+# ============================================================================
 
 
 def normalize_endpoint_url(endpoint: str) -> str:
     """Normalize the API endpoint URL by removing trailing paths like /public"""
     if not endpoint:
         return endpoint
-    
-    endpoint = endpoint.rstrip('/')
-    
-    if endpoint.endswith('/public'):
+
+    endpoint = endpoint.rstrip("/")
+
+    if endpoint.endswith("/public"):
         endpoint = endpoint[:-7]
-    
+
     return endpoint
 
 
@@ -195,22 +326,49 @@ def get_current_credentials() -> tuple[str | None, str]:
     return token, normalize_endpoint_url(endpoint)
 
 
-async def get_client_api_client_http() -> APIClient:
-    """Get an API client using credentials from the current request context."""
+async def get_client_api_client_http(validate_token: bool = True) -> APIClient:
+    """
+    Get an API client using credentials from the current request context.
+
+    Args:
+        validate_token: Whether to validate the token against the API (default: True)
+
+    Returns:
+        APIClient instance
+
+    Raises:
+        ValueError: If credentials are missing or token validation fails
+    """
     token, endpoint = get_current_credentials()
-    
+
     if not token:
-        raise ValueError(
-            "Missing X-MPT-Authorization header. "
-            "Please provide your API token in the X-MPT-Authorization header."
-        )
-    
+        raise ValueError("Missing X-MPT-Authorization header. Please provide your API token in the X-MPT-Authorization header.")
+
+    # Validate token before creating API client
+    if validate_token:
+        from .token_validator import validate_token
+
+        is_valid, token_info, error = await validate_token(token, endpoint)
+
+        if not is_valid:
+            log(f"❌ Token validation failed: {error}")
+            raise ValueError(f"Token validation failed: {error}. Please ensure your API token is valid and active.")
+
+        # Log account information on successful validation
+        if token_info:
+            account_name = token_info.get("account", {}).get("name", "Unknown")
+            account_id = token_info.get("account", {}).get("id", "Unknown")
+            log(f"✅ Token validated for {endpoint} - Account: {account_name} ({account_id})")
+        else:
+            log(f"✅ Token validated for {endpoint}")
+
     return APIClient(base_url=endpoint, token=token)
 
 
 # ============================================================================
 # MCP Tools - Same as SSE server but using ContextVar credentials
 # ============================================================================
+
 
 @mcp.tool()
 async def marketplace_query(
@@ -221,13 +379,13 @@ async def marketplace_query(
     page: int | None = None,
     select: str | None = None,
     order: str | None = None,
-    path_params: dict[str, str] | None = None
+    path_params: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
-    
+
     MULTI-TENANT MODE: This server accepts client credentials via HTTP headers. Pass X-MPT-Authorization with your SoftwareOne API token (required, case-insensitive). Optionally pass X-MPT-Endpoint to specify API endpoint (defaults to api.platform.softwareone.com, case-insensitive).
-    
+
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
         rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
@@ -237,645 +395,752 @@ async def marketplace_query(
         select: Fields to include/exclude (e.g., +name,+description or -metadata)
         order: Sort order (e.g., -created for descending, +name for ascending)
         path_params: Path parameters for resources requiring IDs (e.g., {id: PRD-1234-5678} for catalog.products.by_id, {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines)
-    
+
     Returns:
         API response with data and pagination information
-    
+
     Use marketplace_resources() to see all available resources.
     """
-    await initialize_cache()
-    
     # Get credentials from request context (set by middleware)
     try:
         api_client = await get_client_api_client_http()
     except ValueError as e:
         return {"error": str(e), "hint": "Provide X-MPT-Authorization header with your API token"}
-    
-    # Get endpoints registry for this client's API endpoint (like SSE server does)
+
+    # Get endpoints registry for this client's API endpoint
     api_base_url = api_client.base_url
     log(f"🔍 Using API endpoint: {api_base_url}")
-    
+
     try:
-        endpoints_registry = await endpoint_registry.get_endpoints_registry(api_base_url)
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as e:
         return {
             "error": "Failed to load OpenAPI spec for your endpoint",
             "api_endpoint": api_base_url,
             "details": str(e),
-            "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible"
+            "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
         }
-    
-    if resource not in endpoints_registry:
-        # Find similar resources to suggest
-        similar_resources = []
-        resource_lower = resource.lower()
-        for r in endpoints_registry.keys():
-            if resource_lower in r.lower() or r.lower() in resource_lower:
-                similar_resources.append(r)
-        
-        error_response = {
-            "error": f"Unknown resource: '{resource}'",
-            "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list(set(r.split('.')[0] for r in endpoints_registry.keys()))
-        }
-        
-        if similar_resources[:5]:  # Show up to 5 suggestions
-            error_response["did_you_mean"] = similar_resources[:5]
-        
-        return error_response
-    
-    endpoint_info = endpoints_registry[resource]
-    api_path = endpoint_info["path"]
-    
-    # Replace path parameters (e.g., {id}, {productId}, etc.)
-    import re
-    if path_params:
-        for param_name, param_value in path_params.items():
-            # Replace {param_name} in the path
-            api_path = api_path.replace(f"{{{param_name}}}", str(param_value))
-    
-    # Check if there are still unresolved path parameters
-    remaining_params = re.findall(r'\{(\w+)\}', api_path)
-    if remaining_params:
-        # Create example path_params dict with realistic examples
-        example_values = {
-            "id": "PRD-1234-5678",
-            "productId": "PRD-1234-5678",
-            "orderId": "ORD-1234-5678-9012",
-            "agreementId": "AGR-1234-5678-9012",
-            "subscriptionId": "SUB-1234-5678-9012",
-            "accountId": "ACC-1234-5678",
-            "userId": "USR-1234-5678",
-            "lineId": "LIN-1234-5678",
-            "assetId": "AST-1234-5678"
-        }
-        
-        example_dict = {p: example_values.get(p, f"<{p}_value>") for p in remaining_params}
-        
-        # Build hint string
-        hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
-        hint = f"You must provide path_params dictionary. For example: path_params={{{', '.join(hint_parts)}}}"
-        
-        return {
-            "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
-            "resource": resource,
-            "path_template": endpoint_info["path"],
-            "example": f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
-            "hint": hint
-        }
-    
-    params = {}
-    if rql:
-        params["rql"] = rql
-    if limit is not None:
-        params["limit"] = limit
-    if offset is not None:
-        params["offset"] = offset
-    if page is not None:
-        params["page"] = page
-    if select:
-        params["select"] = select
-    if order:
-        params["order"] = order
-    
-    log(f"📊 Query: {resource}")
-    log(f"   Path: {api_path}")
-    log(f"   Params: {params}")
-    
-    try:
-        result = await api_client.get(api_path, params=params)
-        if "$meta" in result:
-            log(f"   ✅ Result: {result['$meta'].get('pagination', {}).get('total', '?')} total items")
-        return result
-    except Exception as e:
-        log(f"   ❌ Error: {e}")
-        
-        # Preserve API error details for debugging
-        error_response = {
-            "error": str(e),
-            "resource": resource,
-            "path": api_path
-        }
-        
-        # If it's an HTTP error, try to include response body
-        import httpx
-        if isinstance(e, httpx.HTTPStatusError):
-            error_response["status_code"] = e.response.status_code
-            error_response["request_url"] = str(e.request.url)
-            try:
-                # Try to parse error response body
-                error_body = e.response.json()
-                error_response["api_error_details"] = error_body
-            except:
-                # If not JSON, include raw text
-                error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
-        
-        return error_response
+
+    # Use shared implementation
+    return await execute_marketplace_query(
+        resource=resource,
+        rql=rql,
+        limit=limit,
+        offset=offset,
+        page=page,
+        select=select,
+        order=order,
+        path_params=path_params,
+        api_client=api_client,
+        endpoints_registry=endpoints_registry_data,
+        log_fn=log,
+        analytics_logger=get_analytics_logger(),
+        config=config,
+    )
 
 
 @mcp.tool()
 async def marketplace_quick_queries() -> dict[str, Any]:
     """
     Get pre-built query templates for common use cases.
-    
+
     Returns ready-to-use query examples organized by category. These templates
     help you quickly perform common tasks without learning RQL syntax.
-    
+
     Returns:
         Dictionary of query templates organized by category
-    
+
     Example: marketplace_quick_queries() shows templates for finding recent
     orders, active products, specific vendors, etc.
     """
-    return get_query_templates()
+    return execute_marketplace_quick_queries()
 
 
 @mcp.tool()
 async def marketplace_resources() -> dict[str, Any]:
     """
     List all available resources in the SoftwareOne Marketplace API with detailed information.
-    
+
     Returns a categorized list of all available API endpoints including resource paths and summaries, common filterable fields (when available), example queries per resource, and response structure hints.
-    
+
     Returns:
         Detailed resource catalog organized by category
-    
+
     Example: marketplace_resources() shows all available resources like catalog.products, commerce.orders, etc. with filtering hints and example queries for each.
     """
-    await initialize_cache()
-    
     # Get credentials from request context
     try:
         api_client = await get_client_api_client_http()
     except ValueError as e:
         return {"error": str(e), "hint": "Provide X-MPT-Authorization header with your API token"}
-    
+
     # Get endpoints registry for this client's API endpoint
     api_base_url = api_client.base_url
-    
+
     try:
-        endpoints_registry = await endpoint_registry.get_endpoints_registry(api_base_url)
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as e:
-        return {
-            "error": "Failed to load OpenAPI spec",
-            "details": str(e)
-        }
-    
-    # Build enhanced categories with more metadata
-    categories = {}
-    for resource_name, endpoint_info in endpoints_registry.items():
-        category = resource_name.split('.')[0]
-        if category not in categories:
-            categories[category] = []
-        
-        # Build resource entry with enhanced information
-        resource_entry = {
-            "resource": resource_name,
-            "summary": endpoint_info["summary"],
-            "path": endpoint_info["path"],
-        }
-        
-        # Add description if available
-        if endpoint_info.get("description"):
-            resource_entry["description"] = endpoint_info["description"]
-        
-        # Extract common filterable fields from parameters
-        parameters = endpoint_info.get("parameters", [])
-        filterable_fields = []
-        enum_fields = {}
-        
-        for param in parameters:
-            param_name = param.get("name", "")
-            if param.get("in") == "query" and param_name:
-                filterable_fields.append(param_name)
-                
-                # Check for enum values
-                param_schema = param.get("schema", {})
-                if "enum" in param_schema:
-                    enum_fields[param_name] = param_schema["enum"]
-        
-        if filterable_fields:
-            resource_entry["filterable_fields"] = filterable_fields[:5]  # Limit to first 5
-        
-        if enum_fields:
-            resource_entry["enum_fields"] = enum_fields
-        
-        # Add common query examples based on resource type
-        examples = []
-        
-        # Basic listing
-        examples.append(f"marketplace_query(resource='{resource_name}', limit=10)")
-        
-        # Add filter examples if we know common fields
-        if "status" in filterable_fields or any("status" in ef for ef in enum_fields):
-            if "status" in enum_fields:
-                status_value = enum_fields["status"][0] if enum_fields["status"] else "Active"
-            else:
-                status_value = "Active"
-            examples.append(f"marketplace_query(resource='{resource_name}', rql='eq(status,{status_value})', limit=20)")
-        
-        # Add search example for resources that likely have name fields
-        if "name" in filterable_fields or resource_name.endswith((".products", ".items", ".vendors")):
-            examples.append(f"marketplace_query(resource='{resource_name}', rql='ilike(name,*keyword*)', limit=10)")
-        
-        resource_entry["example_queries"] = examples
-        
-        # Add hint about getting full schema
-        resource_entry["get_full_schema"] = f"marketplace_resource_schema(resource='{resource_name}')"
-        
-        categories[category].append(resource_entry)
-    
-    user_id = _current_user_id.get() or "unknown"
-    
-    return {
-        "api_endpoint": api_base_url,
-        "user": user_id,
-        "total_resources": len(endpoints_registry),
-        "categories": categories,
-        "usage": {
-            "query_resource": "Use marketplace_query(resource='category.resource', ...) to query any resource",
-            "get_schema": "Use marketplace_resource_schema(resource='...') to see full field list and types",
-            "get_details": "Use marketplace_resource_info(resource='...') for parameter details"
-        },
-        "tips": {
-            "filtering": "Use RQL for complex filters: eq(field,value), ilike(name,*keyword*), and(condition1,condition2)",
-            "pagination": "Use limit= and offset= parameters for pagination",
-            "sorting": "Use order= parameter: order=-created (descending), order=+name (ascending)",
-            "field_selection": "Use select= parameter: select=+id,+name,+status or select=-metadata"
-        }
-    }
+        return {"error": "Failed to load OpenAPI spec", "details": str(e)}
+
+    # Use shared implementation
+    user_id = _current_user_id.get()
+    return await execute_marketplace_resources(
+        api_base_url=api_base_url,
+        user_id=user_id,
+        endpoints_registry=endpoints_registry_data,
+    )
 
 
 @mcp.tool()
 async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     """
     Get detailed information about a specific marketplace resource.
-    
+
     Args:
         resource: The resource to get information about (e.g., catalog.products)
-    
+
     Returns:
         Detailed resource information including path, parameters, and response schema
     """
-    await initialize_cache()
-    
     # Get credentials from request context
     try:
         api_client = await get_client_api_client_http()
     except ValueError as e:
         return {"error": str(e), "hint": "Provide X-MPT-Authorization header with your API token"}
-    
+
     # Get endpoints registry for this client's API endpoint
     api_base_url = api_client.base_url
-    
+
     try:
-        endpoints_registry = await endpoint_registry.get_endpoints_registry(api_base_url)
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as e:
-        return {
-            "error": "Failed to load OpenAPI spec",
-            "details": str(e)
-        }
-    
-    if resource not in endpoints_registry:
-        return {
-            "error": f"Unknown resource: {resource}",
-            "hint": "Use marketplace_resources() to see all available resources"
-        }
-    
-    endpoint_info = endpoints_registry[resource]
-    
-    # Extract enum values from parameters
-    enum_fields = {}
-    path_params_info = {}
-    
-    for param in endpoint_info.get("parameters", []):
-        param_name = param.get("name")
-        param_in = param.get("in")
-        param_schema = param.get("schema", {})
-        
-        # Track path parameters
-        if param_in == "path":
-            path_params_info[param_name] = {
-                "type": param_schema.get("type", "string"),
-                "description": param.get("description", f"Path parameter: {param_name}"),
-                "required": param.get("required", True)
-            }
-        
-        # Extract enum values for query parameters
-        if "enum" in param_schema and param_in == "query":
-            enum_fields[param_name] = param_schema["enum"]
-    
-    # Find related resources (children and siblings)
-    related_resources = {
-        "children": [],
-        "parent": None,
-        "siblings": []
-    }
-    
-    resource_path = endpoint_info["path"]
-    for other_resource, other_info in endpoints_registry.items():
-        if other_resource == resource:
-            continue
-        
-        other_path = other_info["path"]
-        
-        # Child resources: start with current path and go deeper
-        if other_path.startswith(resource_path + "/") and other_resource.startswith(resource + "."):
-            related_resources["children"].append({
-                "resource": other_resource,
-                "summary": other_info["summary"]
-            })
-        
-        # Parent resource: current path extends parent
-        if resource_path.startswith(other_path + "/") and resource.startswith(other_resource + "."):
-            # Only set if this is the immediate parent (not grandparent)
-            if not related_resources["parent"] or len(other_path) > len(related_resources["parent"]["path"]):
-                related_resources["parent"] = {
-                    "resource": other_resource,
-                    "summary": other_info["summary"],
-                    "path": other_path
-                }
-        
-        # Sibling resources: same parent category
-        resource_parts = resource.split('.')
-        other_parts = other_resource.split('.')
-        if len(resource_parts) >= 2 and len(other_parts) >= 2:
-            if resource_parts[0] == other_parts[0] and resource_parts[1] == other_parts[1]:
-                # Same subcategory, not self
-                if len(resource_parts) == len(other_parts) and other_resource != resource:
-                    related_resources["siblings"].append({
-                        "resource": other_resource,
-                        "summary": other_info["summary"]
-                    })
-    
-    # Limit siblings to top 5 most relevant
-    if len(related_resources["siblings"]) > 5:
-        related_resources["siblings"] = related_resources["siblings"][:5]
-    
-    # Limit children to top 10 most common
-    if len(related_resources["children"]) > 10:
-        related_resources["children"] = related_resources["children"][:10]
-    
-    # Build query examples
-    examples = [f"marketplace_query(resource='{resource}', limit=10)"]
-    
-    # Add example with enum filter if available
-    if enum_fields:
-        first_enum_field = list(enum_fields.keys())[0]
-        first_enum_value = enum_fields[first_enum_field][0]
-        examples.append(f"marketplace_query(resource='{resource}', rql='eq({first_enum_field},{first_enum_value})', limit=10)")
-    
-    # Add example with path params if needed
-    if path_params_info:
-        example_params = {k: f"<{k}_value>" for k in path_params_info.keys()}
-        examples.append(f"marketplace_query(resource='{resource}', path_params={example_params}, select='+id,+name')")
-    
-    result = {
-        "resource": resource,
-        "path": endpoint_info["path"],
-        "summary": endpoint_info["summary"],
-        "description": endpoint_info.get("description", ""),
-        "parameters": endpoint_info["parameters"],
-        "response_schema": endpoint_info.get("response", {}),
-        "common_parameters": {
-            "rql": "RQL query string for filtering and sorting",
-            "limit": "Maximum number of items to return",
-            "offset": "Number of items to skip",
-            "page": "Page number",
-            "select": "Fields to include/exclude",
-            "order": "Sort order (e.g., -created for descending, +name for ascending)",
-            "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})"
-        },
-        "example_queries": examples
-    }
-    
-    # Add enum fields if any found
-    if enum_fields:
-        result["enum_fields"] = enum_fields
-        result["filtering_tips"] = f"Filter by {', '.join(enum_fields.keys())} using RQL: eq({list(enum_fields.keys())[0]},<value>)"
-    
-    # Add path parameters info if any found
-    if path_params_info:
-        result["path_parameters"] = path_params_info
-        param_list = ', '.join([f"{k}=<value>" for k in path_params_info.keys()])
-        result["path_params_required"] = f"This resource requires path parameters: {param_list}"
-    
-    # Add related resources if found
-    if related_resources["parent"] or related_resources["children"] or related_resources["siblings"]:
-        result["related_resources"] = {}
-        if related_resources["parent"]:
-            result["related_resources"]["parent"] = related_resources["parent"]
-        if related_resources["children"]:
-            result["related_resources"]["children"] = related_resources["children"]
-        if related_resources["siblings"]:
-            result["related_resources"]["similar"] = related_resources["siblings"]
-    
-    return result
+        return {"error": "Failed to load OpenAPI spec", "details": str(e)}
+
+    # Use shared implementation
+    return await execute_marketplace_resource_info(
+        resource=resource,
+        endpoints_registry=endpoints_registry_data,
+    )
 
 
 @mcp.tool()
 async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     """
     Get the complete JSON schema for a marketplace resource.
-    
+
     This returns the detailed schema including all fields, types, nested structures, and descriptions. Useful for understanding what fields are available for filtering and what the response structure will be.
-    
+
     Args:
         resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
-    
+
     Returns:
         Complete JSON schema with field types, descriptions, enums, and examples
-    
+
     Example: marketplace_resource_schema(resource=catalog.products) returns full schema showing all product fields like id, name, status, vendor, etc.
     """
-    await initialize_cache()
-    
     # Get credentials from request context
     try:
         api_client = await get_client_api_client_http()
     except ValueError as e:
         return {"error": str(e), "hint": "Provide X-MPT-Authorization header with your API token"}
-    
+
     # Get the OpenAPI spec and endpoints registry
     api_base_url = api_client.base_url
-    
+
     try:
         spec = await endpoint_registry.get_openapi_spec(api_base_url)
-        endpoints_registry = await endpoint_registry.get_endpoints_registry(api_base_url)
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as e:
-        return {
-            "error": "Failed to load OpenAPI spec",
-            "details": str(e)
-        }
-    
-    if resource not in endpoints_registry:
-        return {
-            "error": f"Unknown resource: {resource}",
-            "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list(set(r.split('.')[0] for r in endpoints_registry.keys()))
-        }
-    
-    endpoint_info = endpoints_registry[resource]
-    path = endpoint_info["path"]
-    
-    # Find the endpoint in the OpenAPI spec
-    paths = spec.get("paths", {})
-    if path not in paths:
-        return {
-            "error": f"Path {path} not found in OpenAPI spec",
-            "resource": resource
-        }
-    
-    path_item = paths[path]
-    if "get" not in path_item:
-        return {
-            "error": f"GET operation not found for {path}",
-            "resource": resource
-        }
-    
-    get_op = path_item["get"]
-    
-    # Extract response schema
-    responses = get_op.get("responses", {})
-    schema_info = {
-        "resource": resource,
-        "path": path,
-        "summary": get_op.get("summary", ""),
-        "description": get_op.get("description", ""),
-    }
-    
-    if "200" in responses:
-        response_200 = responses["200"]
-        content = response_200.get("content", {})
-        
-        if "application/json" in content:
-            json_content = content["application/json"]
-            if "schema" in json_content:
-                schema = json_content["schema"]
-                
-                # If schema references components, try to resolve it
-                if "$ref" in schema:
-                    ref_path = schema["$ref"].split("/")
-                    ref_schema = spec
-                    for part in ref_path:
-                        if part and part != "#":
-                            ref_schema = ref_schema.get(part, {})
-                    schema = ref_schema
-                
-                schema_info["response_schema"] = schema
-                
-                # Extract field information from properties
-                if "properties" in schema:
-                    fields = {}
-                    for field_name, field_schema in schema["properties"].items():
-                        field_info = {
-                            "type": field_schema.get("type", "unknown"),
-                            "description": field_schema.get("description", "")
-                        }
-                        
-                        if "enum" in field_schema:
-                            field_info["enum"] = field_schema["enum"]
-                            field_info["valid_values"] = field_schema["enum"]
-                        
-                        if "example" in field_schema:
-                            field_info["example"] = field_schema["example"]
-                        
-                        if "format" in field_schema:
-                            field_info["format"] = field_schema["format"]
-                        
-                        # For nested objects, show structure
-                        if field_schema.get("type") == "object" and "properties" in field_schema:
-                            nested_fields = {}
-                            for nested_name, nested_schema in list(field_schema["properties"].items())[:5]:
-                                nested_fields[nested_name] = {
-                                    "type": nested_schema.get("type", "unknown"),
-                                    "description": nested_schema.get("description", "")
-                                }
-                            field_info["nested_fields"] = nested_fields
-                        
-                        fields[field_name] = field_info
-                    
-                    schema_info["fields"] = fields
-                    
-                    # Add filtering hints
-                    schema_info["filtering_hints"] = {
-                        "simple_filters": [f"eq({f},value)" for f in list(fields.keys())[:5]],
-                        "search_fields": [f"ilike({f},*keyword*)" for f, info in list(fields.items())[:3] if info.get("type") == "string"],
-                        "enum_filters": [f"eq({f},{info['enum'][0]})" for f, info in fields.items() if "enum" in info][:3]
-                    }
-    
-    # Add common query patterns
-    schema_info["common_queries"] = {
-        "basic": f"{resource}?limit=10",
-        "with_filters": f"{resource}?eq(status,Active)&limit=20",
-        "with_sorting": f"{resource}?order=-id&limit=10",
-        "full_example": f"{resource}?eq(status,Active)&order=-id&select=+id,+name,+status&limit=50"
-    }
-    
-    return schema_info
+        return {"error": "Failed to load OpenAPI spec", "details": str(e)}
+
+    # Use shared implementation
+    return await execute_marketplace_resource_schema(
+        resource=resource,
+        openapi_spec=spec,
+        endpoints_registry=endpoints_registry_data,
+    )
 
 
 # ============================================================================
 # Server Startup with Middleware
 # ============================================================================
 
+
+def run_migrations():
+    """
+    Run Alembic database migrations on startup.
+
+    This ensures the database schema is up-to-date before the server starts.
+    Safe to run multiple times - Alembic will skip already-applied migrations.
+    """
+    if not config.analytics_database_url:
+        log("⏩ Skipping migrations (analytics not configured)")
+        return
+
+    try:
+        log("🔄 Running database migrations...")
+
+        # Get the project root directory (where alembic.ini is located)
+        import pathlib
+
+        project_root = pathlib.Path(__file__).parent.parent
+        alembic_ini_path = project_root / "alembic.ini"
+        alembic_dir = project_root / "alembic"
+
+        # Configure Alembic programmatically
+        alembic_cfg = AlembicConfig(str(alembic_ini_path))
+        alembic_cfg.set_main_option("script_location", str(alembic_dir))
+
+        # Convert async URL to sync URL for Alembic (psycopg2 instead of asyncpg)
+        sync_url = config.analytics_database_url.replace("postgresql+asyncpg://", "postgresql://")
+        alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
+
+        # Run migrations to head
+        command.upgrade(alembic_cfg, "head")
+
+        log("✅ Database migrations completed successfully")
+    except Exception as e:
+        log(f"⚠️  Migration warning: {e}")
+        log("   Server will continue, but analytics may not work correctly")
+        # Don't fail server startup if migrations fail
+
+
 async def run_server_async():
     """Run the HTTP server with middleware for credential extraction."""
-    
+
+    # Initialize analytics (if configured)
+    await initialize_analytics(database_url=config.analytics_database_url)
+    if config.analytics_enabled:
+        log("📊 Analytics enabled - tracking usage metrics")
+    else:
+        log("📊 Analytics disabled (no database configured)")
+
+    # Initialize documentation cache on startup
+    await initialize_documentation_cache()
+
     # Get the Starlette app from FastMCP
     starlette_app = mcp.streamable_http_app()
-    
+
     # Wrap with our credentials middleware
     wrapped_app = CredentialsMiddleware(starlette_app)
-    
+
     # Add health check endpoint by wrapping again
     class HealthCheckMiddleware:
         def __init__(self, app):
             self.app = app
-        
+
         async def __call__(self, scope, receive, send):
             if scope["type"] == "http":
                 request = Request(scope, receive)
                 if request.url.path in ["/", "/health"]:
-                    response = JSONResponse({
-                        "status": "healthy",
-                        "service": "mpt-mcp-http",
-                        "transport": "streamable-http",
-                        "endpoint": "/mcp"
-                    })
+                    response = JSONResponse(
+                        {
+                            "status": "healthy",
+                            "service": "mpt-mcp-http",
+                            "transport": "streamable-http",
+                            "endpoint": "/mcp",
+                        }
+                    )
                     await response(scope, receive, send)
                     return
             await self.app(scope, receive, send)
-    
+
     final_app = HealthCheckMiddleware(wrapped_app)
-    
+
     print("✅ Middleware added: CredentialsMiddleware, HealthCheckMiddleware", file=sys.stderr, flush=True)
-    
+
+    # Configure custom access log filter to reduce noise
+    class AccessLogFilter(logging.Filter):
+        def filter(self, record: logging.LogRecord) -> bool:
+            # Suppress /mcp and /health access logs (we have custom logging for /mcp)
+            if hasattr(record, "args") and len(record.args) >= 3:
+                path = str(record.args[2])  # Path is typically the 3rd arg
+                if path in ["/mcp", "/health", "GET /health", "POST /mcp"]:
+                    return False
+            return True
+
+    # Apply filter to uvicorn access logger
+    uvicorn_access = logging.getLogger("uvicorn.access")
+    uvicorn_access.addFilter(AccessLogFilter())
+
     # Run with uvicorn
-    uvicorn_config = uvicorn.Config(
-        final_app,
-        host=server_host,
-        port=server_port,
-        log_level="info",
-        proxy_headers=True,
-        forwarded_allow_ips="*"
-    )
+    uvicorn_config = uvicorn.Config(final_app, host=server_host, port=server_port, log_level="info", proxy_headers=True, forwarded_allow_ips="*")
     server = uvicorn.Server(uvicorn_config)
     await server.serve()
 
 
+# ============================================================================
+# MCP Resources - Documentation from GitBook
+# ============================================================================
+
+
+@mcp.tool()
+async def marketplace_docs_index() -> dict[str, Any]:
+    """
+    Get the documentation structure/table of contents.
+
+    Returns a hierarchical view of all documentation sections and subsections
+    with page counts, helping you understand what documentation is available
+    without listing all 900+ individual pages.
+
+    Returns:
+        Dictionary containing:
+        - total_pages: Total number of documentation pages
+        - sections: List of sections with subsections and page counts
+
+    Example:
+        >>> index = marketplace_docs_index()
+        >>> print(f"Total pages: {index['total_pages']}")
+        >>> for section in index["sections"]:
+        ...     print(f"{section['name']}: {section['total_pages']} pages")
+    """
+    analytics = get_analytics_logger()
+    import time
+
+    start_time = time.time()
+    try:
+        await initialize_documentation_cache()
+
+        if not documentation_cache or not documentation_cache.is_enabled:
+            result = {
+                "total_pages": 0,
+                "sections": [],
+                "error": "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID.",
+            }
+            if analytics and config.analytics_enabled:
+                await analytics.log_tool_call(
+                    tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message="Not initialized"
+                )
+            return result
+
+        result = await documentation_cache.get_documentation_index()
+        if analytics and config.analytics_enabled:
+            await analytics.log_tool_call(
+                tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=True, result_count=result.get("total_pages", 0)
+            )
+        return result
+    except Exception as e:
+        if analytics and config.analytics_enabled:
+            await analytics.log_tool_call(tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message=str(e))
+        raise
+
+
+@mcp.tool()
+async def marketplace_docs_list(section: str = None, subsection: str = None, search: str = None, limit: int = 100) -> dict[str, Any]:
+    """
+    List documentation resources with optional filtering and search.
+
+    Use this to discover relevant documentation pages by filtering by section,
+    subsection, or searching by keyword. Returns up to 100 results by default.
+
+    Args:
+        section: Filter by top-level section (e.g., "developer-resources", "help-and-support")
+        subsection: Filter by subsection (e.g., "rest-api", "billing")
+        search: Search keyword in page titles and paths (case-insensitive)
+        limit: Maximum number of results to return (default: 100)
+
+    Returns:
+        Dictionary containing:
+        - total: Number of matching documentation pages
+        - resources: List of matching documentation resources with URI, name, and description
+        - filters_applied: Summary of filters used
+        - tip: Suggestion for narrowing results if needed
+
+    Examples:
+        >>> # Get all billing documentation
+        >>> result = marketplace_docs_list(search="billing")
+
+        >>> # Get API reference pages
+        >>> result = marketplace_docs_list(section="developer-resources", subsection="rest-api", limit=50)
+
+        >>> # Search for invoice-related docs
+        >>> result = marketplace_docs_list(search="invoice")
+    """
+    analytics = get_analytics_logger()
+    import time
+
+    start_time = time.time()
+    try:
+        await initialize_documentation_cache()
+
+        if not documentation_cache or not documentation_cache.is_enabled:
+            result = {
+                "total": 0,
+                "resources": [],
+                "error": "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID.",
+            }
+            if analytics and config.analytics_enabled:
+                await analytics.log_tool_call(
+                    tool_name="marketplace_docs_list", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message="Not initialized"
+                )
+            return result
+
+        resources = await documentation_cache.list_resources(section=section, subsection=subsection, search=search, limit=limit)
+
+        # Build filter summary
+        filters = []
+        if section:
+            filters.append(f"section={section}")
+        if subsection:
+            filters.append(f"subsection={subsection}")
+        if search:
+            filters.append(f"search='{search}'")
+
+        result = {
+            "total": len(resources),
+            "resources": resources,
+            "filters_applied": ", ".join(filters) if filters else "none",
+            "usage": "Use marketplace_docs_read(uri='docs://path') to read a specific page",
+        }
+
+        # Add tip if results are large
+        if len(resources) >= limit:
+            result["tip"] = f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
+        elif len(resources) > 50:
+            result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
+
+        if analytics and config.analytics_enabled:
+            await analytics.log_tool_call(
+                tool_name="marketplace_docs_list", response_time_ms=int((time.time() - start_time) * 1000), success=True, result_count=result.get("total", 0)
+            )
+        return result
+    except Exception as e:
+        if analytics and config.analytics_enabled:
+            await analytics.log_tool_call(tool_name="marketplace_docs_list", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message=str(e))
+        raise
+
+
+@mcp.tool()
+async def marketplace_docs_read(uri: str) -> str:
+    """
+    Read documentation content for a specific URI from the SoftwareOne Marketplace Platform documentation.
+
+    Args:
+        uri: Documentation URI (e.g., "docs://getting-started/authentication" or "docs://api-reference/orders")
+
+    Returns:
+        Documentation content as markdown text
+
+    Example:
+        >>> content = marketplace_docs_read(uri="docs://getting-started")
+        >>> print(content)
+    """
+    analytics = get_analytics_logger()
+    import time
+
+    start_time = time.time()
+    try:
+        await initialize_documentation_cache()
+
+        if not documentation_cache or not documentation_cache.is_enabled:
+            result = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
+            if analytics and config.analytics_enabled:
+                await analytics.log_resource_read(
+                    resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation cache not available"
+                )
+            return result
+
+        content = await documentation_cache.get_resource(uri)
+
+        if content is None:
+            result = f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages."
+            if analytics and config.analytics_enabled:
+                await analytics.log_resource_read(
+                    resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation page not found"
+                )
+            return result
+
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(resource_uri=uri, success=True, response_time_ms=int((time.time() - start_time) * 1000), cache_hit=True)
+        return content
+    except Exception as e:
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message=str(e))
+        raise
+
+
+@mcp.tool()
+async def marketplace_resources_info() -> dict[str, Any]:
+    """
+    Get information about available resources (documentation + API)
+
+    Returns statistics about:
+    - Documentation resources (cached from GitBook)
+    - API resources (cached per endpoint from OpenAPI specs)
+    - Token validation cache statistics
+
+    This helps understand what resources are available and how caching works.
+
+    Returns:
+        Dictionary with resource statistics and cache information
+    """
+    analytics = get_analytics_logger()
+    import time
+
+    start_time = time.time()
+    try:
+        result = {
+            "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
+            "token_validation": {"enabled": False, "cache_stats": None},
+        }
+
+        # Documentation resources info
+        if documentation_cache and documentation_cache.is_enabled:
+            cache_info = documentation_cache.get_cache_info()
+            result["documentation"] = {
+                "enabled": True,
+                "total_pages": cache_info.get("resource_count", 0),
+                "cache_info": cache_info,
+            }
+
+        # Token validation info
+        try:
+            from .token_validator import get_token_cache
+
+            token_cache = get_token_cache()
+            result["token_validation"] = {
+                "enabled": True,
+                "cache_stats": token_cache.get_stats(),
+                "description": "Token validation cache prevents repeated API calls for authentication",
+            }
+        except Exception as e_inner:
+            result["token_validation"] = {"enabled": False, "error": str(e_inner)}
+
+        if analytics and config.analytics_enabled:
+            await analytics.log_tool_call(tool_name="marketplace_resources_info", response_time_ms=int((time.time() - start_time) * 1000), success=True)
+        return result
+    except Exception as e:
+        if analytics and config.analytics_enabled:
+            await analytics.log_tool_call(tool_name="marketplace_resources_info", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message=str(e))
+        raise
+
+
+# ============================================================================
+# MCP Resources - URI Handlers
+# ============================================================================
+
+
+@mcp.resource("api://openapi.json")
+async def get_openapi_spec() -> str:
+    """
+    Get the OpenAPI specification for the current user's API endpoint.
+
+    Returns the full OpenAPI 3.0 specification as JSON, including all available
+    endpoints, schemas, parameters, and response formats for the API environment
+    the user is connected to (e.g., production, staging, dev).
+
+    This allows AI agents to understand the complete API structure and capabilities
+    without making multiple queries.
+
+    Returns:
+        JSON string containing the full OpenAPI 3.0 specification
+
+    Example:
+        The OpenAPI spec includes:
+        - All 300+ API endpoints with their paths and methods
+        - Request/response schemas
+        - Parameter definitions
+        - Authentication requirements
+        - Data models and types
+    """
+    import json
+    import time
+
+    from .endpoint_registry import _openapi_specs, get_openapi_spec
+
+    analytics = get_analytics_logger()
+    start_time = time.time()
+    uri = "api://openapi.json"
+
+    # Get current user credentials from context
+    token, endpoint = get_current_credentials()
+
+    if not token:
+        error_response = json.dumps(
+            {
+                "error": "Authentication required",
+                "message": "Please provide X-MPT-Authorization header to access OpenAPI specification",
+                "hint": "The OpenAPI spec is specific to your API endpoint and requires authentication",
+            },
+            indent=2,
+        )
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(
+                resource_uri=uri,
+                success=False,
+                response_time_ms=int((time.time() - start_time) * 1000),
+                error_message="Authentication required",
+            )
+        return error_response
+
+    # Validate token
+    from .token_validator import validate_token
+
+    is_valid, token_info, error = await validate_token(token, endpoint)
+
+    if not is_valid:
+        error_response = json.dumps(
+            {
+                "error": "Invalid credentials",
+                "message": f"Token validation failed: {error}",
+                "hint": "Please check your X-MPT-Authorization header",
+            },
+            indent=2,
+        )
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(
+                resource_uri=uri,
+                success=False,
+                response_time_ms=int((time.time() - start_time) * 1000),
+                error_message=f"Invalid credentials: {error}",
+            )
+        return error_response
+
+    # Get OpenAPI spec for the user's endpoint
+    try:
+        # Check if spec is already cached (cache hit detection)
+        cache_hit = endpoint in _openapi_specs
+
+        openapi_spec = await get_openapi_spec(endpoint, force_refresh=False)
+
+        if not openapi_spec:
+            error_response = json.dumps(
+                {
+                    "error": "OpenAPI specification not available",
+                    "message": f"Could not load OpenAPI spec for endpoint: {endpoint}",
+                    "hint": "The API endpoint may be unreachable or the specification is not available",
+                },
+                indent=2,
+            )
+            if analytics and config.analytics_enabled:
+                await analytics.log_resource_read(
+                    resource_uri=uri,
+                    success=False,
+                    response_time_ms=int((time.time() - start_time) * 1000),
+                    error_message="OpenAPI specification not available",
+                )
+            return error_response
+
+        # Add metadata about the spec
+        spec_with_metadata = {
+            "api_endpoint": endpoint,
+            "authenticated_as": token_info.get("account", {}).get("name", "Unknown") if token_info else "Unknown",
+            "account_id": token_info.get("account", {}).get("id", "Unknown") if token_info else "Unknown",
+            "openapi_version": openapi_spec.get("openapi", "3.0"),
+            "info": openapi_spec.get("info", {}),
+            "spec": openapi_spec,
+        }
+
+        # Log successful resource read
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(
+                resource_uri=uri,
+                success=True,
+                response_time_ms=int((time.time() - start_time) * 1000),
+                cache_hit=cache_hit,
+            )
+
+        # Return the full OpenAPI spec as formatted JSON
+        return json.dumps(spec_with_metadata, indent=2)
+
+    except Exception as e:
+        error_response = json.dumps({"error": "Failed to fetch OpenAPI specification", "message": str(e), "endpoint": endpoint}, indent=2)
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(
+                resource_uri=uri,
+                success=False,
+                response_time_ms=int((time.time() - start_time) * 1000),
+                error_message=str(e),
+            )
+        return error_response
+
+
+@mcp.resource("docs://{path}")
+async def get_documentation_resource(path: str) -> str:
+    """
+    Get documentation content from documentation cache
+
+    Args:
+        path: Resource path (e.g., "getting-started/authentication")
+
+    Returns:
+        Documentation content as markdown
+    """
+    import time
+
+    analytics = get_analytics_logger()
+    start_time = time.time()
+    uri = f"docs://{path}"
+
+    try:
+        await initialize_documentation_cache()
+
+        if not documentation_cache or not documentation_cache.is_enabled:
+            error_msg = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
+            if analytics and config.analytics_enabled:
+                await analytics.log_resource_read(
+                    resource_uri=uri,
+                    success=False,
+                    response_time_ms=int((time.time() - start_time) * 1000),
+                    error_message=error_msg,
+                )
+            return error_msg
+
+        # Check if content is already cached (cache hit detection)
+        cache_hit = False
+        if uri in documentation_cache._resources:
+            resource = documentation_cache._resources[uri]
+            if resource.get("content") is not None:
+                cache_hit = True
+
+        content = await documentation_cache.get_resource(uri)
+
+        if content is None:
+            error_msg = f"Documentation page not found: {uri}"
+            if analytics and config.analytics_enabled:
+                await analytics.log_resource_read(
+                    resource_uri=uri,
+                    success=False,
+                    response_time_ms=int((time.time() - start_time) * 1000),
+                    error_message="Documentation page not found",
+                )
+            return error_msg
+
+        # Log successful resource read
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(
+                resource_uri=uri,
+                success=True,
+                response_time_ms=int((time.time() - start_time) * 1000),
+                cache_hit=cache_hit,
+            )
+
+        return content
+
+    except Exception as e:
+        if analytics and config.analytics_enabled:
+            await analytics.log_resource_read(
+                resource_uri=uri,
+                success=False,
+                response_time_ms=int((time.time() - start_time) * 1000),
+                error_message=str(e),
+            )
+        raise
+
+
 def main():
     """Start the HTTP server"""
+
     def log_startup(message):
         print(message, file=sys.stderr, flush=True)
-    
+
     try:
         log_startup("=" * 60)
         log_startup("🚀 SoftwareOne Marketplace MCP Server (HTTP Mode)")
         log_startup("=" * 60)
         log_startup(f"\n🌐 Starting server on {server_host}:{server_port}")
-        log_startup(f"📡 Transport: Streamable HTTP (POST/DELETE)")
-        log_startup(f"📡 Endpoint path: /mcp")
+        log_startup("📡 Transport: Streamable HTTP (POST/DELETE)")
+        log_startup("📡 Endpoint path: /mcp")
         log_startup(f"📡 Default API endpoint: {config.sse_default_base_url}")
         log_startup("\n🔑 Multi-tenant Authentication:")
         log_startup("   - Clients MUST provide X-MPT-Authorization header")
@@ -884,17 +1149,30 @@ def main():
         log_startup(f"\n✓ Server URL: http://{server_host}:{server_port}/mcp")
         log_startup(f"✓ Health check: http://{server_host}:{server_port}/health")
         log_startup("=" * 60 + "\n")
-        
+
+        # Run database migrations first (before async context)
+        run_migrations()
+
         # Run with anyio to properly initialize task groups
         anyio.run(run_server_async)
-        
+
     except KeyboardInterrupt:
         log_startup("\n\nShutting down server...")
+        # Cleanup analytics
+        analytics = get_analytics_logger()
+        if analytics:
+            log_startup("📊 Flushing pending analytics events...")
+            anyio.run(analytics.cleanup)
         sys.exit(0)
     except Exception as e:
         log_startup(f"\n❌ Error: {e}")
         import traceback
+
         traceback.print_exc(file=sys.stderr)
+        # Cleanup analytics on error
+        analytics = get_analytics_logger()
+        if analytics:
+            anyio.run(analytics.cleanup)
         sys.exit(1)
 
 

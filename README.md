@@ -53,8 +53,6 @@ Automated testing and deployment are configured via GitHub Actions:
 - **PR Testing**: Automatically runs tests on every pull request
 - **Auto-Deploy**: Deploys to Cloud Run when tests pass on main/master branch
 
-See [GitHub Actions Setup Guide](docs/GITHUB_ACTIONS_SETUP.md) for configuration details.
-
 ---
 
 ## 🔧 Configuration
@@ -112,6 +110,31 @@ docker compose up dev
 # stdio mode
 docker compose run --rm stdio
 ```
+
+### **Analytics (Optional)**
+
+Track usage statistics and performance metrics:
+
+```bash
+# 1. Start PostgreSQL database
+docker compose --profile analytics up -d analytics-db
+
+# 2. Run database migrations
+docker compose --profile analytics run migrate
+
+# 3. Configure server (add to .env or docker-compose.yml)
+ANALYTICS_DATABASE_URL=postgresql+asyncpg://mcp_user:mcp_password@analytics-db:5432/mcp_analytics
+
+# 4. Restart dev server
+docker compose restart dev
+
+# 5. Verify data collection
+docker compose exec analytics-db psql -U mcp_user -d mcp_analytics -c "SELECT COUNT(*) FROM mcp_events;"
+```
+
+For more details, see:
+- **Quick Start**: [docs/ANALYTICS_QUICKSTART.md](docs/ANALYTICS_QUICKSTART.md)
+- **Full Documentation**: [docs/ANALYTICS_IMPLEMENTATION.md](docs/ANALYTICS_IMPLEMENTATION.md)
 
 ---
 

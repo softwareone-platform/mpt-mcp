@@ -19,6 +19,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY config/ ./config/
 
+# Copy Alembic configuration and migrations (for analytics)
+COPY alembic.ini ./
+COPY alembic/ ./alembic/
+
 # Create cache directory
 RUN mkdir -p .cache
 

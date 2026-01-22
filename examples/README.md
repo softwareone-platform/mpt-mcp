@@ -118,5 +118,3 @@ python python_client_example.py
 ## See Also
 
 - [Main README](../README.md) - Quick start and deployment
-- [GitHub Actions Setup](../docs/GITHUB_ACTIONS_SETUP.md) - CI/CD configuration
-- [Custom Domain Setup](../docs/CUSTOM_DOMAIN.md) - Configure custom domain for Cloud Run

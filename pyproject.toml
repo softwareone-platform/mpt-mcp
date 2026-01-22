@@ -1,0 +1,89 @@
+[tool.ruff]
+# Python version
+target-version = "py312"
+
+# Line length
+line-length = 180
+
+# Enable specific rule sets
+lint.select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import sorting)
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "PTH", # flake8-use-pathlib
+]
+
+# Ignore specific rules
+lint.ignore = [
+    "E402",   # Module level import not at top (needed for conditional imports)
+    "E501",   # Line too long in docstrings (180 char limit is enforced for code, docstrings can be longer for readability)
+    "E722",   # Bare except (used intentionally for broad error handling)
+    "B008",   # Do not perform function calls in argument defaults (FastAPI uses this pattern)
+    "UP007",  # Use X | Y for type annotations (we support Python 3.10+, but Optional is clearer)
+    "TC001",  # Move application import into TYPE_CHECKING block (causes issues with FastAPI/Pydantic)
+    "TC002",  # Move third-party import into TYPE_CHECKING block (causes issues with FastAPI/Pydantic)
+    "TC003",  # Move standard library import into TYPE_CHECKING block (causes issues with runtime)
+    "PTH",    # flake8-use-pathlib - would require extensive refactoring
+    "SIM102", # Use a single if statement instead of nested if statements
+    "SIM108", # Use ternary operator instead of if-else-block
+    "TRY002", # Create your own exception - generic Exception is fine for our use case
+    "B904",   # Raise from within except - we intentionally create new exceptions
+]
+
+# Exclude directories
+extend-exclude = [
+    "__pycache__",
+    "*.pyc",
+    ".git",
+    ".pytest_cache",
+    ".ruff_cache",
+    "venv",
+    "env",
+    ".env",
+    "build",
+    "dist",
+]
+
+# Allow autofix for all enabled rules
+lint.fixable = ["ALL"]
+lint.unfixable = []
+
+# Allow unused variables when underscore-prefixed
+lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Test files can have more flexible rules
+"tests/**/*.py" = [
+    "N802",  # Function name should be lowercase (test methods can use mixed case)
+    "N806",  # Variable in function should be lowercase (test fixtures can use mixed case)
+    "SIM",   # Simplify rules (tests can be verbose for clarity)
+]
+
+[tool.ruff.lint.isort]
+# Import sorting configuration
+combine-as-imports = true
+force-wrap-aliases = true
+known-first-party = ["src"]
+
+[tool.ruff.format]
+# Use double quotes
+quote-style = "double"
+
+# Indent with 4 spaces
+indent-style = "space"
+
+# Unix line endings
+line-ending = "lf"
+
+# Format docstrings
+docstring-code-format = true
+
+# Pytest configuration is in pytest.ini (pytest.ini takes precedence)
+# This section is kept for reference but pytest.ini is used

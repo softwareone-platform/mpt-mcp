@@ -1,0 +1,355 @@
+#!/usr/bin/env python3
+"""
+Tests for documentation filtering, search, and indexing tools
+"""
+
+from unittest.mock import AsyncMock, patch
+
+import pytest
+
+
+class TestMarketplaceDocsIndex:
+    """Test the marketplace_docs_index tool"""
+
+    @pytest.mark.asyncio
+    async def test_docs_index_returns_structure(self):
+        """Test that docs_index returns hierarchical structure"""
+        from src.server import marketplace_docs_index
+
+        # Mock the documentation cache
+        mock_index = {
+            "total_pages": 100,
+            "sections": [
+                {
+                    "name": "getting-started",
+                    "total_pages": 10,
+                    "subsections": [{"name": "introduction", "pages": 5}, {"name": "setup", "pages": 5}],
+                },
+                {"name": "api-reference", "total_pages": 50, "subsections": [{"name": "rest-api", "pages": 50}]},
+            ],
+        }
+
+        with patch("src.server.documentation_cache.get_documentation_index", new_callable=AsyncMock) as mock_get_index:
+            mock_get_index.return_value = mock_index
+
+            result = await marketplace_docs_index()
+
+            assert result["total_pages"] == 100
+            assert len(result["sections"]) == 2
+            assert result["sections"][0]["name"] == "getting-started"
+            assert result["sections"][0]["total_pages"] == 10
+            assert len(result["sections"][0]["subsections"]) == 2
+
+    @pytest.mark.asyncio
+    async def test_docs_index_handles_empty_cache(self):
+        """Test docs_index with no documentation"""
+        from src.server import marketplace_docs_index
+
+        mock_index = {"total_pages": 0, "sections": []}
+
+        with patch("src.server.documentation_cache.get_documentation_index", new_callable=AsyncMock) as mock_get_index:
+            mock_get_index.return_value = mock_index
+
+            result = await marketplace_docs_index()
+
+            assert result["total_pages"] == 0
+            assert result["sections"] == []
+
+
+class TestMarketplaceDocsList:
+    """Test the marketplace_docs_list tool"""
+
+    @pytest.mark.asyncio
+    async def test_docs_list_without_filters(self):
+        """Test listing all documentation without filters"""
+        from src.server import marketplace_docs_list
+
+        mock_resources = {
+            "total": 50,
+            "resources": [
+                {"uri": "docs://getting-started", "name": "Getting Started", "description": "Introduction"},
+                {"uri": "docs://api-reference", "name": "API Reference", "description": "API docs"},
+            ],
+            "filters_applied": {},
+        }
+
+        with patch("src.server.documentation_cache.list_resources", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = mock_resources
+
+            result = await marketplace_docs_list()
+
+            assert result["total"] == 50
+            assert len(result["resources"]) == 2
+            mock_list.assert_called_once_with(section=None, subsection=None, search=None, limit=100)
+
+    @pytest.mark.asyncio
+    async def test_docs_list_with_section_filter(self):
+        """Test filtering documentation by section"""
+        from src.server import marketplace_docs_list
+
+        mock_resources = {
+            "total": 10,
+            "resources": [
+                {
+                    "uri": "docs://getting-started/introduction",
+                    "name": "Introduction",
+                    "description": "Getting started",
+                },
+            ],
+            "filters_applied": {"section": "getting-started"},
+        }
+
+        with patch("src.server.documentation_cache.list_resources", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = mock_resources
+
+            result = await marketplace_docs_list(section="getting-started")
+
+            assert result["total"] == 10
+            assert result["filters_applied"]["section"] == "getting-started"
+            mock_list.assert_called_once_with(section="getting-started", subsection=None, search=None, limit=100)
+
+    @pytest.mark.asyncio
+    async def test_docs_list_with_subsection_filter(self):
+        """Test filtering documentation by subsection"""
+        from src.server import marketplace_docs_list
+
+        mock_resources = {
+            "total": 5,
+            "resources": [
+                {"uri": "docs://api-reference/rest-api", "name": "REST API", "description": "REST API docs"},
+            ],
+            "filters_applied": {"subsection": "rest-api"},
+        }
+
+        with patch("src.server.documentation_cache.list_resources", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = mock_resources
+
+            result = await marketplace_docs_list(subsection="rest-api")
+
+            assert result["total"] == 5
+            mock_list.assert_called_once_with(section=None, subsection="rest-api", search=None, limit=100)
+
+    @pytest.mark.asyncio
+    async def test_docs_list_with_search(self):
+        """Test searching documentation by keyword"""
+        from src.server import marketplace_docs_list
+
+        mock_resources = {
+            "total": 3,
+            "resources": [
+                {"uri": "docs://billing/invoices", "name": "Invoices", "description": "Invoice management"},
+                {"uri": "docs://billing/statements", "name": "Statements", "description": "Billing statements"},
+            ],
+            "filters_applied": {"search": "billing"},
+        }
+
+        with patch("src.server.documentation_cache.list_resources", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = mock_resources
+
+            result = await marketplace_docs_list(search="billing")
+
+            assert result["total"] == 3
+            assert result["filters_applied"]["search"] == "billing"
+            mock_list.assert_called_once_with(section=None, subsection=None, search="billing", limit=100)
+
+    @pytest.mark.asyncio
+    async def test_docs_list_with_limit(self):
+        """Test limiting number of results"""
+        from src.server import marketplace_docs_list
+
+        mock_resources = {
+            "total": 100,
+            "resources": [{"uri": f"docs://page{i}", "name": f"Page {i}", "description": "Test"} for i in range(10)],
+            "filters_applied": {"limit": 10},
+        }
+
+        with patch("src.server.documentation_cache.list_resources", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = mock_resources
+
+            result = await marketplace_docs_list(limit=10)
+
+            assert result["total"] == 100
+            assert len(result["resources"]) == 10
+            mock_list.assert_called_once_with(section=None, subsection=None, search=None, limit=10)
+
+    @pytest.mark.asyncio
+    async def test_docs_list_combined_filters(self):
+        """Test combining multiple filters"""
+        from src.server import marketplace_docs_list
+
+        mock_resources = {
+            "total": 2,
+            "resources": [
+                {
+                    "uri": "docs://api-reference/rest-api/authentication",
+                    "name": "Authentication",
+                    "description": "Auth",
+                },
+            ],
+            "filters_applied": {"section": "api-reference", "subsection": "rest-api", "search": "auth"},
+        }
+
+        with patch("src.server.documentation_cache.list_resources", new_callable=AsyncMock) as mock_list:
+            mock_list.return_value = mock_resources
+
+            result = await marketplace_docs_list(section="api-reference", subsection="rest-api", search="auth", limit=50)
+
+            assert result["total"] == 2
+            mock_list.assert_called_once_with(
+                section="api-reference", subsection="rest-api", search="auth", limit=50
+            )
+
+
+class TestMarketplaceDocsRead:
+    """Test the marketplace_docs_read tool"""
+
+    @pytest.mark.asyncio
+    async def test_docs_read_success(self):
+        """Test successfully reading documentation"""
+        from src.server import marketplace_docs_read
+
+        mock_content = "# Getting Started\n\nThis is the documentation content..."
+
+        with patch("src.server.documentation_cache.get_resource", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_content
+
+            result = await marketplace_docs_read(uri="docs://getting-started")
+
+            assert result == mock_content
+            mock_get.assert_called_once_with("docs://getting-started")
+
+    @pytest.mark.asyncio
+    async def test_docs_read_not_found(self):
+        """Test reading non-existent documentation"""
+        from src.server import marketplace_docs_read
+
+        with patch("src.server.documentation_cache.get_resource", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = None
+
+            result = await marketplace_docs_read(uri="docs://non-existent")
+
+            assert "not found" in result.lower() or "no content" in result.lower()
+
+    @pytest.mark.asyncio
+    async def test_docs_read_with_browser_url(self):
+        """Test that docs with browser_url include the link"""
+        from src.server import marketplace_docs_read
+
+        mock_content = "# API Reference\n\nFull API documentation..."
+
+        with patch("src.server.documentation_cache.get_resource", new_callable=AsyncMock) as mock_get:
+            mock_get.return_value = mock_content
+
+            result = await marketplace_docs_read(uri="docs://api-reference")
+
+            assert isinstance(result, str)
+            assert len(result) > 0
+
+
+class TestDocumentationCacheFiltering:
+    """Test documentation cache filtering and search functionality"""
+
+    @pytest.mark.asyncio
+    async def test_cache_list_resources_section_filter(self):
+        """Test filtering by section in DocumentationCache"""
+        from src.documentation_cache import DocumentationCache
+
+        cache = DocumentationCache(gitbook_client=None, space_id="test", refresh_interval_minutes=60)
+
+        # Manually populate cache for testing
+        cache._resources = {
+            "docs://getting-started/intro": {"name": "Intro", "description": "Getting started"},
+            "docs://getting-started/setup": {"name": "Setup", "description": "Setup guide"},
+            "docs://api-reference/rest": {"name": "REST API", "description": "REST API docs"},
+        }
+        cache._last_refresh = "2024-01-01T00:00:00Z"
+
+        result = await cache.list_resources(section="getting-started")
+
+        assert result["total"] == 2
+        assert all("getting-started" in r["uri"] for r in result["resources"])
+
+    @pytest.mark.asyncio
+    async def test_cache_list_resources_subsection_filter(self):
+        """Test filtering by subsection in DocumentationCache"""
+        from src.documentation_cache import DocumentationCache
+
+        cache = DocumentationCache(gitbook_client=None, space_id="test", refresh_interval_minutes=60)
+
+        cache._resources = {
+            "docs://api-reference/rest-api/auth": {"name": "Auth", "description": "Authentication"},
+            "docs://api-reference/rest-api/orders": {"name": "Orders", "description": "Orders API"},
+            "docs://api-reference/webhooks/setup": {"name": "Webhooks", "description": "Webhook setup"},
+        }
+        cache._last_refresh = "2024-01-01T00:00:00Z"
+
+        result = await cache.list_resources(subsection="rest-api")
+
+        assert result["total"] == 2
+        assert all("rest-api" in r["uri"] for r in result["resources"])
+
+    @pytest.mark.asyncio
+    async def test_cache_list_resources_search_filter(self):
+        """Test search functionality in DocumentationCache"""
+        from src.documentation_cache import DocumentationCache
+
+        cache = DocumentationCache(gitbook_client=None, space_id="test", refresh_interval_minutes=60)
+
+        cache._resources = {
+            "docs://billing/invoices": {"name": "Invoices", "description": "Invoice management"},
+            "docs://billing/statements": {"name": "Statements", "description": "Billing statements"},
+            "docs://orders/create": {"name": "Create Order", "description": "Create new orders"},
+        }
+        cache._last_refresh = "2024-01-01T00:00:00Z"
+
+        result = await cache.list_resources(search="billing")
+
+        # Should match URI, name, or description
+        assert result["total"] >= 2  # At least billing section matches
+
+    @pytest.mark.asyncio
+    async def test_cache_list_resources_limit(self):
+        """Test limit parameter in DocumentationCache"""
+        from src.documentation_cache import DocumentationCache
+
+        cache = DocumentationCache(gitbook_client=None, space_id="test", refresh_interval_minutes=60)
+
+        # Create 20 resources
+        cache._resources = {f"docs://page{i}": {"name": f"Page {i}", "description": "Test"} for i in range(20)}
+        cache._last_refresh = "2024-01-01T00:00:00Z"
+
+        result = await cache.list_resources(limit=5)
+
+        assert result["total"] == 20
+        assert len(result["resources"]) == 5
+
+    @pytest.mark.asyncio
+    async def test_cache_get_documentation_index_structure(self):
+        """Test hierarchical index generation"""
+        from src.documentation_cache import DocumentationCache
+
+        cache = DocumentationCache(gitbook_client=None, space_id="test", refresh_interval_minutes=60)
+
+        cache._resources = {
+            "docs://getting-started/intro": {"name": "Intro", "description": "Introduction"},
+            "docs://getting-started/setup": {"name": "Setup", "description": "Setup"},
+            "docs://api-reference/rest-api/auth": {"name": "Auth", "description": "Authentication"},
+            "docs://api-reference/rest-api/orders": {"name": "Orders", "description": "Orders"},
+            "docs://api-reference/webhooks": {"name": "Webhooks", "description": "Webhooks"},
+        }
+        cache._last_refresh = "2024-01-01T00:00:00Z"
+
+        result = await cache.get_documentation_index()
+
+        assert result["total_pages"] == 5
+        assert len(result["sections"]) == 2
+
+        # Find getting-started section
+        getting_started = next(s for s in result["sections"] if s["name"] == "getting-started")
+        assert getting_started["total_pages"] == 2
+        assert len(getting_started["subsections"]) == 2
+
+        # Find api-reference section
+        api_ref = next(s for s in result["sections"] if s["name"] == "api-reference")
+        assert api_ref["total_pages"] == 3
+        assert len(api_ref["subsections"]) == 2
