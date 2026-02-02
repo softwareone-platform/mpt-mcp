@@ -168,7 +168,7 @@ services:
     
     command: sh -c "echo '=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest (with pytest-ruff plugin) ===' && python -m pytest"
   
-  # Ruff service - runs only Ruff linter and formatter
+  # Ruff service - runs only Ruff linter and formatter (no profile so CI can run it)
   ruff:
     build: .
     container_name: mpt-mcp-ruff
@@ -181,11 +181,8 @@ services:
       - ./pyproject.toml:/app/pyproject.toml
     
     command: sh -c "ruff check src/ tests/ && ruff format --check src/ tests/"
-    
-    profiles:
-      - test
   
-  # Ruff fix service - runs Ruff with auto-fix
+  # Ruff fix service - runs Ruff with auto-fix (no profile so CI/local can run it)
   ruff-fix:
     build: .
     container_name: mpt-mcp-ruff-fix
@@ -198,9 +195,6 @@ services:
       - ./pyproject.toml:/app/pyproject.toml
     
     command: sh -c "ruff check --fix src/ tests/ && ruff format src/ tests/ && echo '\n✅ Ruff fixes applied!'"
-    
-    profiles:
-      - test
   
   # Test with coverage
   # Note: No profile - this service is built by default with 'docker compose build'

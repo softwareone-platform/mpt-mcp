@@ -17,9 +17,11 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
+    - name: Build test image
+      run: docker compose build ruff
+
     - name: Run Ruff linter
-      run: |
-        docker compose run --rm ruff
+      run: docker compose run --rm ruff
 
   test:
     name: Run Tests
@@ -33,9 +35,14 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Run tests with Docker Compose
-      run: |
-        docker compose run --rm test
+    - name: Build test image
+      run: docker compose build test
+
+    - name: Run Ruff linter (fail fast)
+      run: docker compose run --rm ruff
+
+    - name: Run tests
+      run: docker compose run --rm test
 
   deploy:
     needs: [lint, test]
