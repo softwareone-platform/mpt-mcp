@@ -1,7 +1,7 @@
 """
 Database schema for MCP analytics using SQLAlchemy Core.
 
-Stores token_id (TKN-XXXX-XXXX) as user identifier for all events.
+Stores token_id (TKN-XXXX-XXXX or USR-XXXX-XXXX) as user identifier for all events.
 Performance-optimized: Uses SQLAlchemy Core with asyncpg for fast inserts.
 
 Simplified schema: Only mcp_events table. Aggregations are done on-demand via SQL queries.
@@ -35,7 +35,7 @@ mcp_events = Table(
     Column("timestamp", DateTime, nullable=False, server_default=func.now()),
     Column("response_time_ms", Integer),
     # User/Environment (Privacy-Safe)
-    Column("token_id", String(20)),  # TKN-XXXX-XXXX only
+    Column("token_id", String(20)),  # TKN-XXXX-XXXX or USR-XXXX-XXXX
     Column("api_endpoint", String(100)),  # api.s1.show, etc.
     Column("session_id", String(100)),
     # Event Classification

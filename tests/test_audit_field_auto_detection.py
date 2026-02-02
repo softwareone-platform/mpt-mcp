@@ -113,7 +113,7 @@ class TestAuditFieldAutoDetection:
         """Test that audit is auto-added when filtering by audit.completed.at"""
         api_client.get.return_value = mock_api_response
 
-        rql = 'gte(audit.completed.at,"2026-01-22T00:00:00Z")'
+        rql = 'ge(audit.completed.at,"2026-01-22T00:00:00Z")'
         await execute_marketplace_query(
             resource="commerce.orders",
             rql=rql,

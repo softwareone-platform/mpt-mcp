@@ -241,7 +241,12 @@ async def initialize_documentation_cache():
     # Only initialize if GitBook credentials are provided
     if config.gitbook_api_key and config.gitbook_space_id:
         try:
-            gitbook_client = GitBookClient(api_key=config.gitbook_api_key, space_id=config.gitbook_space_id, base_url=config.gitbook_api_base_url)
+            gitbook_client = GitBookClient(
+                api_key=config.gitbook_api_key,
+                space_id=config.gitbook_space_id,
+                base_url=config.gitbook_api_base_url,
+                max_concurrent_requests=config.gitbook_max_concurrent_requests,
+            )
 
             # Validate credentials
             if await gitbook_client.validate_credentials():
@@ -382,17 +387,17 @@ async def marketplace_query(
     path_params: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """
-    Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
+    marketplace_query(resource, rql, limit, offset, select, order): Query the SoftwareOne Marketplace API.
 
-    MULTI-TENANT MODE: This server accepts client credentials via HTTP headers. Pass X-MPT-Authorization with your SoftwareOne API token (required, case-insensitive). Optionally pass X-MPT-Endpoint to specify API endpoint (defaults to api.platform.softwareone.com, case-insensitive).
+    Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
 
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
         rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
-        limit: Maximum number of items to return (e.g., 10, 50, 100)
+        limit: Maximum number of items to return (e.g., 10, 50, 100). Defaults to 10 if not specified. Maximum allowed is 100 (values above 100 are capped to 100). When using limit up to 100, use select= with only the fields you need (from marketplace_resource_schema) to avoid huge responses.
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (e.g., +name,+description or -metadata). IMPORTANT: When filtering or sorting by audit fields (e.g., audit.created.at), you must include 'audit' in select. The server will auto-add this if detected.
+        select: Fields to include/exclude (e.g., +name,+description or -metadata). IMPORTANT: When filtering or sorting by audit fields (e.g., audit.created.at), you must include 'audit' in select. The server will auto-add this if detected. For nested collections: +subscriptions returns the full nested representation (each item as a full object); +subscriptions.id returns only the ids of the nested collection; +subscriptions.id,+subscriptions.name returns only id and name per nested item. Prefer +subscriptions.id,+subscriptions.name when you only need to count or show id/name. RQL filter fields must exist on the resource—use marketplace_resource_schema(resource) to check (e.g. subscriptionsCount does not exist).
         order: Sort order (e.g., -created for descending, +name for ascending). When using audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
         path_params: Path parameters for resources requiring IDs (e.g., {id: PRD-1234-5678} for catalog.products.by_id, {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines)
 
@@ -421,7 +426,7 @@ async def marketplace_query(
             "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
         }
 
-    # Use shared implementation
+    # Use shared implementation; log_fn=log so Query/Path/Params/Result count show in docker logs (stderr)
     return await execute_marketplace_query(
         resource=resource,
         rql=rql,
@@ -459,7 +464,7 @@ async def marketplace_quick_queries() -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_resources() -> dict[str, Any]:
     """
-    List all available resources in the SoftwareOne Marketplace API with detailed information.
+    marketplace_resources(): List all available API resources.
 
     Returns a categorized list of all available API endpoints including resource paths and summaries, common filterable fields (when available), example queries per resource, and response structure hints.
 
@@ -494,7 +499,7 @@ async def marketplace_resources() -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     """
-    Get detailed information about a specific marketplace resource.
+    marketplace_resource_info(resource): Get detailed information about a specific resource.
 
     Args:
         resource: The resource to get information about (e.g., catalog.products)
@@ -526,7 +531,7 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     """
-    Get the complete JSON schema for a marketplace resource.
+    marketplace_resource_schema(resource): Get the full schema for a resource.
 
     This returns the detailed schema including all fields, types, nested structures, and descriptions. Useful for understanding what fields are available for filtering and what the response structure will be.
 
@@ -664,7 +669,33 @@ async def run_server_async():
     uvicorn_access.addFilter(AccessLogFilter())
 
     # Run with uvicorn
-    uvicorn_config = uvicorn.Config(final_app, host=server_host, port=server_port, log_level="info", proxy_headers=True, forwarded_allow_ips="*")
+    # Enable reload in development mode (when DEBUG env var is set)
+    enable_reload = os.getenv("DEBUG", "false").lower() == "true"
+
+    # Watch all directories that contain Python files for hot reload
+    reload_dirs = None
+    if enable_reload:
+        # Monitor all mounted directories that contain Python code
+        reload_dirs = [
+            "/app/src",  # Main source code
+            "/app/config",  # Configuration files
+            "/app/alembic",  # Database migrations
+        ]
+        print("🔄 Hot reload enabled - watching for .py file changes in:", file=sys.stderr, flush=True)
+        for dir_path in reload_dirs:
+            print(f"   - {dir_path}", file=sys.stderr, flush=True)
+
+    uvicorn_config = uvicorn.Config(
+        final_app,
+        host=server_host,
+        port=server_port,
+        log_level="info",
+        proxy_headers=True,
+        forwarded_allow_ips="*",
+        reload=enable_reload,  # Enable hot reload in development
+        reload_dirs=reload_dirs,  # Watch all Python directories for changes
+        reload_includes=["*.py"],  # Only watch Python files
+    )
     server = uvicorn.Server(uvicorn_config)
     await server.serve()
 
@@ -677,7 +708,7 @@ async def run_server_async():
 @mcp.tool()
 async def marketplace_docs_index() -> dict[str, Any]:
     """
-    Get the documentation structure/table of contents.
+    marketplace_docs_index(): Get the documentation index.
 
     Returns a hierarchical view of all documentation sections and subsections
     with page counts, helping you understand what documentation is available
@@ -728,7 +759,7 @@ async def marketplace_docs_index() -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_docs_list(section: str = None, subsection: str = None, search: str = None, limit: int = 100) -> dict[str, Any]:
     """
-    List documentation resources with optional filtering and search.
+    marketplace_docs_list(search): List documentation pages (optionally filtered by keyword).
 
     Use this to discover relevant documentation pages by filtering by section,
     subsection, or searching by keyword. Returns up to 100 results by default.
@@ -813,6 +844,8 @@ async def marketplace_docs_list(section: str = None, subsection: str = None, sea
 @mcp.tool()
 async def marketplace_docs_read(uri: str) -> str:
     """
+    marketplace_docs_read(uri): Read documentation content.
+
     Read documentation content for a specific URI from the SoftwareOne Marketplace Platform documentation.
 
     Args:

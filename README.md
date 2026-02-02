@@ -155,6 +155,8 @@ mpt-mcp/
 └── requirements.txt           # Python dependencies
 ```
 
+For stack, multi-tenancy, and guardrails, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+
 ---
 
 ## 🔍 Troubleshooting

@@ -177,6 +177,12 @@ class APIClient:
                         offset = pagination.get("offset")
                         limit = pagination.get("limit")
                         logger.info(f"   Pagination: offset={offset}, limit={limit}, total={total}")
+
+                    # Log omitted fields if present
+                    if "omitted" in meta:
+                        omitted = meta.get("omitted", [])
+                        if omitted:
+                            logger.info(f"   Omitted fields: {', '.join(omitted)} (use select=+field to include)")
                 # Fallback to root-level pagination
                 elif "pagination" in response_data:
                     pagination = response_data["pagination"]

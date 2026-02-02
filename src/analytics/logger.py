@@ -8,7 +8,7 @@ Non-blocking async logger that tracks:
 - Errors
 - Performance metrics
 
-Stores token_id (TKN-XXXX-XXXX) as user identifier for all events.
+Stores token_id (TKN-XXXX-XXXX or USR-XXXX-XXXX) as user identifier for all events.
 """
 
 import asyncio
@@ -20,6 +20,8 @@ from typing import Any
 
 from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
+
+from ..token_validator import parse_token_id
 
 from .models import mcp_events
 
@@ -443,25 +445,21 @@ class AnalyticsLogger:
         """
         Extract token ID from token string.
 
-        Token format: idt:TKN-XXXX-XXXX:actual_token
-        Returns: TKN-XXXX-XXXX (the token identifier)
+        Supports both formats:
+        1. API Token: idt:TKN-XXXX-XXXX:actual_token → Returns TKN-XXXX-XXXX
+        2. JWT Token: header.payload.signature → Returns USR-XXXX-XXXX (from JWT claims)
 
         Args:
             token: The authentication token (with or without Bearer prefix)
 
         Returns:
-            Token identifier (TKN-XXXX-XXXX) or None if not found
+            Token identifier (TKN-XXXX-XXXX or USR-XXXX-XXXX) or None if not found
         """
         # Remove "Bearer " prefix if present for parsing
         token_value = token.replace("Bearer ", "").strip()
 
-        # Check if token matches format: idt:TKN-XXXX-XXXX:token
-        if token_value.startswith("idt:") and token_value.count(":") >= 2:
-            parts = token_value.split(":")
-            if len(parts) >= 3 and parts[1].startswith("TKN-"):
-                return parts[1]  # Return TKN-XXXX-XXXX
-
-        return None
+        # Use parse_token_id from token_validator which handles both JWT and API tokens
+        return parse_token_id(token_value)
 
     @staticmethod
     def set_session_id(session_id: str):
@@ -470,7 +468,7 @@ class AnalyticsLogger:
 
     @staticmethod
     def set_token_id(token_id: str | None):
-        """Set token ID for current request context (TKN-XXXX-XXXX only!)."""
+        """Set token ID for current request context (TKN-XXXX-XXXX or USR-XXXX-XXXX)."""
         _current_token_id.set(token_id)
 
     @staticmethod

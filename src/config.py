@@ -51,6 +51,8 @@ class Config:
     gitbook_space_id: str = os.getenv("GITBOOK_SPACE_ID", "")
     gitbook_api_base_url: str = os.getenv("GITBOOK_API_BASE_URL", "https://api.gitbook.com/v1")
     gitbook_cache_refresh_hours: int = int(os.getenv("GITBOOK_CACHE_REFRESH_HOURS", "24"))
+    # Max concurrent GitBook API requests (avoids 429 rate limits; default 2)
+    gitbook_max_concurrent_requests: int = int(os.getenv("GITBOOK_MAX_CONCURRENT_REQUESTS", "2"))
     # Public URL where documentation is published (optional, for browser access)
     gitbook_public_url: str = os.getenv("GITBOOK_PUBLIC_URL", "")
 

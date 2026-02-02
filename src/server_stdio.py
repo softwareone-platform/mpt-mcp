@@ -35,6 +35,11 @@ cache_manager: CacheManager | None = None
 _initialized: bool = False
 
 
+def _log_stderr(message: str) -> None:
+    """Print to stderr for tool diagnostics (RQL, params, count). Safe for STDIO (stdout is JSON-RPC only)."""
+    print(message, file=sys.stderr, flush=True)
+
+
 async def initialize_server(force_refresh: bool = False):
     """
     Initialize the server with API client and discover endpoints
@@ -149,6 +154,8 @@ async def marketplace_query(
     path_params: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     """
+    marketplace_query(resource, rql, limit, offset, select, order): Query the SoftwareOne Marketplace API.
+
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
 
     Supports both simple queries and advanced RQL filtering, sorting, and pagination. See documentation at https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
@@ -156,10 +163,10 @@ async def marketplace_query(
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
         rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
-        limit: Maximum number of items to return (e.g., 10, 50, 100)
+        limit: Maximum number of items to return (e.g., 10, 50, 100). Defaults to 10 if not specified. Maximum allowed is 100 (values above 100 are capped to 100). When using limit up to 100, use select= with only the fields you need (from marketplace_resource_schema) to avoid huge responses.
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (e.g., +name,+description or -metadata). IMPORTANT: When filtering or sorting by audit fields (e.g., audit.created.at), you must include 'audit' in select. The server will auto-add this if detected.
+        select: Fields to include/exclude (e.g., +name,+description or -metadata). IMPORTANT: When filtering or sorting by audit fields (e.g., audit.created.at), you must include 'audit' in select. The server will auto-add this if detected. For nested collections: +subscriptions returns the full nested representation (each item as a full object); +subscriptions.id returns only the ids of the nested collection; +subscriptions.id,+subscriptions.name returns only id and name per nested item. Prefer +subscriptions.id,+subscriptions.name when you only need to count or show id/name. RQL filter fields must exist on the resource—use marketplace_resource_schema(resource) to check (e.g. subscriptionsCount does not exist).
         order: Sort order (e.g., -created for descending, +name for ascending). When using audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id
@@ -201,7 +208,7 @@ async def marketplace_query(
         path_params=path_params,
         api_client=api_client,
         endpoints_registry=endpoints_registry,
-        log_fn=None,  # STDIO doesn't have contextual logging
+        log_fn=None,  # use logger only (no duplicate print)
         analytics_logger=None,  # STDIO mode - no analytics
         config=config,
     )
@@ -227,7 +234,7 @@ async def marketplace_quick_queries() -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_resources() -> dict[str, Any]:
     """
-    List all available marketplace resources that can be queried.
+    marketplace_resources(): List all available API resources.
 
     Returns a categorized list of all available API endpoints.
     """
@@ -312,7 +319,7 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     """
-    Get detailed information about a specific marketplace resource.
+    marketplace_resource_info(resource): Get detailed information about a specific resource.
 
     Args:
         resource: The resource identifier (e.g., catalog.products)
@@ -334,7 +341,7 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     """
-    Get the complete JSON schema for a marketplace resource.
+    marketplace_resource_schema(resource): Get the full schema for a resource.
 
     Returns detailed information about the resource including available parameters, example queries, filterable fields, and response structure.
 

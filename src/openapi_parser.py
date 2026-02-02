@@ -276,12 +276,16 @@ class OpenAPIParser:
                 "- Complex: 'and(eq(vendor.id,ACC-123),gt(audit.created,2024-11-01))&order=-audit.created&select=audit&limit=10'\n"
                 "- Multiple conditions: 'and(eq(status,Failed),or(eq(type,A),eq(type,B)))'\n"
                 "\n"
-                "IMPORTANT: Date fields (created, updated) are in 'audit' object. Add '&select=audit' to access them!",
+                "IMPORTANT: Date fields (created, updated) are in 'audit' object. Add '&select=audit' to access them!\n"
+                "Filter fields must exist on the resource—use marketplace_resource_schema(resource) to see filterable fields (e.g. subscriptionsCount does not exist; for agreements with more than N subscriptions, fetch with select=+subscriptions.id,+subscriptions.name and filter/count in the response).",
             }
 
         # Add common pagination parameters if not present
         if "limit" not in properties:
-            properties["limit"] = {"type": "integer", "description": "Maximum number of items to return (pagination)"}
+            properties["limit"] = {
+                "type": "integer",
+                "description": "Maximum number of items to return (pagination). For large limits (e.g. 100, 500, 1000), use select= with only the fields you need (from marketplace_resource_schema); otherwise the response may cause a context limit error.",
+            }
 
         if "offset" not in properties:
             properties["offset"] = {"type": "integer", "description": "Number of items to skip (pagination)"}

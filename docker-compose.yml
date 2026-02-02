@@ -58,6 +58,7 @@ services:
       GITBOOK_SPACE_ID: ${GITBOOK_SPACE_ID:-}
       GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
       GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
+      GITBOOK_MAX_CONCURRENT_REQUESTS: ${GITBOOK_MAX_CONCURRENT_REQUESTS:-2}
       GITBOOK_PUBLIC_URL: ${GITBOOK_PUBLIC_URL:-}
       
       # Analytics Database (Optional) - hardcoded for Docker internal network
@@ -118,6 +119,7 @@ services:
       GITBOOK_SPACE_ID: ${GITBOOK_SPACE_ID:-}
       GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
       GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
+      GITBOOK_MAX_CONCURRENT_REQUESTS: ${GITBOOK_MAX_CONCURRENT_REQUESTS:-2}
       GITBOOK_PUBLIC_URL: ${GITBOOK_PUBLIC_URL:-}
       
       # Production settings
@@ -141,6 +143,7 @@ services:
       start_period: 10s
   
   # Test service - runs Ruff checks and all tests with pytest
+  # Note: No profile - this service is built by default with 'docker compose build'
   test:
     build: .
     container_name: mpt-mcp-test
@@ -164,9 +167,6 @@ services:
       - ./alembic.ini:/app/alembic.ini
     
     command: sh -c "echo '=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest (with pytest-ruff plugin) ===' && python -m pytest"
-    
-    profiles:
-      - test
   
   # Ruff service - runs only Ruff linter and formatter
   ruff:
@@ -203,6 +203,7 @@ services:
       - test
   
   # Test with coverage
+  # Note: No profile - this service is built by default with 'docker compose build'
   test-cov:
     build: .
     container_name: mpt-mcp-test-cov
@@ -223,10 +224,7 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
     
-    command: python -m pytest --cov=src --cov-report=term-missing --cov-report=html
-    
-    profiles:
-      - test
+    command: sh -c "echo '=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=src --cov-report=term-missing --cov-report=html"
 
   # PostgreSQL service for analytics (local development)
   analytics-db:

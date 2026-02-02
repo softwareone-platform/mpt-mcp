@@ -87,3 +87,6 @@ CHANGELOG*.md
 # Operational docs and scripts (deployment info - not published)
 docs/
 scripts/
+
+# Agent UI/Backend (separate project, not committed)
+agent/

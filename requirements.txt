@@ -19,3 +19,5 @@ asyncpg>=0.29.0
 alembic>=1.13.0
 psycopg2-binary>=2.9.0  # For Alembic offline mode
 
+# JWT support for Auth0 tokens
+python-jose[cryptography]>=3.3.0

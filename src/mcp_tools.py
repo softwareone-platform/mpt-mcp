@@ -5,14 +5,50 @@ This module contains common tool logic used by both server.py (HTTP) and
 server_stdio.py (STDIO) to avoid code duplication and ensure consistency.
 """
 
+import logging
 import re
 from collections.abc import Callable
 from typing import Any
 
 import httpx
 
+logger = logging.getLogger(__name__)
+
+# Tool-call logs (Query, Params, Result) go via logger.info; root/uvicorn handler shows them (no duplicate print)
+
 from .api_client import APIClient
 from .query_templates import get_query_templates
+
+
+def obfuscate_token_values(data: Any) -> Any:
+    """
+    Recursively obfuscate 'token' property values in API responses.
+
+    SECURITY: This prevents sensitive token values from being exposed in API responses.
+    When querying token-related resources (e.g., accounts.api-tokens), the actual token
+    values are replaced with '[REDACTED]' to protect sensitive credentials.
+
+    Args:
+        data: The data structure to sanitize (dict, list, or primitive)
+
+    Returns:
+        Sanitized data structure with token values obfuscated
+    """
+    if isinstance(data, dict):
+        sanitized = {}
+        for key, value in data.items():
+            # Obfuscate 'token' property values
+            if key.lower() == "token" and isinstance(value, str) and value.strip():
+                sanitized[key] = "[REDACTED]"
+            else:
+                # Recursively sanitize nested structures
+                sanitized[key] = obfuscate_token_values(value)
+        return sanitized
+    elif isinstance(data, list):
+        return [obfuscate_token_values(item) for item in data]
+    else:
+        return data
+
 
 # ============================================================================
 # Common Tool: marketplace_query
@@ -57,12 +93,21 @@ async def execute_marketplace_query(
     """
     import time
 
+    # Tool-call diagnostics at INFO so they appear in docker logs (log_level=info)
+    logger.info(
+        "marketplace_query resource=%s rql=%s limit=%s",
+        resource,
+        (rql or "")[:80],
+        limit,
+    )
     start_time = time.time()
     params = {"resource": resource, "rql": rql, "limit": limit, "offset": offset, "page": page, "select": select, "order": order, "path_params": path_params}
 
     def log(message: str):
         if log_fn:
             log_fn(message)
+        # Emit at INFO so tool calls (Query, Params, Result count) show in docker logs
+        logger.info("%s", message)
 
     try:
         # Check if resource exists
@@ -152,6 +197,18 @@ async def execute_marketplace_query(
                 select = "audit"
             log("   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)")
 
+        # Apply default limit of 10 if not explicitly specified
+        # Cap at 100 to avoid huge responses and context limit errors (platform default is 1000)
+        if limit is None:
+            limit = 10
+            log("   💡 Applied default limit=10 (platform default is 1000, too large for most use cases)")
+        elif limit == 0:
+            # If limit is explicitly set to 0, respect it (might be intentional)
+            log("   ⚠️ Limit is 0, keeping as-is (might be intentional)")
+        elif limit > 100:
+            log(f"   💡 Capped limit {limit} to 100 (max allowed to avoid context overflow)")
+            limit = 100
+
         # Build query parameters
         params = {}
         if rql:
@@ -177,6 +234,14 @@ async def execute_marketplace_query(
             if "$meta" in result:
                 result_count = result["$meta"].get("pagination", {}).get("total")
                 log(f"   ✅ Result: {result_count or '?'} total items")
+
+            # SECURITY: Obfuscate token values if querying API token endpoints
+            # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
+            # This ensures we catch all token-related endpoints regardless of resource name
+            is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
+            if is_token_endpoint:
+                log("   🔒 Obfuscating token values in response (security)")
+                result = obfuscate_token_values(result)
 
             # Log successful API query
             if analytics_logger and config and config.analytics_enabled:
@@ -261,6 +326,14 @@ async def execute_marketplace_query(
                     if "$meta" in result:
                         result_count = result["$meta"].get("pagination", {}).get("total")
                         log(f"   ✅ Retry successful: {result_count or '?'} total items")
+
+                    # SECURITY: Obfuscate token values if querying API token endpoints
+                    # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
+                    # This ensures we catch all token-related endpoints regardless of resource name
+                    is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
+                    if is_token_endpoint:
+                        log("   🔒 Obfuscating token values in response (security)")
+                        result = obfuscate_token_values(result)
 
                     # Log successful API query after retry
                     if analytics_logger and config and config.analytics_enabled:
@@ -426,9 +499,9 @@ async def execute_marketplace_resources(
         },
         "tips": {
             "filtering": "Use RQL for complex filters: eq(field,value), ilike(name,*keyword*), and(condition1,condition2)",
-            "pagination": "Use limit= and offset= parameters for pagination",
+            "pagination": "Use limit= and offset= parameters for pagination. Maximum limit is 100 (values above 100 are capped). When using limit up to 100, use select= with only the fields you need (from marketplace_resource_schema); otherwise the response may cause a context limit error.",
             "sorting": "Use order= parameter: order=-created (descending), order=+name (ascending)",
-            "field_selection": "Use select= parameter: select=+id,+name,+status or select=-metadata",
+            "field_selection": "Use select= parameter: select=+id,+name,+status or select=-metadata. Note: Many fields are omitted by default (see $meta.omitted in responses). Use select=+field to include omitted fields like lines, parameters, subscriptions. For nested collections: +subscriptions returns the full nested representation; +subscriptions.id returns only the ids of the nested collection; +subscriptions.id,+subscriptions.name returns only id and name per nested item. Prefer +subscriptions.id,+subscriptions.name when you only need to count or show id/name. RQL filter fields must exist on the resource (e.g. subscriptionsCount does not)—use marketplace_resource_schema(resource) to check.",
         },
     }
 
@@ -548,10 +621,11 @@ async def execute_marketplace_resource_info(
             "limit": "Maximum number of items to return",
             "offset": "Number of items to skip",
             "page": "Page number",
-            "select": "Fields to include/exclude",
+            "select": "Fields to include/exclude. Use select=+field to include fields that are omitted by default (see $meta.omitted in responses). Example: select=+lines,+parameters to include lines and parameters fields.",
             "order": "Sort order (e.g., -created for descending, +name for ascending)",
             "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})",
         },
+        "omitted_fields_note": "Many resources omit certain fields by default for performance. Check $meta.omitted in query responses to see which fields are available but not included. Use select=+field to include them.",
         "example_queries": examples,
     }
 
