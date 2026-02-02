@@ -99,8 +99,9 @@ marketplace_query(resource="commerce.orders", limit=5)
 
 ### **Run tests**
 ```bash
-docker compose run --rm test
+docker compose run test
 ```
+This runs Ruff linter, Ruff formatter check, then pytest—the same checks as CI. To run only Ruff (lint + format check): `docker compose run --rm ruff`.
 
 ### **Local development**
 ```bash

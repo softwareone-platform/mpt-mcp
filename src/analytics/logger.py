@@ -22,7 +22,6 @@ from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from ..token_validator import parse_token_id
-
 from .models import mcp_events
 
 logger = logging.getLogger(__name__)

@@ -125,6 +125,7 @@ class TestDefaultLimit:
         call_args = api_client.get.call_args
         params = call_args.kwargs.get("params", {})
         assert params["limit"] == 0, f"Expected limit=0, got limit={params.get('limit')}"
+        assert "data" in result
 
     @pytest.mark.asyncio
     async def test_default_limit_with_rql(self, api_client, mock_api_response, endpoints_registry):
@@ -149,6 +150,7 @@ class TestDefaultLimit:
         params = call_args.kwargs.get("params", {})
         assert params["rql"] == "eq(status,Published)", "RQL should be preserved"
         assert params["limit"] == 10, "Default limit should be applied"
+        assert "data" in result
 
     @pytest.mark.asyncio
     async def test_default_limit_with_other_params(self, api_client, mock_api_response, endpoints_registry):
@@ -174,6 +176,7 @@ class TestDefaultLimit:
         assert params["select"] == "+id,+name", "Select should be preserved"
         assert params["order"] == "-created", "Order should be preserved"
         assert params["limit"] == 10, "Default limit should be applied"
+        assert "data" in result
 
     @pytest.mark.asyncio
     async def test_default_limit_logs_message(self, api_client, mock_api_response, endpoints_registry):

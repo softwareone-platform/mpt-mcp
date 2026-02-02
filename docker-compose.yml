@@ -166,7 +166,7 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
     
-    command: sh -c "echo '=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest (with pytest-ruff plugin) ===' && python -m pytest"
+    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check src/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest ===' && python -m pytest"
   
   # Ruff service - runs only Ruff linter and formatter (no profile so CI can run it)
   ruff:
@@ -218,7 +218,7 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
     
-    command: sh -c "echo '=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=src --cov-report=term-missing --cov-report=html"
+    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check src/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=src --cov-report=term-missing --cov-report=html"
 
   # PostgreSQL service for analytics (local development)
   analytics-db:
