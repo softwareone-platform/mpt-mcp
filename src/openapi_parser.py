@@ -268,7 +268,7 @@ class OpenAPIParser:
                 "8. SPECIAL CHARACTERS AND IDS:\n"
                 '   - Enclose values with special chars in quotes: eq(name,"Buzz !!!")\n'
                 '   - ID values (ACC-xxx, PRD-xxx, USR-xxx, etc.) MUST be in double quotes: eq(buyer.id,"ACC-4402-5918"), eq(client.id,"ACC-1234-5678")\n'
-                '   - Unquoted IDs can return 0 results; always quote IDs in eq(...).\n'
+                "   - Unquoted IDs can return 0 results; always quote IDs in eq(...).\n"
                 '   - Escape asterisk in ilike if literal: ilike(name,"The\\**")\n'
                 "\n"
                 "EXAMPLES:\n"

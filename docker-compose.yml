@@ -180,7 +180,7 @@ services:
       - ./tests:/app/tests
       - ./pyproject.toml:/app/pyproject.toml
     
-    command: sh -c "ruff check src/ tests/ && ruff format --check src/ tests/"
+    command: sh -c "echo '=== Ruff lint (check) ===' && ruff check src/ tests/ && echo '=== Ruff format (check) ===' && ruff format --check src/ tests/ && echo '=== All Ruff checks passed ==='"
   
   # Ruff fix service - runs Ruff with auto-fix (no profile so CI/local can run it)
   ruff-fix:
