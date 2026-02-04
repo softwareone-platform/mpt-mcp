@@ -30,6 +30,7 @@ import uvicorn
 from alembic.config import Config as AlembicConfig
 from mcp.server.fastmcp import FastMCP
 from mcp.server.transport_security import TransportSecuritySettings
+from mcp.types import CallToolResult, TextContent
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -370,7 +371,10 @@ async def get_client_api_client_http(validate_token: bool = True) -> APIClient:
 # ============================================================================
 
 
-@mcp.tool()
+@mcp.tool(
+    description="Query the SoftwareOne Marketplace API. Only render summary. UI will show structured data.",
+    meta={"ui": {"resourceUri": "ui://marketplace/query-results"},"hint":"Custom UI is available as MCP APP. Only render a single line summary in text"}
+)
 async def marketplace_query(
     resource: str,
     rql: str = "",
@@ -380,7 +384,7 @@ async def marketplace_query(
     select: str | None = None,
     order: str | None = None,
     path_params: dict[str, str] | None = None,
-) -> dict[str, Any]:
+) -> CallToolResult:
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
 
@@ -397,15 +401,24 @@ async def marketplace_query(
         path_params: Path parameters for resources requiring IDs (e.g., {id: PRD-1234-5678} for catalog.products.by_id, {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines)
 
     Returns:
-        API response with data and pagination information
+        API response with data and pagination information. UI is present. Only show a single line summary with total count in text.
 
     Use marketplace_resources() to see all available resources.
+
+    IMPORTANT: Results include ui_hint. When ui_hint says 
+    "rendered in an interactive UI", provide only a brief summary (1 or 2 lines),
+    not the full raw data.
     """
     # Get credentials from request context (set by middleware)
     try:
         api_client = await get_client_api_client_http()
     except ValueError as e:
-        return {"error": str(e), "hint": "Provide X-MPT-Authorization header with your API token"}
+        import json
+        error_result = {"error": str(e), "hint": "Provide X-MPT-Authorization header with your API token"}
+        return CallToolResult(
+            content=[TextContent(type="text", text=f"❌ Error: {e}")],
+            _meta={"structuredContent": error_result}
+        )
 
     # Get endpoints registry for this client's API endpoint
     api_base_url = api_client.base_url
@@ -414,15 +427,20 @@ async def marketplace_query(
     try:
         endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as e:
-        return {
+        import json
+        error_result = {
             "error": "Failed to load OpenAPI spec for your endpoint",
             "api_endpoint": api_base_url,
             "details": str(e),
             "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
         }
+        return CallToolResult(
+            content=[TextContent(type="text", text=f"❌ Error: Failed to load OpenAPI spec - {e}")],
+            _meta={"structuredContent": error_result}
+        )
 
     # Use shared implementation
-    return await execute_marketplace_query(
+    result = await execute_marketplace_query(
         resource=resource,
         rql=rql,
         limit=limit,
@@ -436,6 +454,28 @@ async def marketplace_query(
         log_fn=log,
         analytics_logger=get_analytics_logger(),
         config=config,
+    )
+    
+    # Return concise text with full structured data for UI
+    import json
+    
+    result["ui_hint"] = "This data is rendered in an interactive UI. Do not display as raw text."
+    
+    if result.get("error"):
+        log(f"❌ Returning error result: {result.get('error')}")
+        return CallToolResult(
+            content=[TextContent(type="text", text=f"❌ Error: {result.get('error')}")],
+            _meta={"structuredContent": result}
+        )
+    
+    # Extract summary for text
+    total = result.get("$meta", {}).get("pagination", {}).get("total", "unknown")
+    count = len(result.get("data", []))
+    
+    log(f"✅ Returning query result: {count} items (total: {total})")
+    return CallToolResult(
+        content=[TextContent(type="text", text=f"✅ Query successful: {count} items returned (total: {total}). See UI for details.")],
+        structuredContent=result
     )
 
 
@@ -624,7 +664,7 @@ async def run_server_async():
     # Wrap with our credentials middleware
     wrapped_app = CredentialsMiddleware(starlette_app)
 
-    # Add health check endpoint by wrapping again
+    # Add health check and static file serving endpoint
     class HealthCheckMiddleware:
         def __init__(self, app):
             self.app = app
@@ -643,6 +683,30 @@ async def run_server_async():
                     )
                     await response(scope, receive, send)
                     return
+                elif request.url.path == "/index.js":
+                    # Serve the index.js file for MCP Apps UI
+                    import pathlib
+                    from starlette.responses import Response
+                    
+                    log("📄 Serving index.js for MCP Apps UI")
+                    
+                    static_dir = pathlib.Path(__file__).parent / "static"
+                    index_js_path = static_dir / "index.js"
+                    
+                    if index_js_path.exists():
+                        content = index_js_path.read_text()
+                        response = Response(
+                            content=content,
+                            media_type="application/javascript",
+                            headers={
+                                "Cache-Control": "no-cache",
+                                "Access-Control-Allow-Origin": "*",
+                            }
+                        )
+                        await response(scope, receive, send)
+                        return
+                    else:
+                        log("⚠️  index.js not found at {index_js_path}")
             await self.app(scope, receive, send)
 
     final_app = HealthCheckMiddleware(wrapped_app)
@@ -913,6 +977,55 @@ async def marketplace_resources_info() -> dict[str, Any]:
         if analytics and config.analytics_enabled:
             await analytics.log_tool_call(tool_name="marketplace_resources_info", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message=str(e))
         raise
+
+
+# ============================================================================
+# MCP Apps - Interactive UI Resources
+# ============================================================================
+
+
+class QueryResultsUI(Resource):
+    """Interactive UI for viewing query results"""
+
+    def __init__(self):
+        super().__init__(
+            uri="ui://marketplace/query-results",
+            name="Query Results Viewer",
+            description="Interactive UI to view and explore marketplace query results",
+            mime_type="text/html",
+        )
+
+    async def read(self) -> str:
+        """Return the HTML UI for viewing query results"""
+        import httpx
+        
+        try:
+            # Fetch entire HTML from dev server
+            async with httpx.AsyncClient(verify=False) as client:
+                response = await client.get("https://localhost:4173/", timeout=5.0)
+                response.raise_for_status()
+                html_content = response.text
+                log("📄 Fetched HTML from https://localhost:4173/")
+                return html_content
+        except Exception as e:
+            log(f"⚠️  Failed to fetch HTML from dev server: {e}")
+            # Fallback HTML with error message
+            return f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Query Results</title>
+</head>
+<body>
+    <div id="root" style="background: white; padding: 16px; border-radius: 8px;">
+        Failed to load dev server: {str(e)}
+    </div>
+</body>
+</html>"""
+
+
+mcp._resource_manager.add_resource(QueryResultsUI())
 
 
 # ============================================================================

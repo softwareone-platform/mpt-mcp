@@ -55,7 +55,7 @@ class GitBookClient:
 
         logger.info(f"📥 Fetching GitBook space content from: {url}")
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
             response = await client.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             content = response.json()
@@ -91,7 +91,7 @@ class GitBookClient:
 
         logger.debug(f"📥 Fetching page: {page_path}")
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
             response = await client.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             return response.json()
@@ -115,7 +115,7 @@ class GitBookClient:
 
         logger.debug(f"📥 Fetching page by ID: {page_id}")
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
             response = await client.get(url, headers=headers, timeout=timeout)
             response.raise_for_status()
             return response.json()
@@ -131,7 +131,7 @@ class GitBookClient:
             url = f"{self.base_url}/spaces/{self.space_id}"
             headers = self._get_headers()
 
-            async with httpx.AsyncClient(follow_redirects=True) as client:
+            async with httpx.AsyncClient(follow_redirects=True, verify=False) as client:
                 response = await client.get(url, headers=headers, timeout=10.0)
                 response.raise_for_status()
 
