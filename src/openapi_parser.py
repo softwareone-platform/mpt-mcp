@@ -276,10 +276,11 @@ class OpenAPIParser:
                 "- Search: 'ilike(name,*Teams*)&limit=20'\n"
                 "- Sort: 'order=-name&select=id,name,status'\n"
                 '- Filter by account ID: eq(buyer.id,"ACC-4402-5918") or eq(client.id,"ACC-1234-5678") (use schema to see which field exists)\n'
-                "- Complex: 'and(eq(vendor.id,\"ACC-123\"),gt(audit.created,2024-11-01))&order=-audit.created&select=audit&limit=10'\n"
+                "- Complex: 'and(eq(vendor.id,\"ACC-123\"),ge(audit.created.at,2026-01-31T00:00:00.000Z))&order=-audit.created.at&select=audit&limit=10' (dates in UTC: YYYY-MM-DDTHH:MM:SS.mmmZ)\n"
                 "- Multiple conditions: 'and(eq(status,Failed),or(eq(type,A),eq(type,B)))'\n"
                 "\n"
                 "IMPORTANT: Date fields (created, updated) are in 'audit' object. Add '&select=audit' to access them!\n"
+                "DATES IN RQL: Use UTC format YYYY-MM-DDTHH:MM:SS.mmmZ (e.g. 2026-01-31T23:00:00.000Z). Backend uses UTC (Zulu time).\n"
                 "Filter fields must exist on the resource—use marketplace_resource_schema(resource) to see filterable fields (e.g. subscriptionsCount does not exist; for agreements with more than N subscriptions, fetch with select=+subscriptions.id,+subscriptions.name and filter/count in the response).",
             }
 
