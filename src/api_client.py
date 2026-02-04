@@ -146,7 +146,7 @@ class APIClient:
             logger.info(f"   Parameters: {original_params}")
         logger.info(f"   Full URL: {url}")
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
             response = await client.get(
                 url,
                 params=params,  # Will be None if RQL was used
@@ -214,7 +214,7 @@ class APIClient:
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
 
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
             response = await client.get(
                 url,
                 params=params,

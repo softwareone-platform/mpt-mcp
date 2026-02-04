@@ -302,8 +302,8 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
         try:
             logger.info(f"🔐 Validating JWT token (user: {user_id}) against {api_base_url} (API call)...")
 
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, timeout=10.0)
+            async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+                response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, timeout=30.0)
 
                 if response.status_code == 200:
                     user_info = response.json()
@@ -426,8 +426,8 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
         try:
             logger.info(f"🔐 Validating token {token_id} against {api_base_url} (API call)...")
 
-            async with httpx.AsyncClient(follow_redirects=True) as client:
-                response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, timeout=10.0)
+            async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+                response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"}, timeout=30.0)
 
                 if response.status_code == 200:
                     token_info = response.json()

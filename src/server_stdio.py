@@ -82,7 +82,7 @@ async def initialize_server(force_refresh: bool = False):
         log(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
 
         # Try to fetch with cache
-        spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh, timeout=10.0)
+        spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh, timeout=30.0)
 
         # Parse OpenAPI spec and extract GET endpoints
         tools = await openapi_parser.extract_get_endpoints(spec)

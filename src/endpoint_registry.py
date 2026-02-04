@@ -92,7 +92,7 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
 
     try:
         # Try to fetch from the endpoint-specific URL
-        spec = await fetch_with_cache(url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh, timeout=10.0)
+        spec = await fetch_with_cache(url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh, timeout=30.0)
         _log(f"✓ Loaded OpenAPI spec from {api_base_url}")
         return spec
 
@@ -106,7 +106,7 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
             _log(f"🔄 Trying fallback: {fallback_url}")
 
             try:
-                spec = await fetch_with_cache(url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh, timeout=10.0)
+                spec = await fetch_with_cache(url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh, timeout=30.0)
                 _log("✓ Loaded OpenAPI spec from fallback")
                 return spec
 

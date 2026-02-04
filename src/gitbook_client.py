@@ -63,7 +63,7 @@ class GitBookClient:
         """
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
-                async with httpx.AsyncClient(follow_redirects=True) as client:
+                async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
                     response = await client.get(url, headers=self._get_headers(), timeout=timeout)
                 if response.status_code in (429, 503):
                     if attempt < MAX_RETRIES - 1:
@@ -151,7 +151,7 @@ class GitBookClient:
         """
         try:
             url = f"{self.base_url}/spaces/{self.space_id}"
-            await self._get_with_retry(url, timeout=10.0)
+            await self._get_with_retry(url, timeout=30.0)
             logger.info("✅ GitBook credentials validated successfully")
             return True
         except Exception as e:

@@ -172,7 +172,7 @@ class CacheManager:
         }
 
 
-async def fetch_with_cache(url: str, cache_manager: CacheManager, force_refresh: bool = False, timeout: float = 10.0) -> dict[str, Any]:
+async def fetch_with_cache(url: str, cache_manager: CacheManager, force_refresh: bool = False, timeout: float = 30.0) -> dict[str, Any]:
     """
     Fetch data from URL with caching
 
@@ -203,7 +203,7 @@ async def fetch_with_cache(url: str, cache_manager: CacheManager, force_refresh:
     # Fetch from network
     log(f"📡 Fetching from: {url}")
     try:
-        async with httpx.AsyncClient(follow_redirects=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
             response = await client.get(url, timeout=timeout)
 
             # Log if redirects occurred
