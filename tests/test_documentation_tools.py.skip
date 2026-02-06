@@ -1,3 +1,0 @@
-# These tests need to be updated to match the actual implementation
-# The documentation_cache is a global instance, not directly patchable
-# TODO: Refactor tests to use the actual documentation_cache instance
