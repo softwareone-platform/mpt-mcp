@@ -112,10 +112,7 @@ class CredentialsMiddleware:
             auth_header = normalize_token(auth_header_raw) if auth_header_raw else auth_header_raw
             endpoint_header = request.headers.get("x-mpt-endpoint") or request.headers.get("X-MPT-Endpoint")
             # Optional: force re-validation (bypass cache) to recover from stale "Token invalid (cached)"
-            validate_fresh = (
-                (request.headers.get("x-mpt-validate-fresh") or request.headers.get("X-MPT-Validate-Fresh") or "")
-                .strip().lower() in ("1", "true", "yes")
-            )
+            validate_fresh = (request.headers.get("x-mpt-validate-fresh") or request.headers.get("X-MPT-Validate-Fresh") or "").strip().lower() in ("1", "true", "yes")
 
             # Extract user ID from token for logging
             user_id = None
