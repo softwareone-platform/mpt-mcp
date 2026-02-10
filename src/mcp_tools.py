@@ -260,6 +260,12 @@ async def execute_marketplace_query(
                     tool_name="marketplace_query",
                 )
 
+            # Log what we return so agent-side can verify $meta/omitted are present
+            data_list = result.get("data") if isinstance(result.get("data"), list) else []
+            meta = result.get("$meta") if isinstance(result.get("$meta"), dict) else {}
+            omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
+            log(f"   📤 Returning: data len={len(data_list)}, $meta={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
+
             return result
         except Exception as e:
             log(f"   ❌ Error: {e}")
@@ -351,6 +357,12 @@ async def execute_marketplace_query(
                             select_fields=original_select,
                             tool_name="marketplace_query",
                         )
+
+                    # Log what we return so agent-side can verify $meta/omitted are present
+                    data_list = result.get("data") if isinstance(result.get("data"), list) else []
+                    meta = result.get("$meta") if isinstance(result.get("$meta"), dict) else {}
+                    omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
+                    log(f"   📤 Returning: data len={len(data_list)}, $meta={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
 
                     return result
                 except Exception as retry_e:
