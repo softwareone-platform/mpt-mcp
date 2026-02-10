@@ -11,6 +11,7 @@ import pytest
 from src.token_validator import (
     TokenValidationCache,
     _hash_token,
+    normalize_token,
     parse_token_id,
     validate_token,
 )
@@ -214,6 +215,30 @@ class TestParseTokenId:
         assert token_id == "TKN-1234-5678"
 
 
+class TestNormalizeToken:
+    """Test token normalization (used by HTTP server middleware)"""
+
+    @pytest.mark.unit
+    def test_normalize_strips_bearer_prefix(self):
+        """Bearer prefix is stripped so cache key and API call use raw token"""
+        assert normalize_token("Bearer idt:TKN-1234-5678:SECRET") == "idt:TKN-1234-5678:SECRET"
+        assert normalize_token("bearer idt:TKN-X:Y") == "idt:TKN-X:Y"
+
+    @pytest.mark.unit
+    def test_normalize_strips_whitespace(self):
+        """Leading/trailing whitespace is stripped"""
+        assert normalize_token("  idt:TKN-A:B  ") == "idt:TKN-A:B"
+        assert normalize_token("  Bearer idt:TKN-A:B  ") == "idt:TKN-A:B"
+
+    @pytest.mark.unit
+    def test_normalize_empty_returns_empty(self):
+        """Empty or whitespace-only returns empty string"""
+        assert normalize_token("") == ""
+        assert normalize_token("   ") == ""
+        # Only "Bearer " (with trailing space) is stripped; "Bearer" alone has no trailing space so stays
+        assert normalize_token("  Bearer   ") == "Bearer"
+
+
 class TestValidateToken:
     """Test the main token validation function"""
 
@@ -379,9 +404,9 @@ class TestValidateToken:
             assert mock_client.get.call_count == 2
 
     @pytest.mark.asyncio
-    async def test_validate_token_with_bearer_prefix(self):
-        """Test that tokens with Bearer prefix work correctly"""
-        token = "Bearer idt:TKN-7777-7777:SECRET"
+    async def test_validate_token_with_normalized_token(self):
+        """Validate_token receives normalized token (Bearer stripped by HTTP middleware)."""
+        token = "idt:TKN-7777-7777:SECRET"
         api_base_url = "https://api.test.com"
 
         mock_response = {
@@ -403,5 +428,7 @@ class TestValidateToken:
             is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
 
             assert is_valid is True
-            # Check that the API was called
             assert mock_client.get.call_count == 1
+            # API must be called with single "Bearer " prefix (middleware passes normalized token)
+            call_args = mock_client.get.call_args
+            assert call_args[1]["headers"]["Authorization"] == "Bearer idt:TKN-7777-7777:SECRET"

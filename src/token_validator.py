@@ -244,6 +244,25 @@ def parse_token_id(token: str) -> str | None:
         return None
 
 
+def normalize_token(token: str) -> str:
+    """
+    Normalize token for consistent cache keys and API calls.
+
+    - Strip leading/trailing whitespace.
+    - If the value starts with "Bearer " (case-insensitive), strip that prefix
+      so the stored value is the raw token (e.g. idt:TKN-xxx:secret).
+
+    This ensures the same logical token produces one cache entry and avoids
+    double-prefixing when calling the Marketplace API.
+    """
+    if not token or not isinstance(token, str):
+        return ""
+    s = token.strip()
+    if s.upper().startswith("BEARER "):
+        s = s[7:].strip()  # len("Bearer ") = 7
+    return s
+
+
 async def validate_token(token: str, api_base_url: str, use_cache: bool = True) -> tuple[bool, dict | None, str | None]:
     """
     Validate an API token against the Marketplace Platform
@@ -261,7 +280,16 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
         - is_valid: True if token is valid
         - token_info: Token metadata from API (if valid)
         - error_message: Error description (if invalid)
+
+    Note:
+        Token normalization (strip, strip "Bearer " prefix) is done in the HTTP server
+        middleware (server.py) before the token is stored in context. This function
+        assumes it receives that normalized value; it only checks for empty/None.
     """
+    if not token or not isinstance(token, str) or not token.strip():
+        return (False, None, "Missing or empty token")
+    token = token.strip()
+
     cache = get_token_cache()
 
     # Check cache first

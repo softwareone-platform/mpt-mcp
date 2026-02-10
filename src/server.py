@@ -52,6 +52,7 @@ from .mcp_tools import (
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
 )
+from .token_validator import normalize_token
 
 # ============================================================================
 # Context Variables for request-scoped data (like SSE server)
@@ -62,6 +63,7 @@ _current_session_id: ContextVar[str | None] = ContextVar("current_session_id", d
 _current_user_id: ContextVar[str | None] = ContextVar("current_user_id", default=None)
 _current_token: ContextVar[str | None] = ContextVar("current_token", default=None)
 _current_endpoint: ContextVar[str | None] = ContextVar("current_endpoint", default=None)
+_current_validate_fresh: ContextVar[bool] = ContextVar("current_validate_fresh", default=False)
 
 
 def log(message: str, **kwargs):
@@ -105,8 +107,15 @@ class CredentialsMiddleware:
             request = Request(scope, receive)
 
             # Extract credentials from headers (case-insensitive)
-            auth_header = request.headers.get("x-mpt-authorization") or request.headers.get("X-MPT-Authorization")
+            auth_header_raw = request.headers.get("x-mpt-authorization") or request.headers.get("X-MPT-Authorization")
+            # Normalize token: strip whitespace and strip leading "Bearer " so cache key and API calls are consistent
+            auth_header = normalize_token(auth_header_raw) if auth_header_raw else auth_header_raw
             endpoint_header = request.headers.get("x-mpt-endpoint") or request.headers.get("X-MPT-Endpoint")
+            # Optional: force re-validation (bypass cache) to recover from stale "Token invalid (cached)"
+            validate_fresh = (
+                (request.headers.get("x-mpt-validate-fresh") or request.headers.get("X-MPT-Validate-Fresh") or "")
+                .strip().lower() in ("1", "true", "yes")
+            )
 
             # Extract user ID from token for logging
             user_id = None
@@ -149,6 +158,8 @@ class CredentialsMiddleware:
                 token_ctx = _current_token.set(auth_header)
             if endpoint_header:
                 endpoint_ctx = _current_endpoint.set(endpoint_header)
+            if validate_fresh:
+                _ = _current_validate_fresh.set(True)
             if user_id:
                 user_ctx = _current_user_id.set(user_id)
             if session_id:
@@ -353,7 +364,8 @@ async def get_client_api_client_http(validate_token: bool = True) -> APIClient:
     if validate_token:
         from .token_validator import validate_token
 
-        is_valid, token_info, error = await validate_token(token, endpoint)
+        use_cache = not _current_validate_fresh.get()
+        is_valid, token_info, error = await validate_token(token, endpoint, use_cache=use_cache)
 
         if not is_valid:
             log(f"❌ Token validation failed: {error}")
@@ -1178,6 +1190,7 @@ def main():
         log_startup("\n🔑 Multi-tenant Authentication:")
         log_startup("   - Clients MUST provide X-MPT-Authorization header")
         log_startup("   - Optional X-MPT-Endpoint header for custom endpoints")
+        log_startup("   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')")
         log_startup("   - Headers are case-insensitive")
         log_startup(f"\n✓ Server URL: http://{server_host}:{server_port}/mcp")
         log_startup(f"✓ Health check: http://{server_host}:{server_port}/health")
