@@ -817,6 +817,14 @@ async def marketplace_docs_list(section: str = None, subsection: str = None, sea
 
         resources = await documentation_cache.list_resources(section=section, subsection=subsection, search=search, limit=limit)
 
+        # Expose browser_url at top level when present (for agent to show public link to user)
+        resources_for_response = []
+        for r in resources:
+            item = dict(r)
+            if r.get("metadata", {}).get("browser_url"):
+                item["browser_url"] = r["metadata"]["browser_url"]
+            resources_for_response.append(item)
+
         # Build filter summary
         filters = []
         if section:
@@ -827,10 +835,10 @@ async def marketplace_docs_list(section: str = None, subsection: str = None, sea
             filters.append(f"search='{search}'")
 
         result = {
-            "total": len(resources),
-            "resources": resources,
+            "total": len(resources_for_response),
+            "resources": resources_for_response,
             "filters_applied": ", ".join(filters) if filters else "none",
-            "usage": "Use marketplace_docs_read(uri='docs://path') to read a specific page",
+            "usage": "Use marketplace_docs_read(uri='docs://path') to read a specific page. Prefer showing users the browser_url (public link) when present; do not show internal uri or id to end users.",
         }
 
         # Add tip if results are large

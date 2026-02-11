@@ -336,6 +336,34 @@ class TestDocumentationCache:
         assert resources[0]["name"] == "Billing API"
 
     @pytest.mark.asyncio
+    async def test_list_resources_includes_browser_url_when_public_url_set(self):
+        """When cache has public_url, list_resources returns metadata.browser_url for each resource with a path."""
+        client = Mock(spec=GitBookClient)
+        client.fetch_space_content = AsyncMock(
+            return_value={
+                "pages": [
+                    {"id": "page1", "title": "Contact Support", "path": "help-and-support/contact-support"},
+                    {"id": "page2", "title": "Billing", "path": "developer-resources/billing"},
+                ]
+            }
+        )
+        cache = DocumentationCache(
+            gitbook_client=client,
+            public_url="https://docs.example.com",
+        )
+        await cache.refresh()
+
+        resources = await cache.list_resources()
+
+        assert len(resources) == 2
+        for r in resources:
+            assert "metadata" in r
+            assert "browser_url" in r["metadata"], f"Expected metadata.browser_url for {r['uri']}"
+        uris_to_browser_url = {r["uri"]: r["metadata"]["browser_url"] for r in resources}
+        assert uris_to_browser_url.get("docs://help-and-support/contact-support") == "https://docs.example.com/help-and-support/contact-support"
+        assert uris_to_browser_url.get("docs://developer-resources/billing") == "https://docs.example.com/developer-resources/billing"
+
+    @pytest.mark.asyncio
     async def test_get_documentation_index(self):
         """Test getting documentation index/hierarchy"""
         client = Mock(spec=GitBookClient)

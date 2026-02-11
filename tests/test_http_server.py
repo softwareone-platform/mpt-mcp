@@ -3,6 +3,8 @@
 Test HTTP server implementation
 """
 
+from unittest.mock import AsyncMock, Mock, patch
+
 import pytest
 
 from src import server
@@ -202,3 +204,68 @@ class TestHTTPServerTools:
 
         for tool_name in debug_tools:
             assert tool_name not in tool_names, f"Debug tool {tool_name} should not be in production server"
+
+
+class TestMarketplaceDocsList:
+    """Test marketplace_docs_list MCP tool response shape (browser_url, usage)."""
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_marketplace_docs_list_exposes_browser_url_and_usage_note(self):
+        """When cache returns resources with metadata.browser_url, response has top-level browser_url and usage tells to prefer it."""
+        mock_resources = [
+            {
+                "uri": "docs://help-and-support/contact-support",
+                "name": "Contact Support",
+                "description": "Documentation page: Contact Support",
+                "mimeType": "text/markdown",
+                "metadata": {
+                    "id": "7qHvpiUID0CAu2h8cXUr",
+                    "path": "help-and-support/contact-support",
+                    "title": "Contact Support",
+                    "browser_url": "https://docs.example.com/help-and-support/contact-support",
+                },
+            },
+        ]
+        mock_cache = Mock()
+        mock_cache.is_enabled = True
+        mock_cache.list_resources = AsyncMock(return_value=mock_resources)
+
+        with patch("src.server.documentation_cache", mock_cache):
+            with patch("src.server.initialize_documentation_cache", AsyncMock()):
+                from src.server import marketplace_docs_list
+
+                result = await marketplace_docs_list(search="contact support")
+
+        assert result["total"] == 1
+        assert len(result["resources"]) == 1
+        assert result["resources"][0]["browser_url"] == "https://docs.example.com/help-and-support/contact-support"
+        assert "Prefer showing users the browser_url" in result["usage"]
+        assert "do not show internal uri or id" in result["usage"]
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_marketplace_docs_list_no_browser_url_when_metadata_missing(self):
+        """When cache returns resources without metadata.browser_url, response has no top-level browser_url."""
+        mock_resources = [
+            {
+                "uri": "docs://some/page",
+                "name": "Some Page",
+                "description": "A page",
+                "mimeType": "text/markdown",
+                "metadata": {"id": "abc", "path": "some/page", "title": "Some Page"},
+            },
+        ]
+        mock_cache = Mock()
+        mock_cache.is_enabled = True
+        mock_cache.list_resources = AsyncMock(return_value=mock_resources)
+
+        with patch("src.server.documentation_cache", mock_cache):
+            with patch("src.server.initialize_documentation_cache", AsyncMock()):
+                from src.server import marketplace_docs_list
+
+                result = await marketplace_docs_list(search="some")
+
+        assert result["total"] == 1
+        assert "browser_url" not in result["resources"][0]
+        assert "Prefer showing users the browser_url" in result["usage"]
