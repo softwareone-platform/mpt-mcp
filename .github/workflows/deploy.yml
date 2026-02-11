@@ -87,6 +87,9 @@ jobs:
         fi
         if [ -n "${{ secrets.GITBOOK_API_KEY }}" ] && [ -n "${{ secrets.GITBOOK_SPACE_ID }}" ]; then
           ENV_VARS="$ENV_VARS,GITBOOK_API_KEY=${{ secrets.GITBOOK_API_KEY }},GITBOOK_SPACE_ID=${{ secrets.GITBOOK_SPACE_ID }}"
+          if [ -n "${{ secrets.GITBOOK_PUBLIC_URL }}" ]; then
+            ENV_VARS="$ENV_VARS,GITBOOK_PUBLIC_URL=${{ secrets.GITBOOK_PUBLIC_URL }}"
+          fi
         fi
         DEPLOY_CMD="gcloud run deploy mpt-mcp \
           --image gcr.io/${{ secrets.GCP_PROJECT_ID }}/mpt-mcp:${{ github.sha }} \
