@@ -113,6 +113,11 @@ def _sanitize_select(
     if not parts:
         return select
 
+    # Preserve -* (exclude-all directive) at the start if present
+    has_exclude_all = parts[0] == "-*"
+    if has_exclude_all:
+        parts = parts[1:]  # Process remaining fields
+
     # Top-level field name for validation (strip +/-, take segment before first dot)
     def top_level_field(part: str) -> str:
         name = part.lstrip("+-")
@@ -144,6 +149,12 @@ def _sanitize_select(
     prefix = [f for f in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA if f in tops]
     rest = [p for p in kept if top_level_field(p) not in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA]
     kept = prefix + rest
+
+    # Re-add -* at the start if it was present (and convert bare fields to +field when -* is used)
+    if has_exclude_all:
+        # When using -*, fields should use + prefix to explicitly include them
+        kept = [p if p.startswith("+") or p.startswith("-") else f"+{p}" for p in kept]
+        return "-*," + ",".join(kept) if kept else "-*"
     return ",".join(kept)
 
 
@@ -319,6 +330,9 @@ async def execute_marketplace_query(
         # Build query parameters
         params = {}
         if rql:
+            # Sanitize RQL: remove spaces after commas in function calls (e.g. "and(..., ilike(..." -> "and(...,ilike(...")
+            # This prevents 400 errors from the API which is strict about RQL syntax
+            rql = re.sub(r",\s+", ",", rql)
             params["rql"] = rql
         if limit is not None:
             params["limit"] = limit
