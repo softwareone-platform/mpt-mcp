@@ -2,7 +2,9 @@ name: Deploy to Google Cloud Run
 
 on:
   push:
-    branches: [ main, master ]
+    tags:
+      - '*release*'
+      - '*test*'
   workflow_dispatch:
 
 jobs:
