@@ -3,8 +3,8 @@ name: Deploy to Google Cloud Run
 on:
   push:
     tags:
-      - '*release*'
-      - '*test*'
+      - 'release/*'
+      - 'test/*'
   workflow_dispatch:
 
 jobs:
