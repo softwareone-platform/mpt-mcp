@@ -12,6 +12,7 @@ from src.token_validator import (
     TokenValidationCache,
     _hash_token,
     normalize_token,
+    parse_jwt_claims,
     parse_token_id,
     validate_token,
 )
@@ -213,6 +214,28 @@ class TestParseTokenId:
         token_id = parse_token_id(token)
         # parse_token_id extracts the TKN part
         assert token_id == "TKN-1234-5678"
+
+    @pytest.mark.unit
+    def test_parse_token_id_jwt_returns_none(self):
+        """JWT: we do not decode without verification; parse_token_id returns None (user ID from validate_token only)"""
+        import base64
+        import json
+
+        payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}
+        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+        token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
+        token_id = parse_token_id(token)
+        assert token_id is None
+
+
+class TestParseJwtClaims:
+    """parse_jwt_claims returns (None, None); we do not decode JWT without verification"""
+
+    @pytest.mark.unit
+    def test_parse_jwt_claims_always_returns_none(self):
+        """We never trust unverified claims; always (None, None)"""
+        out = parse_jwt_claims("header.payload.signature")
+        assert out == (None, None)
 
 
 class TestNormalizeToken:
@@ -432,3 +455,23 @@ class TestValidateToken:
             # API must be called with single "Bearer " prefix (middleware passes normalized token)
             call_args = mock_client.get.call_args
             assert call_args[1]["headers"]["Authorization"] == "Bearer idt:TKN-7777-7777:SECRET"
+
+    @pytest.mark.asyncio
+    async def test_validate_token_jwt_requires_jwks_url_or_iss(self):
+        """When JWT has no iss and JWT_JWKS_URL is not set, validation is rejected (no unverified decode)"""
+        import base64
+
+        payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
+        payload_b64 = base64.urlsafe_b64encode(__import__("json").dumps(payload).encode()).decode().rstrip("=")
+        token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
+        api_base_url = "https://api.test.com"
+
+        with patch("src.token_validator.config") as mock_config:
+            mock_config.jwt_jwks_url = ""
+
+            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+
+            assert is_valid is False
+            assert token_info is None
+            assert error is not None
+            assert "JWT verification" in error or "JWT_JWKS_URL" in error or "iss" in error

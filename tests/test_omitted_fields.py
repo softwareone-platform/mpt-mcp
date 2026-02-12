@@ -126,7 +126,7 @@ class TestOmittedFieldsDocumentation:
     @pytest.mark.asyncio
     async def test_marketplace_resource_info_includes_omitted_fields_note(self, endpoints_registry):
         """Test that marketplace_resource_info() includes note about omitted fields"""
-        result = await execute_marketplace_resource_info(
+        result = execute_marketplace_resource_info(
             resource="commerce.orders",
             endpoints_registry=endpoints_registry,
         )
@@ -140,7 +140,7 @@ class TestOmittedFieldsDocumentation:
     @pytest.mark.asyncio
     async def test_marketplace_resource_info_select_param_documents_omitted_fields(self, endpoints_registry):
         """Test that select parameter documentation mentions omitted fields"""
-        result = await execute_marketplace_resource_info(
+        result = execute_marketplace_resource_info(
             resource="commerce.orders",
             endpoints_registry=endpoints_registry,
         )
@@ -163,7 +163,7 @@ class TestOmittedFieldsDocumentation:
             }
         }
 
-        result = await execute_marketplace_resources(
+        result = execute_marketplace_resources(
             endpoints_registry=mock_registry,
             api_base_url="https://api.test.com",
             user_id="test-user",
@@ -179,7 +179,7 @@ class TestOmittedFieldsDocumentation:
     @pytest.mark.asyncio
     async def test_marketplace_resource_info_handles_unknown_resource(self, endpoints_registry):
         """Test that marketplace_resource_info() handles unknown resources gracefully"""
-        result = await execute_marketplace_resource_info(
+        result = execute_marketplace_resource_info(
             resource="unknown.resource",
             endpoints_registry=endpoints_registry,
         )

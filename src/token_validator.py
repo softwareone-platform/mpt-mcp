@@ -1,17 +1,18 @@
-"""
-Token Validator with In-Memory Cache
-
-Validates API tokens against the Marketplace Platform API and caches results
-to avoid repeated validation calls.
-"""
-
 import asyncio
+import base64
 import hashlib
+import json
 import logging
 from datetime import datetime, timedelta
 
 import httpx
 from jose import jwt as jose_jwt
+from jose.jwt import JWTError
+
+from .config import config
+
+# Algorithms we accept for JWT signature verification (never trust token's alg header alone)
+JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +30,6 @@ def _hash_token(token: str, api_base_url: str) -> str:
     Returns:
         SHA256 hash as hex string
     """
-    # Combine token and endpoint to ensure uniqueness per endpoint
     combined = f"{token}|{api_base_url}"
     return hashlib.sha256(combined.encode()).hexdigest()
 
@@ -53,8 +53,7 @@ class TokenValidationCache:
             ttl_minutes: Time-to-live for cache entries in minutes (default: 60)
         """
         self.ttl = timedelta(minutes=ttl_minutes)
-        # Cache format: {hash(token+endpoint): (is_valid, expiry_time, token_info)}
-        # SECURITY: Keys are SHA256 hashes, not raw tokens
+        # SECURITY: Keys are SHA256 hashes of token+endpoint, not raw tokens
         self._cache: dict[str, tuple[bool, datetime, dict | None]] = {}
         self._lock = asyncio.Lock()
         logger.info(f"🔐 Token validation cache initialized (TTL: {ttl_minutes}m, secure hash keys)")
@@ -76,12 +75,10 @@ class TokenValidationCache:
             if cache_key in self._cache:
                 is_valid, expiry, token_info = self._cache[cache_key]
 
-                # Check if cache entry is still valid
                 if datetime.now() < expiry:
                     logger.debug(f"✅ Token validation cache hit (expires in {(expiry - datetime.now()).seconds}s)")
                     return (is_valid, token_info)
                 else:
-                    # Cache expired, remove it
                     logger.debug("⏰ Token validation cache expired, removing")
                     del self._cache[cache_key]
 
@@ -153,6 +150,88 @@ def get_token_cache(ttl_minutes: int = 60) -> TokenValidationCache:
     return _token_cache
 
 
+# JWKS cache for JWT signature verification (url -> (jwks_dict, expiry))
+_jwks_cache: dict[str, tuple[dict, datetime]] = {}
+_jwks_cache_ttl = timedelta(minutes=60)
+_jwks_lock = asyncio.Lock()
+
+
+async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
+    """
+    Fetch JWKS from URL with in-memory cache (TTL 1 hour).
+
+    Returns:
+        JWKS dict with "keys" list, or None on fetch/parse error.
+    """
+    async with _jwks_lock:
+        if jwks_url in _jwks_cache:
+            jwks_dict, expiry = _jwks_cache[jwks_url]
+            if datetime.now() < expiry:
+                return jwks_dict
+            del _jwks_cache[jwks_url]
+
+    try:
+        async with httpx.AsyncClient(follow_redirects=True, timeout=10.0) as client:
+            response = await client.get(jwks_url)
+            response.raise_for_status()
+            jwks_dict = response.json()
+    except Exception as e:
+        logger.warning(f"Failed to fetch JWKS from {jwks_url}: {e}")
+        return None
+
+    if not isinstance(jwks_dict, dict) or "keys" not in jwks_dict:
+        logger.warning(f"Invalid JWKS format from {jwks_url}")
+        return None
+
+    async with _jwks_lock:
+        _jwks_cache[jwks_url] = (jwks_dict, datetime.now() + _jwks_cache_ttl)
+
+    return jwks_dict
+
+
+def _extract_claims_from_payload(payload: dict) -> tuple[str | None, str | None]:
+    """Extract userId and accountId from SoftwareOne JWT payload."""
+    raw_user_id = payload.get("https://claims.softwareone.com/userId")
+    user_id = raw_user_id if raw_user_id and isinstance(raw_user_id, str) and raw_user_id.startswith("USR-") else None
+    raw_account_id = payload.get("https://claims.softwareone.com/accountId")
+    account_id = raw_account_id if raw_account_id and isinstance(raw_account_id, str) and raw_account_id.startswith("ACC-") else None
+    return (user_id, account_id)
+
+
+async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> dict | None:
+    """
+    Verify JWT signature using JWKS and return the payload.
+
+    Uses explicit algorithm list (no alg:none). Validates exp, nbf, iat by default.
+
+    Returns:
+        Decoded payload dict if signature and claims are valid, None otherwise.
+    """
+    jwks_dict = await _fetch_jwks_cached(jwks_url)
+    if not jwks_dict:
+        return None
+
+    try:
+        payload = jose_jwt.decode(
+            token,
+            jwks_dict,
+            algorithms=JWT_ALGORITHMS,
+            options={
+                "verify_signature": True,
+                "verify_aud": False,
+                "verify_exp": True,  # validate exp when present
+                "verify_iat": True,
+                "verify_nbf": True,
+                "verify_iss": False,
+                "require_exp": False,  # allow tokens without exp (validate when present)
+            },
+        )
+        return payload
+    except JWTError as e:
+        logger.debug(f"JWT verification failed: {e}")
+        return None
+
+
 def is_jwt_token(token: str) -> bool:
     """
     Check if a token is a JWT (JSON Web Token)
@@ -168,73 +247,64 @@ def is_jwt_token(token: str) -> bool:
     if not token or not isinstance(token, str):
         return False
 
-    # JWT has exactly 3 parts separated by dots
     parts = token.split(".")
     return len(parts) == 3
 
 
-def parse_jwt_claims(token: str) -> tuple[str | None, str | None]:
+def _get_jwks_url_from_token(token: str) -> str | None:
     """
-    Parse user ID and account ID from a JWT token
+    Derive JWKS URL from the token's issuer (iss) claim.
 
-    Extracts:
-    - userId from claim: https://claims.softwareone.com/userId (format: USR-XXXX-XXXX)
-    - accountId from claim: https://claims.softwareone.com/accountId (format: ACC-XXXX-XXXX)
-
-    Args:
-        token: The JWT token string
-
-    Returns:
-        Tuple of (user_id, account_id) or (None, None) if not found/invalid
+    Standard for OIDC/Auth0: {issuer}/.well-known/jwks.json
+    We only read the payload segment to get iss for the URL; the token is verified
+    afterward via JWKS in _verify_jwt_and_get_payload (we do not trust claims here).
     """
     try:
-        # Decode JWT without verification (we'll validate via API call)
-        # This is safe because we're only extracting claims, not trusting the token
-        payload = jose_jwt.get_unverified_claims(token)
+        parts = token.split(".")
+        if len(parts) != 3:
+            return None
+        # Decode payload segment (base64url); no JWT verify API used—only parsing for iss
+        payload_b64 = parts[1]
+        padding = 4 - len(payload_b64) % 4
+        if padding != 4:
+            payload_b64 += "=" * padding
+        payload_bytes = base64.urlsafe_b64decode(payload_b64)
+        payload = json.loads(payload_bytes)
+        iss = payload.get("iss")
+        if not iss or not isinstance(iss, str):
+            return None
+        iss = iss.strip().rstrip("/")
+        if not iss.startswith("https://"):
+            return None
+        return f"{iss}/.well-known/jwks.json"
+    except Exception:
+        return None
 
-        # Extract userId from SoftwareOne custom claim
-        user_id = payload.get("https://claims.softwareone.com/userId")
-        if user_id and isinstance(user_id, str) and user_id.startswith("USR-"):
-            user_id = user_id
-        else:
-            user_id = None
 
-        # Extract accountId from SoftwareOne custom claim
-        account_id = payload.get("https://claims.softwareone.com/accountId")
-        if account_id and isinstance(account_id, str) and account_id.startswith("ACC-"):
-            account_id = account_id
-        else:
-            account_id = None
+def parse_jwt_claims(token: str) -> tuple[str | None, str | None]:
+    """
+    Parse user ID and account ID from a JWT token.
 
-        return (user_id, account_id)
-    except Exception as e:
-        logger.warning(f"Failed to parse JWT claims: {e}")
-        return (None, None)
+    We do not decode without verification. JWTs are verified in validate_token()
+    via JWKS (from JWT_JWKS_URL or derived from the token's iss claim, e.g. Auth0).
+    This returns (None, None) so callers do not trust unverified claims.
+    """
+    return (None, None)
 
 
 def parse_token_id(token: str) -> str | None:
     """
-    Parse token ID from a token string
+    Parse token ID from a token string.
 
-    Supports two formats:
-    1. API Token: idt:TKN-XXXX-XXXX:secret_part
-    2. JWT Token: header.payload.signature (extracts userId from claims)
-
-    Args:
-        token: The full token string
-
-    Returns:
-        Token ID (e.g., "TKN-1234-5678") or User ID (e.g., "USR-1234-5678") or None if invalid format
+    Supports: API Token idt:TKN-XXXX-XXXX:secret_part (returns TKN-...).
+    For JWT we do not decode without verification; validate_token() verifies via JWKS
+    and extracts the user ID. This returns None for JWT.
     """
-    # First check if it's a JWT
     if is_jwt_token(token):
-        user_id, _ = parse_jwt_claims(token)
-        if user_id:
-            return user_id
+        return None
 
-    # Otherwise, try API token format
     try:
-        # Token format: idt:TKN-XXXX-XXXX:secret
+        # idt:TKN-XXXX-XXXX:secret
         parts = token.split(":")
         if len(parts) >= 2 and parts[1].startswith("TKN-"):
             return parts[1]
@@ -292,13 +362,11 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
 
     cache = get_token_cache()
 
-    # Check cache first
     if use_cache:
         cached_result = await cache.get(token, api_base_url)
         if cached_result is not None:
             is_valid, token_info = cached_result
 
-            # Log with account info if available
             if is_valid and token_info:
                 account_name = token_info.get("account", {}).get("name", "Unknown")
                 account_id = token_info.get("account", {}).get("id", "Unknown")
@@ -308,22 +376,38 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
 
             return (is_valid, token_info, None if is_valid else "Token invalid (cached)")
 
-    # Parse token ID or User ID
-    token_id = parse_token_id(token)
+    # JWT path: verify with JWKS when URL is set or can be derived from token's iss claim (e.g. Auth0)
+    is_jwt = is_jwt_token(token)
+    account_id_from_jwt: str | None = None
+
+    if is_jwt:
+        jwks_url = config.jwt_jwks_url or _get_jwks_url_from_token(token)
+        if not jwks_url:
+            error = "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. Auth0)."
+            logger.warning(f"❌ {error}")
+            return (False, None, error)
+        payload = await _verify_jwt_and_get_payload(token, jwks_url)
+        if payload is None:
+            error = "JWT signature or claims invalid"
+            logger.warning(f"❌ {error}")
+            return (False, None, error)
+        user_id, account_id_from_jwt = _extract_claims_from_payload(payload)
+        if not user_id or not user_id.startswith("USR-"):
+            error = "JWT missing or invalid userId claim"
+            logger.warning(f"❌ {error}")
+            return (False, None, error)
+        token_id = user_id
+    else:
+        token_id = parse_token_id(token)
+
     if not token_id:
         error = "Invalid token format. Expected: idt:TKN-XXXX-XXXX:secret or JWT token"
         logger.warning(f"❌ {error}")
         return (False, None, error)
 
-    # Determine if this is a JWT (user ID) or API token
-    is_jwt = is_jwt_token(token)
-
     if is_jwt and token_id.startswith("USR-"):
-        # JWT token: validate via user endpoint
+        # JWT token: already verified; validate via user endpoint for status/account info
         user_id = token_id
-
-        # Extract accountId from JWT claims (more reliable than API response)
-        _, account_id_from_jwt = parse_jwt_claims(token)
 
         validation_url = f"{api_base_url.rstrip('/')}/public/v1/accounts/users/{user_id}"
 
@@ -379,7 +463,9 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
                         return (False, token_info, error)
 
                     logger.info(
-                        f"✅ JWT token validated successfully\n   User: {user_name} ({user_id})\n   Email: {user_email}\n   Account: {account_name} ({account_id})\n   Status: {user_status}"
+                        "✅ JWT token validated successfully\n"
+                        f"   User: {user_name} ({user_id})\n   Email: {user_email}\n"
+                        f"   Account: {account_name} ({account_id})\n   Status: {user_status}"
                     )
 
                     # Create token_info structure similar to API token format
@@ -478,7 +564,9 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
                         return (False, token_info, error)
 
                     logger.info(
-                        f"✅ Token {token_id} validated successfully\n   Token Name: {token_name}\n   Account: {account_name} ({account_id})\n   Type: {account_type}\n   Status: {token_status}"
+                        f"✅ Token {token_id} validated successfully\n   Token Name: {token_name}\n"
+                        f"   Account: {account_name} ({account_id})\n   Type: {account_type}\n"
+                        f"   Status: {token_status}"
                     )
 
                     # Cache successful validation
@@ -541,5 +629,5 @@ async def validate_token_for_resources(token: str, api_base_url: str) -> tuple[b
     Returns:
         Tuple of (is_valid, error_message)
     """
-    is_valid, token_info, error = await validate_token(token, api_base_url)
+    is_valid, _, error = await validate_token(token, api_base_url)
     return (is_valid, error)

@@ -1,13 +1,13 @@
-"""
-Documentation cache manager with TTL refresh logic
-"""
+from __future__ import annotations
 
-import asyncio
 import logging
 from datetime import datetime, timedelta
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from .gitbook_client import GitBookClient
+if TYPE_CHECKING:
+    import asyncio
+
+    from .gitbook_client import GitBookClient
 
 logger = logging.getLogger(__name__)
 
@@ -30,13 +30,11 @@ class DocumentationCache:
         self.refresh_interval = timedelta(hours=refresh_interval_hours)
         self.public_url = public_url.rstrip("/") if public_url else ""
 
-        # Cache storage
         self._content: dict[str, Any] | None = None
         self._last_refresh: datetime | None = None
         self._refresh_task: asyncio.Task | None = None
         self._is_refreshing = False
 
-        # Resource index for fast lookups
         self._resources: dict[str, dict[str, Any]] = {}
 
         if gitbook_client:
@@ -86,14 +84,11 @@ class DocumentationCache:
             self._is_refreshing = True
             logger.info("📚 Refreshing documentation cache...")
 
-            # Fetch content from GitBook
             content = await self.gitbook_client.fetch_space_content()
 
-            # Update cache
             self._content = content
             self._last_refresh = datetime.now()
 
-            # Build resource index
             self._build_resource_index()
 
             logger.info(f"✅ Documentation cache refreshed successfully ({len(self._resources)} resources)")
@@ -112,7 +107,6 @@ class DocumentationCache:
         if not self._content:
             return
 
-        # Recursively index pages (GitBook has hierarchical structure)
         def index_page(page):
             """Recursively index a page and its children"""
             if not isinstance(page, dict):
@@ -123,7 +117,6 @@ class DocumentationCache:
             title = page.get("title", "Untitled")
 
             if page_id:
-                # Create resource URI: docs://page-path
                 uri = f"docs://{page_path}" if page_path else f"docs://page-{page_id}"
 
                 metadata = {
@@ -132,7 +125,6 @@ class DocumentationCache:
                     "title": title,
                 }
 
-                # Add browser URL if public URL is configured
                 if self.public_url and page_path:
                     metadata["browser_url"] = f"{self.public_url}/{page_path}"
 
@@ -145,13 +137,11 @@ class DocumentationCache:
                     "content": None,  # Content will be fetched on-demand
                 }
 
-            # Recursively index child pages
             pages = page.get("pages", [])
             if isinstance(pages, list):
                 for child_page in pages:
                     index_page(child_page)
 
-        # Start indexing from root pages
         pages = self._content.get("pages", [])
         if isinstance(pages, list):
             for page in pages:
@@ -199,13 +189,10 @@ class DocumentationCache:
         await self.ensure_cached()
         resources = list(self._resources.values())
 
-        # Apply filters
         if section:
             resources = [r for r in resources if r["uri"].startswith(f"docs://{section}/")]
 
         if subsection:
-            # If section is provided, filter within that section
-            # Otherwise, search all resources for the subsection
             if section:
                 prefix = f"docs://{section}/{subsection}/"
             else:
@@ -216,7 +203,6 @@ class DocumentationCache:
             search_lower = search.lower()
             resources = [r for r in resources if search_lower in r["name"].lower() or search_lower in r["uri"].lower()]
 
-        # Apply limit
         if limit and limit > 0:
             resources = resources[:limit]
 
@@ -240,11 +226,10 @@ class DocumentationCache:
 
         resource = self._resources[uri]
 
-        # Check if content is already cached
         if resource.get("content") is not None:
             return resource["content"]
 
-        # Fetch content on-demand using page ID (more reliable than path)
+        # Fetch on-demand using page ID (more reliable than path)
         page_id = resource["metadata"].get("id")
 
         if not page_id:
@@ -252,21 +237,17 @@ class DocumentationCache:
             return "Content not available - no page ID"
 
         try:
-            # Fetch the page content from GitBook using ID
             page_data = await self.gitbook_client.fetch_page_by_id(page_id)
 
-            # Extract markdown content
             markdown = page_data.get("markdown", "")
 
             available_fields = list(page_data.keys())
             logger.debug(f"📋 GitBook page fields: {available_fields}")
 
             if not markdown and "document" in page_data:
-                # Fallback to extracting from document structure
                 logger.debug("📄 No markdown, extracting from document structure")
                 markdown = self._extract_text_from_document(page_data["document"])
 
-            # Cache the content for future requests
             resource["content"] = markdown or "No content available"
 
             content_length = len(markdown) if markdown else 0
@@ -297,22 +278,18 @@ class DocumentationCache:
             if not isinstance(node, dict):
                 return
 
-            # Handle text nodes with leaves
             if node.get("object") == "text" and "leaves" in node:
                 for leaf in node["leaves"]:
                     if isinstance(leaf, dict) and "text" in leaf:
                         text_parts.append(leaf["text"])
 
-            # Handle direct text field
             if "text" in node:
                 text_parts.append(node["text"])
 
-            # Recursively process child nodes
             if "nodes" in node and isinstance(node["nodes"], list):
                 for child in node["nodes"]:
                     extract_from_node(child)
 
-                # Add line break after block-level nodes
                 if node.get("type") in [
                     "paragraph",
                     "heading-1",
@@ -325,14 +302,11 @@ class DocumentationCache:
                 ]:
                     text_parts.append("\n")
 
-        # Start extraction from document root
         if "nodes" in document:
             for node in document["nodes"]:
                 extract_from_node(node)
 
-        # Join and clean up
         content = "".join(text_parts)
-        # Remove excessive newlines
         while "\n\n\n" in content:
             content = content.replace("\n\n\n", "\n\n")
 
@@ -347,13 +321,11 @@ class DocumentationCache:
         """
         await self.ensure_cached()
 
-        # Build hierarchy from URIs
         from collections import defaultdict
 
         sections = defaultdict(lambda: {"subsections": defaultdict(int), "total": 0})
 
         for uri in self._resources:
-            # Parse URI: docs://section/subsection/page
             path = uri.replace("docs://", "")
             parts = path.split("/")
 
@@ -365,7 +337,6 @@ class DocumentationCache:
                     subsection = parts[1]
                     sections[section]["subsections"][subsection] += 1
 
-        # Convert to list format
         result = {"total_pages": len(self._resources), "sections": []}
 
         for section_name in sorted(sections.keys()):

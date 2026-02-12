@@ -1,3 +1,38 @@
+[project]
+name = "mpt-mcp"
+version = "0.1.0"
+description = "Multi-tenant MCP server for the SoftwareOne Marketplace API (stdio + HTTP streamable)"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "fastmcp>=3.0.0b2",  # 3.0 line (3.0.0 final not on PyPI yet; upgrade to >=3.0.0 when released)
+    "httpx[http2]>=0.25.0",
+    "rich>=13.0.0",
+    "requests>=2.31.0",
+    "pydantic>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0",
+    "uvicorn>=0.27.0",
+    "starlette>=0.36.0",
+    "sse-starlette>=1.8.0",
+    # Analytics
+    "sqlalchemy[asyncio]>=2.0.0",
+    "asyncpg>=0.29.0",
+    "alembic>=1.13.0",
+    "psycopg2-binary>=2.9.0",
+    # Auth
+    "python-jose[cryptography]>=3.3.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=7.4.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.1.0",
+    "pytest-ruff>=0.2.0",
+    "ruff>=0.14.0",
+]
+
 [tool.ruff]
 # Python version
 target-version = "py312"
@@ -22,18 +57,10 @@ lint.select = [
 
 # Ignore specific rules
 lint.ignore = [
-    "E402",   # Module level import not at top (needed for conditional imports)
-    "E501",   # Line too long in docstrings (180 char limit is enforced for code, docstrings can be longer for readability)
-    "E722",   # Bare except (used intentionally for broad error handling)
-    "B008",   # Do not perform function calls in argument defaults (FastAPI uses this pattern)
-    "UP007",  # Use X | Y for type annotations (we support Python 3.10+, but Optional is clearer)
-    "TC001",  # Move application import into TYPE_CHECKING block (causes issues with FastAPI/Pydantic)
-    "TC002",  # Move third-party import into TYPE_CHECKING block (causes issues with FastAPI/Pydantic)
-    "TC003",  # Move standard library import into TYPE_CHECKING block (causes issues with runtime)
+    "UP017", # the alias on UTC, gives me problems in python 3.12
     "PTH",    # flake8-use-pathlib - would require extensive refactoring
     "SIM102", # Use a single if statement instead of nested if statements
     "SIM108", # Use ternary operator instead of if-else-block
-    "TRY002", # Create your own exception - generic Exception is fine for our use case
     "B904",   # Raise from within except - we intentionally create new exceptions
 ]
 

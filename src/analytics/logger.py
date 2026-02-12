@@ -1,21 +1,8 @@
-"""
-Analytics logger for MCP server telemetry.
-
-Non-blocking async logger that tracks:
-- Tool calls
-- Resource reads
-- API queries
-- Errors
-- Performance metrics
-
-Stores token_id (TKN-XXXX-XXXX or USR-XXXX-XXXX) as user identifier for all events.
-"""
-
 import asyncio
 import contextlib
 import logging
 from contextvars import ContextVar
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import insert, text
@@ -63,7 +50,7 @@ class AnalyticsLogger:
         self._event_queue: list[dict[str, Any]] = []
         self._flush_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
-        self.server_version = "1.0.0"  # TODO: Get from package
+        self.server_version = "1.0.0"
 
     async def initialize(self):
         """Initialize database connection and start background flush task."""
@@ -108,7 +95,7 @@ class AnalyticsLogger:
                 await asyncio.sleep(self.flush_interval)
                 await self.flush()
             except asyncio.CancelledError:
-                break
+                raise  # Re-raise so the task is properly cancelled
             except Exception as e:
                 logger.error(f"❌ Error in background flush: {e}")
 
@@ -223,7 +210,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_type": "tool_call" if success else "error",
             "server_type": server_type,
             "tool_name": tool_name,
@@ -282,7 +269,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_type": "api_query",
             "server_type": server_type,
             "tool_name": tool_name,
@@ -340,7 +327,7 @@ class AnalyticsLogger:
 
         event = {
             **self._get_context(),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_type": "resource_read" if success else "error",
             "server_type": server_type,
             "resource_uri": resource_uri,
@@ -381,7 +368,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_type": "token_validation",
             "server_type": server_type,
             "response_time_ms": response_time_ms,
@@ -415,7 +402,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": datetime.utcnow(),
+            "timestamp": datetime.now(timezone.utc),
             "event_type": "error",
             "server_type": server_type,
             "tool_name": tool_name,

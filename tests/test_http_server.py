@@ -45,8 +45,8 @@ class TestHTTPServer:
         from src.server import mcp
 
         assert mcp is not None
-        # FastMCP should have certain attributes
-        assert hasattr(mcp, "streamable_http_app")
+        # FastMCP should have http_app for HTTP transport
+        assert hasattr(mcp, "http_app")
 
     @pytest.mark.unit
     def test_tools_registered(self):
@@ -60,7 +60,7 @@ class TestHTTPServer:
     @pytest.mark.unit
     def test_normalize_endpoint_from_server(self):
         """Test normalize_endpoint_url function"""
-        from src.server import normalize_endpoint_url
+        from src.server_context import normalize_endpoint_url
 
         # Test removing /public suffix
         assert normalize_endpoint_url("https://api.test.com/public") == "https://api.test.com"
@@ -70,7 +70,7 @@ class TestHTTPServer:
     @pytest.mark.unit
     def test_get_current_credentials_without_context(self):
         """Test credential retrieval without context set"""
-        from src.server import get_current_credentials
+        from src.server_context import get_current_credentials
 
         # Without context, should return None for token and default for endpoint
         token, endpoint = get_current_credentials()
@@ -90,17 +90,17 @@ class TestHTTPServerConfiguration:
         # The MCP instance should be initialized
         assert mcp is not None
 
-        # Should have streamable_http_app method for HTTP transport
-        assert hasattr(mcp, "streamable_http_app")
+        # Should have http_app method for HTTP transport
+        assert hasattr(mcp, "http_app")
 
         # Should be able to get the app
-        app = mcp.streamable_http_app()
+        app = mcp.http_app()
         assert app is not None
 
     @pytest.mark.unit
     def test_context_vars_defined(self):
         """Test that context variables for credentials are properly defined"""
-        from src.server import _current_endpoint, _current_session_id, _current_token, _current_user_id
+        from src.server_context import _current_endpoint, _current_session_id, _current_token, _current_user_id
 
         # Test that context vars are properly defined
         assert _current_token is not None
@@ -117,7 +117,7 @@ class TestHTTPServerConfiguration:
     @pytest.mark.unit
     def test_normalize_endpoint_url_function(self):
         """Test URL normalization function removes /public suffix"""
-        from src.server import normalize_endpoint_url
+        from src.server_context import normalize_endpoint_url
 
         # Test various URL formats
         assert normalize_endpoint_url("https://api.s1.show/public") == "https://api.s1.show"
@@ -130,7 +130,7 @@ class TestHTTPServerConfiguration:
     async def test_get_current_credentials_defaults(self):
         """Test get_current_credentials returns defaults when no context set"""
         from src.config import config
-        from src.server import get_current_credentials
+        from src.server_context import get_current_credentials
 
         # Without context, should return None for token and default for endpoint
         token, endpoint = get_current_credentials()
@@ -149,9 +149,8 @@ class TestHTTPServerTools:
         """Test that only production tools are exposed (no debug tools)"""
         from src.server import mcp
 
-        # Get list of registered tools (async)
-        tools = await mcp.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_dict = {t.name: t for t in (await mcp.list_tools())}
+        tool_names = list(tools_dict.keys())
 
         # These production tools SHOULD exist
         expected_tools = [
@@ -174,9 +173,8 @@ class TestHTTPServerTools:
         """Test that all expected tool functions are registered"""
         from src.server import mcp
 
-        # Get list of registered tools (async)
-        tools = await mcp.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_dict = {t.name: t for t in (await mcp.list_tools())}
+        tool_names = list(tools_dict.keys())
 
         # Production tools
         expected_tools = [
@@ -195,9 +193,8 @@ class TestHTTPServerTools:
         """Test that debug/internal tools are not exposed in production server"""
         from src.server import mcp
 
-        # Get list of registered tools (async)
-        tools = await mcp.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_dict = {t.name: t for t in (await mcp.list_tools())}
+        tool_names = list(tools_dict.keys())
 
         # Debug tools that should NOT be in production
         debug_tools = ["marketplace_cache_info", "marketplace_refresh_cache"]
@@ -231,9 +228,9 @@ class TestMarketplaceDocsList:
         mock_cache.is_enabled = True
         mock_cache.list_resources = AsyncMock(return_value=mock_resources)
 
-        with patch("src.server.documentation_cache", mock_cache):
-            with patch("src.server.initialize_documentation_cache", AsyncMock()):
-                from src.server import marketplace_docs_list
+        with patch("src.server_tools.documentation_cache", mock_cache):
+            with patch("src.server_tools.initialize_documentation_cache", AsyncMock()):
+                from src.server_tools import marketplace_docs_list
 
                 result = await marketplace_docs_list(search="contact support")
 
@@ -260,9 +257,9 @@ class TestMarketplaceDocsList:
         mock_cache.is_enabled = True
         mock_cache.list_resources = AsyncMock(return_value=mock_resources)
 
-        with patch("src.server.documentation_cache", mock_cache):
-            with patch("src.server.initialize_documentation_cache", AsyncMock()):
-                from src.server import marketplace_docs_list
+        with patch("src.server_tools.documentation_cache", mock_cache):
+            with patch("src.server_tools.initialize_documentation_cache", AsyncMock()):
+                from src.server_tools import marketplace_docs_list
 
                 result = await marketplace_docs_list(search="some")
 

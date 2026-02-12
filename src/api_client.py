@@ -1,7 +1,3 @@
-"""
-API client for SoftwareOne Marketplace with token authentication
-"""
-
 import logging
 from typing import Any
 from urllib.parse import urlencode, urlparse
@@ -9,6 +5,8 @@ from urllib.parse import urlencode, urlparse
 import httpx
 
 logger = logging.getLogger(__name__)
+
+BEARER_PREFIX = "Bearer "
 
 
 class APIClient:
@@ -40,11 +38,11 @@ class APIClient:
         # Normalize token - ensure it has "Bearer" prefix
         # Handle both formats: "Bearer token" and "token"
         if not token:
-            self.token = "Bearer "
-        elif token.startswith("Bearer "):
+            self.token = BEARER_PREFIX
+        elif token.startswith(BEARER_PREFIX):
             self.token = token
         else:
-            self.token = f"Bearer {token}"
+            self.token = f"{BEARER_PREFIX}{token}"
 
         # Extract user identifier from token (if present)
         # Token format: idt:TKN-XXXX-XXXX:actual_token
@@ -69,7 +67,7 @@ class APIClient:
             User identifier (TKN-XXXX-XXXX) or None if not found
         """
         # Remove "Bearer " prefix if present for parsing
-        token_value = token.replace("Bearer ", "").strip()
+        token_value = token.replace(BEARER_PREFIX, "").strip()
 
         # Check if token matches format: idt:TKN-XXXX-XXXX:token
         if token_value.startswith("idt:") and token_value.count(":") >= 2:
@@ -82,7 +80,7 @@ class APIClient:
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication"""
         return {
-            "Authorization": self.token,  # Already has "Bearer " prefix from __init__
+            "Authorization": self.token,  # Already has Bearer prefix from __init__
             "Content-Type": "application/json",
             "Accept": "application/json",
         }
@@ -146,12 +144,11 @@ class APIClient:
             logger.info(f"   Parameters: {original_params}")
         logger.info(f"   Full URL: {url}")
 
-        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout) as client:
             response = await client.get(
                 url,
                 params=params,  # Will be None if RQL was used
                 headers=headers,
-                timeout=timeout,
             )
             response.raise_for_status()
             response_data = response.json()
@@ -214,12 +211,11 @@ class APIClient:
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
 
-        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout) as client:
             response = await client.get(
                 url,
                 params=params,
                 headers=headers,
-                timeout=timeout,
             )
             response.raise_for_status()
             return response.text

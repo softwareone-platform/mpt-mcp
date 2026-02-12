@@ -29,8 +29,8 @@ class TestDidYouMeanSuggestions:
             "accounts.buyers": {"path": "/public/v1/accounts/buyers", "summary": "Buyers", "parameters": []},
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -55,8 +55,8 @@ class TestDidYouMeanSuggestions:
             "commerce.orders": {"path": "/public/v1/commerce/orders", "summary": "Orders", "parameters": []},
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -85,8 +85,8 @@ class TestEnhancedPathParamsErrors:
             }
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -116,8 +116,8 @@ class TestEnhancedPathParamsErrors:
             }
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -151,8 +151,8 @@ class TestRelatedResourcesDiscovery:
             },
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -180,8 +180,8 @@ class TestRelatedResourcesDiscovery:
             },
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -217,8 +217,8 @@ class TestMultipleQueryExamples:
             }
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -247,8 +247,8 @@ class TestMultipleQueryExamples:
             }
         }
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -271,8 +271,8 @@ class TestAPIErrorDetailsPreservation:
 
         mock_registry = {"catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []}}
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -307,8 +307,8 @@ class TestAPIErrorDetailsPreservation:
 
         mock_registry = {"catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []}}
 
-        with patch("src.server.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"

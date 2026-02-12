@@ -1,10 +1,3 @@
-"""
-Shared MCP tool implementations for the SoftwareOne Marketplace API.
-
-This module contains common tool logic used by both server.py (HTTP) and
-server_stdio.py (STDIO) to avoid code duplication and ensure consistency.
-"""
-
 import logging
 import re
 from collections.abc import Callable
@@ -12,12 +5,14 @@ from typing import Any
 
 import httpx
 
-logger = logging.getLogger(__name__)
-
-# Tool-call logs (Query, Params, Result) go via logger.info; root/uvicorn handler shows them (no duplicate print)
-
 from .api_client import APIClient
 from .query_templates import get_query_templates
+
+logger = logging.getLogger(__name__)
+
+MEDIA_TYPE_JSON = "application/json"
+# SoftwareOne API response key for metadata (pagination, omitted fields, etc.)
+KEY_META = "$meta"
 
 
 def obfuscate_token_values(data: Any) -> Any:
@@ -51,6 +46,108 @@ def obfuscate_token_values(data: Any) -> Any:
 
 
 # ============================================================================
+# Select sanitization: ensure id is always included and drop fields not in schema
+# ============================================================================
+
+
+def _get_allowed_select_fields(
+    openapi_spec: dict[str, Any],
+    endpoints_registry: dict[str, Any],
+    resource: str,
+) -> set[str]:
+    """Return the set of top-level property names allowed in select for this resource (from GET response item schema)."""
+    if resource not in endpoints_registry or not openapi_spec:
+        return set()
+    from .audit_fields import _get_item_schema, _resolve_schema
+
+    endpoint_info = endpoints_registry[resource]
+    path = endpoint_info.get("path")
+    if not path:
+        return set()
+    paths = openapi_spec.get("paths") or {}
+    if path not in paths or "get" not in paths[path]:
+        return set()
+    get_op = paths[path]["get"]
+    responses = get_op.get("responses") or {}
+    content = (responses.get("200") or {}).get("content") or {}
+    json_content = content.get(MEDIA_TYPE_JSON) or {}
+    schema = json_content.get("schema")
+    if not schema or not isinstance(schema, dict):
+        return set()
+    if "$ref" in schema:
+        ref_path = schema["$ref"].split("/")
+        ref_schema = openapi_spec
+        for part in ref_path:
+            if part and part != "#":
+                ref_schema = ref_schema.get(part, {})
+        schema = ref_schema
+    item_schema = _get_item_schema(openapi_spec, schema)
+    item_schema = _resolve_schema(openapi_spec, item_schema) if isinstance(item_schema, dict) else item_schema
+    if not isinstance(item_schema, dict):
+        return set()
+    properties = item_schema.get("properties") or {}
+    return set(properties.keys())
+
+
+# When present in schema, these fields are always added to select so responses are usable (id, status, name).
+_ALWAYS_INCLUDE_WHEN_IN_SCHEMA = ("id", "status", "name")
+
+
+def _sanitize_select(
+    select: str | None,
+    allowed_fields: set[str],
+    log_fn: Callable[[str], None] | None,
+) -> str | None:
+    """
+    Ensure select only contains allowed top-level fields and always includes id (and status, name when in schema).
+    Drops any part whose top-level field is not in allowed_fields (if allowed_fields is non-empty).
+    """
+    if not select or not select.strip():
+        return select
+
+    def log(msg: str) -> None:
+        if log_fn:
+            log_fn(msg)
+
+    parts = [p.strip() for p in select.split(",") if p.strip()]
+    if not parts:
+        return select
+
+    # Top-level field name for validation (strip +/-, take segment before first dot)
+    def top_level_field(part: str) -> str:
+        name = part.lstrip("+-")
+        return name.split(".")[0] if "." in name else name
+
+    kept: list[str] = []
+    dropped: list[str] = []
+    for p in parts:
+        top = top_level_field(p)
+        if allowed_fields and top not in allowed_fields:
+            dropped.append(p)
+            continue
+        kept.append(p)
+    if dropped:
+        log(f"   💡 Select sanitized: dropped fields not in schema: {', '.join(dropped)}")
+
+    # Always include id; when they exist in schema, also include status and name (in that order)
+    tops = {top_level_field(p) for p in kept}
+    to_add: list[str] = []
+    for field in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA:
+        if field in tops:
+            continue
+        if field == "id" or (allowed_fields and field in allowed_fields):
+            to_add.append(field)
+            tops.add(field)
+    if to_add:
+        log(f"   💡 Select: added {', '.join(to_add)} (always included when in schema)")
+    # Canonical order: id, status, name first (when present), then the rest
+    prefix = [f for f in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA if f in tops]
+    rest = [p for p in kept if top_level_field(p) not in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA]
+    kept = prefix + rest
+    return ",".join(kept)
+
+
+# ============================================================================
 # Common Tool: marketplace_query
 # ============================================================================
 
@@ -69,6 +166,8 @@ async def execute_marketplace_query(
     log_fn: Callable[[str], None] | None = None,
     analytics_logger: Any = None,
     config: Any = None,
+    audit_regex: re.Pattern[str] | None = None,
+    openapi_spec: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Core logic for marketplace_query tool.
@@ -171,8 +270,11 @@ async def execute_marketplace_query(
 
         # Auto-detect audit field usage in RQL and ensure audit is selected
         # The API requires select=audit when filtering/sorting by audit fields
-        audit_fields_pattern = re.compile(r"audit\.(created|updated|completed|processing|quoted)\.(at|by)")
-        uses_audit_fields = bool(rql and audit_fields_pattern.search(rql))
+        # Use dynamic regex from spec-derived cache if provided, else fallback (includes failed)
+        from .audit_fields import FALLBACK_STATIC_REGEX
+
+        _audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
+        uses_audit_fields = bool(rql and _audit_pattern.search(rql))
         uses_audit_in_order = bool(order and "audit" in order.lower())
 
         # Store original select value for potential retry
@@ -196,6 +298,11 @@ async def execute_marketplace_query(
                 # Create new select with audit
                 select = "audit"
             log("   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)")
+
+        # Sanitize select: drop fields not in resource schema and ensure id is always included
+        if select:
+            allowed = _get_allowed_select_fields(openapi_spec or {}, endpoints_registry, resource)
+            select = _sanitize_select(select, allowed, log) or select
 
         # Apply default limit of 10 if not explicitly specified
         # Cap at 100 to avoid huge responses and context limit errors (platform default is 1000)
@@ -231,8 +338,8 @@ async def execute_marketplace_query(
         try:
             result = await api_client.get(api_path, params=params)
             result_count = None
-            if "$meta" in result:
-                result_count = result["$meta"].get("pagination", {}).get("total")
+            if KEY_META in result:
+                result_count = result[KEY_META].get("pagination", {}).get("total")
                 log(f"   ✅ Result: {result_count or '?'} total items")
 
             # SECURITY: Obfuscate token values if querying API token endpoints
@@ -262,9 +369,9 @@ async def execute_marketplace_query(
 
             # Log what we return so agent-side can verify $meta/omitted are present
             data_list = result.get("data") if isinstance(result.get("data"), list) else []
-            meta = result.get("$meta") if isinstance(result.get("$meta"), dict) else {}
+            meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
             omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
-            log(f"   📤 Returning: data len={len(data_list)}, $meta={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
+            log(f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
 
             return result
         except Exception as e:
@@ -329,8 +436,8 @@ async def execute_marketplace_query(
                 try:
                     result = await api_client.get(api_path, params=retry_params)
                     result_count = None
-                    if "$meta" in result:
-                        result_count = result["$meta"].get("pagination", {}).get("total")
+                    if KEY_META in result:
+                        result_count = result[KEY_META].get("pagination", {}).get("total")
                         log(f"   ✅ Retry successful: {result_count or '?'} total items")
 
                     # SECURITY: Obfuscate token values if querying API token endpoints
@@ -360,9 +467,9 @@ async def execute_marketplace_query(
 
                     # Log what we return so agent-side can verify $meta/omitted are present
                     data_list = result.get("data") if isinstance(result.get("data"), list) else []
-                    meta = result.get("$meta") if isinstance(result.get("$meta"), dict) else {}
+                    meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
                     omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
-                    log(f"   📤 Returning: data len={len(data_list)}, $meta={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
+                    log(f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
 
                     return result
                 except Exception as retry_e:
@@ -419,7 +526,7 @@ def execute_marketplace_quick_queries() -> dict[str, Any]:
 # ============================================================================
 
 
-async def execute_marketplace_resources(
+def execute_marketplace_resources(
     api_base_url: str,
     user_id: str | None,
     endpoints_registry: dict[str, Any],
@@ -511,9 +618,18 @@ async def execute_marketplace_resources(
         },
         "tips": {
             "filtering": "Use RQL for complex filters: eq(field,value), ilike(name,*keyword*), and(condition1,condition2)",
-            "pagination": "Use limit= and offset= parameters for pagination. Maximum limit is 100 (values above 100 are capped). When using limit up to 100, use select= with only the fields you need (from marketplace_resource_schema); otherwise the response may cause a context limit error.",
+            "pagination": (
+                "Use limit= and offset= for pagination. Max limit 100 (capped). When using limit up to 100, use "
+                "select= with only the fields you need (from marketplace_resource_schema); "
+                "otherwise the response may cause a context limit error."
+            ),
             "sorting": "Use order= parameter: order=-created (descending), order=+name (ascending)",
-            "field_selection": "Use select= parameter: select=+id,+name,+status or select=-metadata. Note: Many fields are omitted by default (see $meta.omitted in responses). Use select=+field to include omitted fields like lines, parameters, subscriptions. For nested collections: +subscriptions returns the full nested representation; +subscriptions.id returns only the ids of the nested collection; +subscriptions.id,+subscriptions.name returns only id and name per nested item. Prefer +subscriptions.id,+subscriptions.name when you only need to count or show id/name. RQL filter fields must exist on the resource (e.g. subscriptionsCount does not)—use marketplace_resource_schema(resource) to check.",
+            "field_selection": (
+                "Use select=: select=+id,+name,+status or select=-metadata. Many fields omitted by default "
+                f"({KEY_META}.omitted). Use select=+field for lines, parameters, subscriptions. Nested: "
+                "+subscriptions (full), +subscriptions.id (ids only), +subscriptions.id,+subscriptions.name. "
+                "RQL filter fields must exist on the resource—use marketplace_resource_schema(resource) to check."
+            ),
         },
     }
 
@@ -523,7 +639,7 @@ async def execute_marketplace_resources(
 # ============================================================================
 
 
-async def execute_marketplace_resource_info(
+def execute_marketplace_resource_info(
     resource: str,
     endpoints_registry: dict[str, Any],
 ) -> dict[str, Any]:
@@ -633,11 +749,11 @@ async def execute_marketplace_resource_info(
             "limit": "Maximum number of items to return",
             "offset": "Number of items to skip",
             "page": "Page number",
-            "select": "Fields to include/exclude. Use select=+field to include fields that are omitted by default (see $meta.omitted in responses). Example: select=+lines,+parameters to include lines and parameters fields.",
+            "select": (f"Fields to include/exclude. Use select=+field for omitted fields (see {KEY_META}.omitted). Example: select=+lines,+parameters."),
             "order": "Sort order (e.g., -created for descending, +name for ascending)",
             "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})",
         },
-        "omitted_fields_note": "Many resources omit certain fields by default for performance. Check $meta.omitted in query responses to see which fields are available but not included. Use select=+field to include them.",
+        "omitted_fields_note": (f"Many resources omit fields by default. Check {KEY_META}.omitted in responses; use select=+field to include them."),
         "example_queries": examples,
     }
 
@@ -670,7 +786,7 @@ async def execute_marketplace_resource_info(
 # ============================================================================
 
 
-async def execute_marketplace_resource_schema(
+def execute_marketplace_resource_schema(
     resource: str,
     openapi_spec: dict[str, Any],
     endpoints_registry: dict[str, Any],
@@ -720,8 +836,8 @@ async def execute_marketplace_resource_schema(
         response_200 = responses["200"]
         content = response_200.get("content", {})
 
-        if "application/json" in content:
-            json_content = content["application/json"]
+        if MEDIA_TYPE_JSON in content:
+            json_content = content[MEDIA_TYPE_JSON]
             if "schema" in json_content:
                 schema = json_content["schema"]
 

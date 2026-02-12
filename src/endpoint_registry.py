@@ -1,11 +1,4 @@
-"""
-Endpoint Registry for Multi-Tenant OpenAPI Spec Management
-
-This module manages OpenAPI specifications and endpoint registries per API base URL.
-In multi-tenant SSE mode, different clients may use different API endpoints
-(e.g., api.s1.show vs api.platform.softwareone.com), each with their own OpenAPI spec.
-"""
-
+import asyncio
 import json
 import sys
 from typing import Any
@@ -14,6 +7,13 @@ import httpx
 
 from .cache_manager import CacheManager, fetch_with_cache
 from .openapi_parser import OpenAPIParser
+
+
+class OpenAPISpecFetchError(Exception):
+    """Raised when the OpenAPI spec cannot be fetched from primary or fallback URL."""
+
+    pass
+
 
 # Global registries per API base URL
 # Format: {api_base_url: {resource_id: endpoint_info}}
@@ -92,7 +92,7 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
 
     try:
         # Try to fetch from the endpoint-specific URL
-        spec = await fetch_with_cache(url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh, timeout=30.0)
+        spec = await fetch_with_cache(url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh)
         _log(f"✓ Loaded OpenAPI spec from {api_base_url}")
         return spec
 
@@ -106,13 +106,13 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
             _log(f"🔄 Trying fallback: {fallback_url}")
 
             try:
-                spec = await fetch_with_cache(url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh, timeout=30.0)
+                spec = await fetch_with_cache(url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh)
                 _log("✓ Loaded OpenAPI spec from fallback")
                 return spec
 
-            except Exception as fallback_error:
+            except (httpx.HTTPError, httpx.TimeoutException, OSError, ValueError) as fallback_error:
                 _log(f"❌ Fallback also failed: {fallback_error}")
-                raise Exception(f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback {fallback_url}")
+                raise OpenAPISpecFetchError(f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback {fallback_url}") from fallback_error
 
         # No fallback available, re-raise original error
         raise
@@ -169,7 +169,7 @@ async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False)
 
         # Parse the OpenAPI spec
         parser = OpenAPIParser()
-        tools = await parser.extract_get_endpoints(spec)
+        tools = parser.extract_get_endpoints(spec)
 
         # Build the registry with richer metadata
         registry: dict[str, dict[str, Any]] = {}
@@ -191,6 +191,15 @@ async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False)
 
         # Cache the registry
         _endpoint_registries[api_base_url] = registry
+
+        # Build audit fields cache from spec (for auto-add regex and marketplace_audit_fields tool)
+        try:
+            from . import audit_fields
+
+            await asyncio.to_thread(audit_fields.update_cache, api_base_url, spec, _path_to_resource_id)
+            _log(f"✓ Audit fields cache updated for {api_base_url}")
+        except Exception as audit_err:
+            _log(f"⚠ Audit fields cache skipped: {audit_err}")
 
         _log(f"✓ Discovered {len(registry)} GET endpoints for {api_base_url}")
         _log(f"✓ Stored in registry with {len(registry)} resource IDs")

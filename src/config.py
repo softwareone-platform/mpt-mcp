@@ -1,7 +1,3 @@
-"""
-Configuration management for the MCP server
-"""
-
 import os
 from dataclasses import dataclass, field
 
@@ -55,6 +51,11 @@ class Config:
     gitbook_max_concurrent_requests: int = int(os.getenv("GITBOOK_MAX_CONCURRENT_REQUESTS", "2"))
     # Public URL where documentation is published (optional, for browser access)
     gitbook_public_url: str = os.getenv("GITBOOK_PUBLIC_URL", "")
+
+    # JWT signature verification (optional but recommended for production)
+    # When set, JWT tokens are verified using the issuer's JWKS before trusting claims.
+    # Example: https://auth.softwareone.com/.well-known/jwks.json or your IdP's JWKS URL.
+    jwt_jwks_url: str = os.getenv("JWT_JWKS_URL", "")
 
     # Analytics Database (Optional - for usage tracking)
     # Format: postgresql+asyncpg://user:password@host:port/database

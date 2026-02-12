@@ -5,7 +5,7 @@ Test endpoint validation and normalization
 
 import pytest
 
-from src.server import normalize_endpoint_url
+from src.server_context import normalize_endpoint_url
 
 
 class TestEndpointNormalization:

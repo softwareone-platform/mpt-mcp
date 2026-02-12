@@ -1,12 +1,3 @@
-"""
-Database schema for MCP analytics using SQLAlchemy Core.
-
-Stores token_id (TKN-XXXX-XXXX or USR-XXXX-XXXX) as user identifier for all events.
-Performance-optimized: Uses SQLAlchemy Core with asyncpg for fast inserts.
-
-Simplified schema: Only mcp_events table. Aggregations are done on-demand via SQL queries.
-"""
-
 from sqlalchemy import (
     BigInteger,
     Boolean,

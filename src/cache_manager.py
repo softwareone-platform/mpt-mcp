@@ -1,8 +1,4 @@
-"""
-Cache manager for OpenAPI spec and endpoint metadata
-Reduces startup time and allows offline operation
-"""
-
+import asyncio
 import hashlib
 import json
 from datetime import datetime, timedelta
@@ -10,6 +6,14 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+
+DEFAULT_FETCH_TIMEOUT = 30.0
+
+
+def _read_json_path(path: Path) -> dict[str, Any]:
+    """Read and parse a JSON file (sync; run via asyncio.to_thread from async code)."""
+    with open(path) as f:
+        return json.load(f)
 
 
 class CacheManager:
@@ -53,7 +57,7 @@ class CacheManager:
             expires_at = cached_at + self.ttl
 
             return datetime.now() < expires_at
-        except (json.JSONDecodeError, KeyError, ValueError):
+        except (KeyError, ValueError):
             return False
 
     def get(self, key: str) -> dict[str, Any] | None:
@@ -159,7 +163,7 @@ class CacheManager:
                         valid_count += 1
                     else:
                         expired_count += 1
-                except (json.JSONDecodeError, KeyError, ValueError):
+                except (KeyError, ValueError):
                     expired_count += 1
 
         return {
@@ -172,7 +176,12 @@ class CacheManager:
         }
 
 
-async def fetch_with_cache(url: str, cache_manager: CacheManager, force_refresh: bool = False, timeout: float = 30.0) -> dict[str, Any]:
+async def fetch_with_cache(
+    url: str,
+    cache_manager: CacheManager,
+    force_refresh: bool = False,
+    timeout: float = DEFAULT_FETCH_TIMEOUT,
+) -> dict[str, Any]:
     """
     Fetch data from URL with caching
 
@@ -203,8 +212,9 @@ async def fetch_with_cache(url: str, cache_manager: CacheManager, force_refresh:
     # Fetch from network
     log(f"📡 Fetching from: {url}")
     try:
-        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
-            response = await client.get(url, timeout=timeout)
+        async with asyncio.timeout(timeout):
+            async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+                response = await client.get(url)
 
             # Log if redirects occurred
             if len(response.history) > 0:
@@ -222,15 +232,14 @@ async def fetch_with_cache(url: str, cache_manager: CacheManager, force_refresh:
 
         return data
 
-    except (httpx.HTTPError, httpx.TimeoutException) as e:
-        # If fetch fails, try to use expired cache as fallback
+    except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
+        # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
         log(f"⚠ Network fetch failed: {e}")
 
         cache_path = cache_manager._get_cache_path(url)
         if cache_path.exists():
             log("⚠ Using expired cache as fallback")
-            with open(cache_path) as f:
-                return json.load(f)
+            return await asyncio.to_thread(_read_json_path, cache_path)
 
         # No cache available, re-raise the error
         raise

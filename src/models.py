@@ -1,7 +1,3 @@
-"""
-Pydantic models for type safety and validation
-"""
-
 from typing import Any
 
 from pydantic import BaseModel, Field

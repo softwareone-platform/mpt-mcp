@@ -16,7 +16,7 @@ class TestOpenAPIResource:
         """Test successful retrieval of OpenAPI spec"""
         import json
 
-        from src.server import get_openapi_spec
+        from src.server_resources import get_openapi_spec
 
         mock_spec = {
             "openapi": "3.0.0",
@@ -28,8 +28,8 @@ class TestOpenAPIResource:
 
         mock_token_info = {"id": "TKN-123-456", "account": {"id": "ACC-123", "name": "Test Account"}}
 
-        # Mock get_current_credentials, token validation, and OpenAPI spec fetch
-        with patch("src.server.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
+        # Mock get_current_credentials, token validation, and OpenAPI spec fetch (get_openapi_spec lives in server_resources)
+        with patch("src.server_resources.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
             with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (True, mock_token_info, None)
                 with patch("src.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
@@ -50,10 +50,10 @@ class TestOpenAPIResource:
         """Test that missing token raises error"""
         import json
 
-        from src.server import get_openapi_spec
+        from src.server_resources import get_openapi_spec
 
-        # Mock get_current_credentials to return no token
-        with patch("src.server.get_current_credentials", return_value=(None, "https://api.test.com")):
+        # Mock get_current_credentials to return no token (get_openapi_spec lives in server_resources)
+        with patch("src.server_resources.get_current_credentials", return_value=(None, "https://api.test.com")):
             result = await get_openapi_spec()
             result_dict = json.loads(result)
             assert "error" in result_dict
@@ -64,10 +64,10 @@ class TestOpenAPIResource:
         """Test handling of OpenAPI fetch errors"""
         import json
 
-        from src.server import get_openapi_spec
+        from src.server_resources import get_openapi_spec
 
         # Mock get_current_credentials and token validation
-        with patch("src.server.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
+        with patch("src.server_resources.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
             with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
                 with patch("src.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
@@ -121,8 +121,8 @@ class TestOpenAPIResourceIntegration:
         """Test that api://openapi.json is listed in MCP resources"""
         from src.server import mcp
 
-        resources = await mcp.list_resources()
-        resource_uris = [str(r.uri) for r in resources]
+        resources = {str(r.uri): r for r in (await mcp.list_resources())}
+        resource_uris = [str(uri) for uri in resources.keys()]
 
         assert "api://openapi.json" in resource_uris
 
@@ -131,8 +131,8 @@ class TestOpenAPIResourceIntegration:
         """Test that OpenAPI resource has correct name and description"""
         from src.server import mcp
 
-        resources = await mcp.list_resources()
-        openapi_resource = next((r for r in resources if str(r.uri) == "api://openapi.json"), None)
+        resources = {str(r.uri): r for r in (await mcp.list_resources())}
+        openapi_resource = resources.get("api://openapi.json")
 
         assert openapi_resource is not None
         # The resource should have a name
@@ -144,13 +144,14 @@ class TestOpenAPIResourceIntegration:
         """Test that OpenAPI resource has a mime type specified"""
         from src.server import mcp
 
-        resources = await mcp.list_resources()
-        openapi_resource = next((r for r in resources if str(r.uri) == "api://openapi.json"), None)
+        resources = {str(r.uri): r for r in (await mcp.list_resources())}
+        openapi_resource = resources.get("api://openapi.json")
 
         assert openapi_resource is not None
-        # The resource should have a mimeType (text/plain or application/json)
-        if hasattr(openapi_resource, "mimeType") and openapi_resource.mimeType:
-            assert openapi_resource.mimeType in ["text/plain", "application/json"]
+        # The resource should have a mime type specified
+        mime = getattr(openapi_resource, "mime_type", None) or getattr(openapi_resource, "mimeType", None)
+        if mime:
+            assert mime in ["text/plain", "application/json"]
 
 
 class TestEndpointRegistryOpenAPI:

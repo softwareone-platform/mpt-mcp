@@ -34,9 +34,8 @@ class TestSTDIOServerTools:
         """Test that production tools are registered in STDIO server"""
         from src.server_stdio import mcp
 
-        # Get list of registered tools (async)
-        tools = await mcp.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_list = await mcp.list_tools()
+        tool_names = [t.name for t in tools_list]
 
         # Production tools SHOULD exist
         expected_tools = [
@@ -44,6 +43,7 @@ class TestSTDIOServerTools:
             "marketplace_resources",
             "marketplace_resource_info",
             "marketplace_resource_schema",
+            "marketplace_audit_fields",
         ]
 
         for tool_name in expected_tools:
@@ -55,9 +55,8 @@ class TestSTDIOServerTools:
         """Test that debug/cache tools ARE available in STDIO server (for local dev)"""
         from src.server_stdio import mcp
 
-        # Get list of registered tools (async)
-        tools = await mcp.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_list = await mcp.list_tools()
+        tool_names = [t.name for t in tools_list]
 
         # Debug tools that SHOULD be in STDIO server for local development
         debug_tools = ["marketplace_cache_info", "marketplace_refresh_cache"]
@@ -72,12 +71,8 @@ class TestSTDIOServerTools:
         from src.server import mcp as http_mcp
         from src.server_stdio import mcp as stdio_mcp
 
-        # Get tool counts (async)
-        stdio_tools_list = await stdio_mcp.list_tools()
-        http_tools_list = await http_mcp.list_tools()
-
-        stdio_tools = [tool.name for tool in stdio_tools_list]
-        http_tools = [tool.name for tool in http_tools_list]
+        stdio_tools = [t.name for t in (await stdio_mcp.list_tools())]
+        http_tools = [t.name for t in (await http_mcp.list_tools())]
 
         # HTTP server has documentation tools that STDIO doesn't need
         # Expected difference: marketplace_docs_index, marketplace_docs_list, marketplace_docs_read

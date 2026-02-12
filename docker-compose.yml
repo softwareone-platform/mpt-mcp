@@ -20,6 +20,7 @@ services:
       - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
       - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
       # Mount cache for OpenAPI spec
@@ -45,6 +46,9 @@ services:
     depends_on:
       analytics-db:
         condition: service_healthy
+    # Load .env so GITBOOK_API_KEY, GITBOOK_SPACE_ID etc. are available in the container
+    env_file:
+      - .env
     environment:
       # OpenAPI Spec URL (public, no auth required)
       OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
@@ -163,6 +167,7 @@ services:
       - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
       - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
     
@@ -179,6 +184,7 @@ services:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
     
     command: sh -c "echo '=== Ruff lint (check) ===' && ruff check src/ tests/ && echo '=== Ruff format (check) ===' && ruff format --check src/ tests/ && echo '=== All Ruff checks passed ==='"
   
@@ -193,10 +199,11 @@ services:
       - ./src:/app/src
       - ./tests:/app/tests
       - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
     
     command: sh -c "ruff check --fix src/ tests/ && ruff format src/ tests/ && echo '\n✅ Ruff fixes applied!'"
   
-  # Test with coverage
+  # Test with coverage (term, html, and xml for SonarQube)
   # Note: No profile - this service is built by default with 'docker compose build'
   test-cov:
     build: .
@@ -215,10 +222,12 @@ services:
       - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
       - ./pyproject.toml:/app/pyproject.toml
+      - ./uv.lock:/app/uv.lock
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
-    
-    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check src/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=src --cov-report=term-missing --cov-report=html"
+      # So coverage.xml is written on the host for SonarQube scanner
+      - .:/coverage-out
+    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check src/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=src --cov-report=term-missing --cov-report=html --cov-report=xml:/coverage-out/coverage.xml"
 
   # PostgreSQL service for analytics (local development)
   analytics-db:
@@ -256,7 +265,39 @@ services:
     profiles:
       - analytics
 
+  # SonarQube server (optional) - for local code quality, security, maintainability
+  sonar:
+    image: sonarqube:community
+    container_name: mpt-mcp-sonar
+    ports:
+      - "9000:9000"
+    volumes:
+      - sonarqube_data:/opt/sonarqube/data
+      - sonarqube_logs:/opt/sonarqube/logs
+      - sonarqube_extensions:/opt/sonarqube/extensions
+    environment:
+      SONAR_ES_BOOTSTRAP_CHECKS_DISABLE: "true"
+    profiles:
+      - sonar
+
+  # One-off SonarScanner (run after SonarQube is up and project token created)
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    container_name: mpt-mcp-sonar-scanner
+    working_dir: /project
+    volumes:
+      - .:/project
+    environment:
+      SONAR_HOST_URL: ${SONAR_HOST_URL:-http://host.docker.internal:9000}
+      SONAR_TOKEN: ${SONAR_TOKEN:-}
+    command: sonar-scanner
+    profiles:
+      - sonar
+
 volumes:
   cache-prod:
   analytics-data:
+  sonarqube_data:
+  sonarqube_logs:
+  sonarqube_extensions:
 

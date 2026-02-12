@@ -1,16 +1,10 @@
 #!/usr/bin/env python3
-"""
-MCP Server for SoftwareOne Marketplace API - Stdio Transport (Local)
-
-This version uses standard I/O for local Cursor integration.
-Uses a streamlined tool approach with discriminator pattern.
-"""
 
 import json
 import sys
 from typing import Any
 
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 
 from .api_client import APIClient
 from .cache_manager import CacheManager, fetch_with_cache
@@ -24,10 +18,10 @@ from .mcp_tools import (
 )
 from .openapi_parser import OpenAPIParser
 
-# Initialize FastMCP server
 mcp = FastMCP("softwareone-marketplace")
 
-# Global instances
+# FastMCP 3.0 exposes list_tools() and list_resources() natively; no compat layer needed.
+
 api_client: APIClient | None = None
 endpoints_registry: dict[str, dict[str, Any]] = {}
 openapi_spec: dict[str, Any] = {}
@@ -49,11 +43,9 @@ async def initialize_server(force_refresh: bool = False):
     """
     global api_client, endpoints_registry, openapi_spec, cache_manager, _initialized
 
-    # Skip if already initialized (unless force refresh)
     if _initialized and not force_refresh:
         return
 
-    # Use stderr for all logging
     import sys
 
     def log(message):
@@ -62,7 +54,6 @@ async def initialize_server(force_refresh: bool = False):
     # STDIO is for local development - don't use analytics
     log("📊 Analytics disabled (STDIO mode is for local development)")
 
-    # Validate configuration
     errors = config.validate()
     if errors:
         log("❌ Configuration errors:")
@@ -72,31 +63,23 @@ async def initialize_server(force_refresh: bool = False):
 
     api_client = APIClient(base_url=config.marketplace_api_base_url, token=config.marketplace_api_token, timeout=config.request_timeout)
 
-    # Initialize cache manager (24 hour TTL)
     cache_manager = CacheManager(cache_dir=".cache", ttl_hours=24)
 
     openapi_parser = OpenAPIParser()
 
     try:
-        # Fetch OpenAPI spec (with caching)
         log(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
 
-        # Try to fetch with cache
-        spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh, timeout=30.0)
+        spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh)
 
-        # Parse OpenAPI spec and extract GET endpoints
-        tools = await openapi_parser.extract_get_endpoints(spec)
+        tools = openapi_parser.extract_get_endpoints(spec)
 
-        # Store the full OpenAPI spec for schema lookups
         openapi_spec = spec
 
-        # Store endpoint information in memory registry
         for tool in tools:
             tool_info = json.loads(tool.description)
             path = tool_info.get("path", "")
 
-            # Create a resource identifier from the path
-            # Example: /public/v1/catalog/products -> catalog.products
             resource_id = _path_to_resource_id(path)
 
             endpoints_registry[resource_id] = {
@@ -107,6 +90,14 @@ async def initialize_server(force_refresh: bool = False):
 
         log(f"✓ Discovered {len(endpoints_registry)} GET endpoints")
         log(f"✓ Stored in memory registry with {len(endpoints_registry)} resource IDs")
+
+        try:
+            from . import audit_fields
+
+            audit_fields.update_cache(config.marketplace_api_base_url, spec, _path_to_resource_id)
+            log("✓ Audit fields cache updated")
+        except Exception as audit_err:
+            log(f"⚠ Audit fields cache skipped: {audit_err}")
 
         _initialized = True
 
@@ -125,13 +116,8 @@ def _path_to_resource_id(path: str) -> str:
         /public/v1/catalog/items/{id} -> catalog.items.by_id
         /public/v1/commerce/orders -> commerce.orders
     """
-    # Remove /public/v1/ prefix
     path = path.replace("/public/v1/", "")
-
-    # Replace path parameters with descriptive names
     path = path.replace("/{id}", ".by_id")
-
-    # Replace slashes with dots
     resource_id = path.replace("/", ".")
 
     return resource_id
@@ -162,11 +148,15 @@ async def marketplace_query(
 
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
-        rql: Advanced RQL query string for complex filtering and sorting. Examples: eq(status,Active), and(eq(status,Active),gt(price,100)), ilike(name,*Microsoft*). Dates use UTC format YYYY-MM-DDTHH:MM:SS.mmmZ (e.g. 2026-01-31T23:00:00.000Z). Note: Pagination and selection use key=value syntax like limit=100, select=+status, order=-created
-        limit: Maximum number of items to return (e.g., 10, 50, 100). Defaults to 10 if not specified. Maximum allowed is 100 (values above 100 are capped to 100). When using limit up to 100, use select= with only the fields you need (from marketplace_resource_schema) to avoid huge responses.
+        rql: Advanced RQL query string. Examples: eq(status,Active), ilike(name,*Microsoft*). Dates in UTC
+            (YYYY-MM-DDTHH:MM:SS.mmmZ). Pagination/selection: limit=100, select=+status, order=-created.
+        limit: Max items to return (default 10, max 100). Use select= with only needed fields
+            (from marketplace_resource_schema) to avoid huge responses.
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (e.g., +name,+description or -metadata). IMPORTANT: When filtering or sorting by audit fields (e.g., audit.created.at), you must include 'audit' in select. Dates in RQL use UTC: YYYY-MM-DDTHH:MM:SS.mmmZ (e.g. 2026-01-31T23:00:00.000Z). The server will auto-add this if detected. For nested collections: +subscriptions returns the full nested representation (each item as a full object); +subscriptions.id returns only the ids of the nested collection; +subscriptions.id,+subscriptions.name returns only id and name per nested item. Prefer +subscriptions.id,+subscriptions.name when you only need to count or show id/name. RQL filter fields must exist on the resource—use marketplace_resource_schema(resource) to check (e.g. subscriptionsCount does not exist).
+        select: Fields to include/exclude (+name,+description or -metadata). For audit fields include 'audit'.
+            Nested: +subscriptions (full), +subscriptions.id, +subscriptions.id,+subscriptions.name.
+            RQL filter fields must exist—use marketplace_resource_schema(resource) to check.
         order: Sort order (e.g., -created for descending, +name for ascending). When using audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id
@@ -190,13 +180,14 @@ async def marketplace_query(
 
     Use marketplace_resources() to see all available resources.
     """
-    # Ensure server is initialized
     if not _initialized:
         await initialize_server()
     if not api_client:
         return {"error": "Server not initialized"}
 
-    # Use shared implementation
+    from . import audit_fields
+
+    _audit_regex = audit_fields.get_audit_regex(config.marketplace_api_base_url)
     return await execute_marketplace_query(
         resource=resource,
         rql=rql,
@@ -211,6 +202,8 @@ async def marketplace_query(
         log_fn=None,  # use logger only (no duplicate print)
         analytics_logger=None,  # STDIO mode - no analytics
         config=config,
+        audit_regex=_audit_regex,
+        openapi_spec=openapi_spec,
     )
 
 
@@ -238,15 +231,13 @@ async def marketplace_resources() -> dict[str, Any]:
 
     Returns a categorized list of all available API endpoints.
     """
-    # Ensure server is initialized
     if not _initialized:
         await initialize_server()
 
     if not endpoints_registry:
         return {"error": "Server not initialized or no endpoints available"}
 
-    # Use shared implementation
-    return await execute_marketplace_resources(
+    return execute_marketplace_resources(
         api_base_url=config.marketplace_api_base_url,
         user_id=None,  # STDIO is single-user
         endpoints_registry=endpoints_registry,
@@ -301,10 +292,8 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
     try:
         print("🔄 Force refreshing OpenAPI spec cache...")
 
-        # Invalidate current cache
         cache_manager.invalidate(config.openapi_spec_url)
 
-        # Re-initialize server (will fetch fresh data)
         await initialize_server(force_refresh=True)
 
         return {
@@ -327,12 +316,10 @@ async def marketplace_resource_info(resource: str) -> dict[str, Any]:
     Returns:
         Detailed information about the resource including available parameters
     """
-    # Ensure server is initialized
     if not _initialized:
         await initialize_server()
 
-    # Use shared implementation
-    return await execute_marketplace_resource_info(
+    return execute_marketplace_resource_info(
         resource=resource,
         endpoints_registry=endpoints_registry,
     )
@@ -353,20 +340,42 @@ async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
 
     Example: marketplace_resource_schema(resource=catalog.products) returns full schema showing all product fields like id, name, status, vendor, etc.
     """
-    # Ensure server is initialized
     if not _initialized:
         await initialize_server()
 
-    # Use the global OpenAPI spec
     if not openapi_spec:
         return {"error": "OpenAPI spec not loaded", "hint": "Server initialization may have failed"}
 
-    # Use shared implementation
-    return await execute_marketplace_resource_schema(
+    return execute_marketplace_resource_schema(
         resource=resource,
         openapi_spec=openapi_spec,
         endpoints_registry=endpoints_registry,
     )
+
+
+@mcp.tool()
+async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any]:
+    """
+    Get audit event names per resource for filtering by \"when\" something happened.
+
+    Derived from the OpenAPI spec at startup. Returns event names (e.g. created, updated, failed);
+    paths are always audit.<event>.at (when) and audit.<event>.by (who). Use for queries like
+    \"orders failed starting when\" (audit.failed.at) or \"agreements created after X\" (audit.created.at).
+    Include select=audit when filtering or sorting by these fields.
+
+    Args:
+        resource: Optional. If provided, returns events for this resource only
+                  (e.g. commerce.orders). If omitted, returns all resources.
+
+    Returns:
+        If resource is set: { \"resource\": str, \"events\": [ \"created\", \"updated\", ... ] }.
+        If resource is omitted: { \"by_resource\": { resource_id: [ \"event1\", \"event2\", ... ], ... } }.
+    """
+    if not _initialized:
+        await initialize_server()
+    from . import audit_fields
+
+    return audit_fields.get_audit_fields(config.marketplace_api_base_url, resource)
 
 
 if __name__ == "__main__":
@@ -385,7 +394,6 @@ if __name__ == "__main__":
         log("\n✓ Starting server on stdio...")
         log("=" * 60 + "\n")
 
-        # Start the MCP server (initialization happens on first tool call)
         mcp.run()
 
     except KeyboardInterrupt:

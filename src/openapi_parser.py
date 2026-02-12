@@ -1,7 +1,3 @@
-"""
-OpenAPI specification parser for extracting GET endpoints
-"""
-
 import json
 from typing import Any
 
@@ -32,19 +28,15 @@ class OpenAPIParser:
         Returns:
             True if path should be included
         """
-        # Normalize path (remove leading/trailing slashes)
         normalized_path = path.strip("/")
 
-        # If exclude patterns specified, check if path matches any
         for pattern in self.exclude_patterns:
             if pattern in normalized_path:
                 return False
 
-        # If include patterns specified, path must match at least one
         if self.include_patterns:
             return any(pattern in normalized_path for pattern in self.include_patterns)
 
-        # No filters or passed all checks
         return True
 
     def _sanitize_tool_name(self, name: str) -> str:
@@ -59,18 +51,14 @@ class OpenAPIParser:
         """
         import re
 
-        # Replace invalid characters with underscores
         sanitized = re.sub(r"[^a-zA-Z0-9_-]", "_", name)
-        # Remove leading/trailing underscores
         sanitized = sanitized.strip("_")
-        # Limit to 64 characters
         sanitized = sanitized[:64]
-        # Ensure it's not empty
         if not sanitized:
             sanitized = "tool"
         return sanitized
 
-    async def extract_get_endpoints(self, spec: dict[str, Any]) -> list[Tool]:
+    def extract_get_endpoints(self, spec: dict[str, Any]) -> list[Tool]:
         """
         Extract all GET endpoints from OpenAPI spec and convert to MCP tools
 
@@ -84,34 +72,26 @@ class OpenAPIParser:
         paths = spec.get("paths", {})
 
         for path, path_item in paths.items():
-            # Check if path should be included based on filters
             if not self._should_include_path(path):
                 continue
 
-            # Check if GET operation exists
             if "get" not in path_item:
                 continue
 
             get_op = path_item["get"]
 
-            # Extract operation info
             operation_id = get_op.get("operationId", path.replace("/", "_").strip("_"))
-            # Sanitize the operation_id to match MCP requirements
             operation_id = self._sanitize_tool_name(operation_id)
             summary = get_op.get("summary", f"GET {path}")
             description = get_op.get("description", "")
 
-            # Extract parameters (query, header, path)
             parameters = get_op.get("parameters", [])
             input_schema = self._build_input_schema(path, parameters)
 
-            # Add common query parameters (RQL, pagination, etc.) if not already present
             self._add_common_query_params(input_schema)
 
-            # Extract response information
             response_info = self._extract_response_info(get_op)
 
-            # Build tool description with response info
             tool_description = {
                 "method": "GET",
                 "path": path,
@@ -121,8 +101,7 @@ class OpenAPIParser:
                 "response": response_info,
             }
 
-            # Create MCP Tool with flexible schema
-            # Note: additionalProperties allows passing any query params, including RQL expressions
+            # additionalProperties allows passing any query params, including RQL expressions
             tool = Tool(
                 name=operation_id,
                 description=json.dumps(tool_description),
@@ -190,12 +169,10 @@ class OpenAPIParser:
         responses = operation.get("responses", {})
         response_info = {}
 
-        # Extract 200 response (success)
         if "200" in responses:
             response_200 = responses["200"]
             response_info["description"] = response_200.get("description", "")
 
-            # Extract JSON schema if present
             content = response_200.get("content", {})
             if "application/json" in content:
                 json_content = content["application/json"]
@@ -275,20 +252,27 @@ class OpenAPIParser:
                 "- Simple: 'status=Active&limit=10'\n"
                 "- Search: 'ilike(name,*Teams*)&limit=20'\n"
                 "- Sort: 'order=-name&select=id,name,status'\n"
-                '- Filter by account ID: eq(buyer.id,"ACC-4402-5918") or eq(client.id,"ACC-1234-5678") (use schema to see which field exists)\n'
-                "- Complex: 'and(eq(vendor.id,\"ACC-123\"),ge(audit.created.at,2026-01-31T00:00:00.000Z))&order=-audit.created.at&select=audit&limit=10' (dates in UTC: YYYY-MM-DDTHH:MM:SS.mmmZ)\n"
+                '- Filter by account ID: eq(buyer.id,"ACC-4402-5918") or eq(client.id,"ACC-1234-5678") '
+                "(use schema to see which field exists)\n"
+                '- Complex: \'and(eq(vendor.id,"ACC-123"),ge(audit.created.at,...))'
+                "&order=-audit.created.at&select=audit&limit=10' (dates in UTC: YYYY-MM-DDTHH:MM:SS.mmmZ)\n"
                 "- Multiple conditions: 'and(eq(status,Failed),or(eq(type,A),eq(type,B)))'\n"
                 "\n"
                 "IMPORTANT: Date fields (created, updated) are in 'audit' object. Add '&select=audit' to access them!\n"
                 "DATES IN RQL: Use UTC format YYYY-MM-DDTHH:MM:SS.mmmZ (e.g. 2026-01-31T23:00:00.000Z). Backend uses UTC (Zulu time).\n"
-                "Filter fields must exist on the resource—use marketplace_resource_schema(resource) to see filterable fields (e.g. subscriptionsCount does not exist; for agreements with more than N subscriptions, fetch with select=+subscriptions.id,+subscriptions.name and filter/count in the response).",
+                "Filter fields must exist on the resource—use marketplace_resource_schema(resource) to see "
+                "filterable fields. For agreements with many subscriptions, use "
+                "select=+subscriptions.id,+subscriptions.name and filter/count in the response.",
             }
 
-        # Add common pagination parameters if not present
         if "limit" not in properties:
             properties["limit"] = {
                 "type": "integer",
-                "description": "Maximum number of items to return (pagination). For large limits (e.g. 100, 500, 1000), use select= with only the fields you need (from marketplace_resource_schema); otherwise the response may cause a context limit error.",
+                "description": (
+                    "Maximum number of items to return (pagination). For large limits, use select= with only "
+                    "the fields you need (from marketplace_resource_schema); "
+                    "otherwise the response may cause a context limit error."
+                ),
             }
 
         if "offset" not in properties:
@@ -329,34 +313,27 @@ class OpenAPIParser:
             if not param_name:
                 continue
 
-            # Get parameter schema
             param_schema = param.get("schema", {})
             param_type = param_schema.get("type", "string")
 
-            # Build property schema
             prop_schema = {
                 "type": param_type,
                 "description": param.get("description", f"Query parameter: {param_name}"),
             }
 
-            # Add enum values if present
             if "enum" in param_schema:
                 prop_schema["enum"] = param_schema["enum"]
-                # Enhance description with valid values
                 valid_values = ", ".join(str(v) for v in param_schema["enum"])
                 prop_schema["description"] += f"\n\n**Valid values:** {valid_values}"
 
-            # Add example if present
             if "example" in param_schema:
                 prop_schema["example"] = param_schema["example"]
             elif "example" in param:
                 prop_schema["example"] = param["example"]
 
-            # Add format if present (e.g., date-time, uuid)
             if "format" in param_schema:
                 prop_schema["format"] = param_schema["format"]
 
-            # Add min/max constraints if present
             if "minimum" in param_schema:
                 prop_schema["minimum"] = param_schema["minimum"]
             if "maximum" in param_schema:
@@ -404,7 +381,7 @@ class OpenAPIParser:
 
         return endpoints
 
-    async def create_tools_from_config(self, tools_config: list[dict[str, Any]]) -> list[Tool]:
+    def create_tools_from_config(self, tools_config: list[dict[str, Any]]) -> list[Tool]:
         """
         Create MCP tools from manual configuration
 

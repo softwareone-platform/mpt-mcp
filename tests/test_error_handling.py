@@ -14,7 +14,7 @@ class TestAuthenticationErrors:
     @pytest.mark.asyncio
     async def test_missing_authorization_header(self):
         """Test error when X-MPT-Authorization header is missing"""
-        from src.server import get_client_api_client_http
+        from src.server_context import get_client_api_client_http
 
         # No context vars set - should raise ValueError
         with pytest.raises(ValueError) as exc_info:
@@ -25,9 +25,8 @@ class TestAuthenticationErrors:
 
     def test_normalize_endpoint_url(self):
         """Test URL normalization"""
-        from src.server import normalize_endpoint_url
+        from src.server_context import normalize_endpoint_url
 
-        # Test removing /public suffix
         assert normalize_endpoint_url("https://api.s1.show/public") == "https://api.s1.show"
         assert normalize_endpoint_url("https://api.s1.show") == "https://api.s1.show"
 
@@ -41,7 +40,6 @@ class TestAPIErrorResponses:
         from src.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
-            # Mock a 401 response
             mock_response = Mock()
             mock_response.status_code = 401
             mock_response.json.return_value = {"error": "Invalid credentials"}
@@ -53,7 +51,6 @@ class TestAPIErrorResponses:
 
             client = APIClient("https://api.test.com", "test_token")
 
-            # Should raise HTTPStatusError
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 await client.get("/products")
 
@@ -65,7 +62,6 @@ class TestAPIErrorResponses:
         from src.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
-            # Mock a 403 response
             mock_response = Mock()
             mock_response.status_code = 403
             mock_response.json.return_value = {"error": "Access denied"}
@@ -77,7 +73,6 @@ class TestAPIErrorResponses:
 
             client = APIClient("https://api.test.com", "test_token")
 
-            # Should raise HTTPStatusError
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 await client.get("/products")
 
@@ -89,7 +84,6 @@ class TestAPIErrorResponses:
         from src.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
-            # Mock a 404 response
             mock_response = Mock()
             mock_response.status_code = 404
             mock_response.json.return_value = {"error": "Resource not found"}
@@ -101,7 +95,6 @@ class TestAPIErrorResponses:
 
             client = APIClient("https://api.test.com", "test_token")
 
-            # Should raise HTTPStatusError
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 await client.get("/products/invalid-id")
 
@@ -113,7 +106,6 @@ class TestAPIErrorResponses:
         from src.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
-            # Mock a 429 response
             mock_response = Mock()
             mock_response.status_code = 429
             mock_response.json.return_value = {"error": "Rate limit exceeded"}
@@ -125,7 +117,6 @@ class TestAPIErrorResponses:
 
             client = APIClient("https://api.test.com", "test_token")
 
-            # Should raise HTTPStatusError
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 await client.get("/products")
 
@@ -137,7 +128,6 @@ class TestAPIErrorResponses:
         from src.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
-            # Mock a 500 response
             mock_response = Mock()
             mock_response.status_code = 500
             mock_response.json.return_value = {"error": "Internal server error"}
@@ -149,7 +139,6 @@ class TestAPIErrorResponses:
 
             client = APIClient("https://api.test.com", "test_token")
 
-            # Should raise HTTPStatusError
             with pytest.raises(httpx.HTTPStatusError) as exc_info:
                 await client.get("/products")
 
@@ -162,7 +151,7 @@ class TestErrorMessages:
     @pytest.mark.asyncio
     async def test_missing_auth_error_message_is_clear(self):
         """Test that missing auth error message is clear and actionable"""
-        from src.server import get_client_api_client_http
+        from src.server_context import get_client_api_client_http
 
         with pytest.raises(ValueError) as exc_info:
             await get_client_api_client_http()

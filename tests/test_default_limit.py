@@ -173,7 +173,7 @@ class TestDefaultLimit:
         # Verify API was called with all parameters including default limit
         call_args = api_client.get.call_args
         params = call_args.kwargs.get("params", {})
-        assert params["select"] == "+id,+name", "Select should be preserved"
+        assert "id" in params["select"] and "name" in params["select"], "Select should include id and name (sanitization may reorder to canonical id,name,...)"
         assert params["order"] == "-created", "Order should be preserved"
         assert params["limit"] == 10, "Default limit should be applied"
         assert "data" in result

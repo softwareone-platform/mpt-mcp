@@ -1,5 +1,3 @@
-"""Pre-built query templates for common marketplace use cases."""
-
 from typing import Any
 
 

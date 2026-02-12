@@ -1,8 +1,3 @@
-"""
-SoftwareOne Marketplace MCP Server
-A Model Context Protocol server for the SoftwareOne Marketplace API
-"""
-
 __version__ = "2.0.0"
 __author__ = "SoftwareOne"
 

@@ -187,6 +187,32 @@ class TestAuditFieldAutoDetection:
         assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
     @pytest.mark.asyncio
+    async def test_auto_adds_audit_when_filtering_by_failed_at(self, api_client, mock_api_response, endpoints_registry):
+        """Test that audit is auto-added when filtering by audit.failed.at (e.g. orders failed starting when)"""
+        api_client.get.return_value = mock_api_response
+
+        rql = 'ge(audit.failed.at,"2026-01-22T00:00:00Z")'
+        await execute_marketplace_query(
+            resource="commerce.orders",
+            rql=rql,
+            limit=10,
+            offset=None,
+            page=None,
+            select=None,
+            order=None,
+            path_params=None,
+            api_client=api_client,
+            endpoints_registry=endpoints_registry,
+            log_fn=lambda x: None,
+            analytics_logger=None,
+            config=None,
+        )
+
+        call_args = api_client.get.call_args
+        params = call_args.kwargs.get("params", {})
+        assert "audit" in params.get("select", ""), "select parameter should include 'audit' for audit.failed.at"
+
+    @pytest.mark.asyncio
     async def test_auto_adds_audit_when_filtering_by_created_by(self, api_client, mock_api_response, endpoints_registry):
         """Test that audit is auto-added when filtering by audit.created.by"""
         api_client.get.return_value = mock_api_response
@@ -425,13 +451,13 @@ class TestAuditFieldAutoDetection:
         params = call_args.kwargs.get("params", {})
         select_value = params.get("select", "")
         assert "audit" in select_value, "select should include 'audit'"
-        assert "+id" in select_value, "select should still include original fields"
-        assert "+name" in select_value, "select should still include original fields"
-        assert "+status" in select_value, "select should still include original fields"
+        assert "id" in select_value, "select should include id (always added by sanitization)"
+        assert "name" in select_value, "select should still include original fields"
+        assert "status" in select_value, "select should still include original fields"
 
     @pytest.mark.asyncio
     async def test_creates_select_with_audit_when_no_select_provided(self, api_client, mock_api_response, endpoints_registry):
-        """Test that select=audit is created when no select parameter is provided"""
+        """Test that select includes audit and id when no select parameter is provided (sanitization adds id)"""
         api_client.get.return_value = mock_api_response
 
         await execute_marketplace_query(
@@ -453,7 +479,33 @@ class TestAuditFieldAutoDetection:
         call_args = api_client.get.call_args
         params = call_args.kwargs.get("params", {})
         select_value = params.get("select", "")
-        assert select_value == "audit", f"select should be exactly 'audit', but got '{select_value}'"
+        assert "audit" in select_value, "select should include 'audit'"
+        assert "id" in select_value, "select should include id (always added by sanitization)"
+
+    @pytest.mark.asyncio
+    async def test_creates_select_with_audit_when_no_select_provided_exact(self, api_client, mock_api_response, endpoints_registry):
+        """When no select and audit is auto-added, sanitization yields id,audit (canonical order)"""
+        api_client.get.return_value = mock_api_response
+
+        await execute_marketplace_query(
+            resource="commerce.orders",
+            rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
+            limit=10,
+            offset=None,
+            page=None,
+            select=None,
+            order=None,
+            path_params=None,
+            api_client=api_client,
+            endpoints_registry=endpoints_registry,
+            log_fn=lambda x: None,
+            analytics_logger=None,
+            config=None,
+        )
+
+        params = api_client.get.call_args.kwargs.get("params", {})
+        select_value = params.get("select", "")
+        assert select_value == "id,audit", f"select should be 'id,audit', but got '{select_value}'"
 
     @pytest.mark.asyncio
     async def test_audit_pattern_matches_all_audit_field_types(self):
@@ -539,10 +591,10 @@ class TestAuditFieldAutoDetectionIntegration:
 
         # Should include audit
         assert "audit" in select_value, "select should include 'audit' for date range queries"
-        # Should include original fields
-        assert "+id" in select_value
-        assert "+product.id" in select_value
-        assert "+product.name" in select_value
+        # id is always added by sanitization (may appear as 'id' in prefix)
+        assert "id" in select_value
+        assert "+product.id" in select_value or "product.id" in select_value
+        assert "+product.name" in select_value or "product.name" in select_value
         # Should have correct order
         assert params.get("order") == "-audit.created.at"
 
@@ -573,10 +625,10 @@ class TestAuditFieldAutoDetectionIntegration:
 
         # Should include audit for ordering
         assert "audit" in select_value, "select should include 'audit' when ordering by audit field"
-        # Should include original fields
-        assert "+id" in select_value
-        assert "+status" in select_value
-        assert "+product.name" in select_value
+        # id and status are always included by sanitization (canonical prefix)
+        assert "id" in select_value
+        assert "status" in select_value
+        assert "+product.name" in select_value or "product.name" in select_value
 
     @pytest.mark.asyncio
     async def test_retries_without_audit_on_400_error(self, api_client, mock_api_response, endpoints_registry):

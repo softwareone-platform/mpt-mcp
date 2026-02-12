@@ -97,13 +97,24 @@ marketplace_query(resource="commerce.orders", limit=5)
 
 ## 🏗️ Development
 
-### **Run tests**
-```bash
-docker compose run test
-```
-This runs Ruff linter, Ruff formatter check, then pytest—the same checks as CI. To run only Ruff (lint + format check): `docker compose run --rm ruff`.
+This project uses **[uv](https://docs.astral.sh/uv/)** for dependency management. Install uv, then from the repo root:
 
-### **Local development**
+```bash
+uv sync                    # Create venv and install deps (incl. dev)
+uv run pytest              # Run tests
+uv run python -m src.server # Run HTTP server
+uv run python -m src.server_stdio  # Run stdio server
+```
+
+To generate a `requirements.txt` for tools that still need it: `uv export --no-dev -o requirements.txt` (not stored in the repo).
+
+### **Run tests (Docker)**
+```bash
+docker compose build test && docker compose run --rm test
+```
+This runs Ruff linter, Ruff formatter check, then pytest—the same checks as CI. After changing `pyproject.toml` or `uv.lock`, rebuild first: `docker compose build test`. To run only Ruff (lint + format check): `docker compose run --rm ruff`.
+
+### **Local development (Docker)**
 ```bash
 # HTTP server mode
 docker compose up dev
@@ -137,6 +148,24 @@ For more details, see:
 - **Quick Start**: [docs/ANALYTICS_QUICKSTART.md](docs/ANALYTICS_QUICKSTART.md)
 - **Full Documentation**: [docs/ANALYTICS_IMPLEMENTATION.md](docs/ANALYTICS_IMPLEMENTATION.md)
 
+### **Code quality (SonarQube)**
+
+Run SonarQube locally for security, maintainability, and coverage checks:
+
+```bash
+# 1. Start SonarQube
+docker compose --profile sonar up -d sonar
+# Open http://localhost:9000, login admin/admin, create project "mpt-mcp", generate a token
+
+# 2. Generate coverage (optional)
+uv run pytest --cov=src --cov-report=xml
+
+# 3. Run scanner (set SONAR_TOKEN from SonarQube UI)
+SONAR_TOKEN=your_token docker compose --profile sonar run --rm sonar-scanner
+```
+
+See **[docs/sonar.md](docs/sonar.md)** for full steps.
+
 ---
 
 ## 📦 Project Structure
@@ -153,10 +182,11 @@ mpt-mcp/
 ├── tests/                     # Test suite
 ├── docker-compose.yml         # Docker services
 ├── Dockerfile                 # Container image
-└── requirements.txt           # Python dependencies
+├── pyproject.toml             # Project & dependencies (uv)
+└── uv.lock                    # Locked dependency set
 ```
 
-For stack, multi-tenancy, and guardrails, see **[ARCHITECTURE.md](ARCHITECTURE.md)**.
+For stack, multi-tenancy, and guardrails, see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
