@@ -211,7 +211,7 @@ def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict
     """
     if not cache_key or cache_key not in _audit_cache:
         if resource:
-            return {"error": "Audit fields not available (spec not loaded)", "resource": resource or ""}
+            return {"error": "Audit fields not available (spec not loaded)", "resource": resource}
         return {"by_resource": {}}
     by_resource = _audit_cache[cache_key]["by_resource"]
     if resource is not None:
