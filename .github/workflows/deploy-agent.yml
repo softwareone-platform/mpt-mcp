@@ -1,15 +1,10 @@
-# Deploy Agent Backend to Google Cloud Run
-# Runs only when agent/ changes (paths filter). Uses same GCP project/region as MCP.
-# Required secrets: GCP_* (same as MCP), CONTEXT_DATABASE_URL, MCP_SERVER_URL,
-#   AUTH0_DOMAIN, AUTH0_AUDIENCE, AUTH0_ISSUER, AZURE_OPENAI_API_KEY, AZURE_OPENAI_ENDPOINT,
-#   AZURE_OPENAI_DEPLOYMENT_NAME, AGENT_CORS_ORIGINS (e.g. https://agent.platform.softwareone.com)
-
 name: Deploy Agent to Cloud Run
 
 on:
   push:
-    branches: [main, master]
-    paths: ['agent/**']
+    tags:
+      - '*release*'
+      - '*test*'
   workflow_dispatch:
 
 jobs:
