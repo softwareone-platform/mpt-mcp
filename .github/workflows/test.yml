@@ -46,6 +46,15 @@ jobs:
     - name: Run tests with coverage
       run: docker compose run --rm test-cov
 
+    - name: Fix coverage paths for SonarCloud
+      run: |
+        if [ -f coverage.xml ]; then
+          sed -i 's|/app/||g' coverage.xml
+          echo "Fixed coverage.xml paths"
+        else
+          echo "Warning: coverage.xml not found"
+        fi
+
     - name: SonarCloud Scan
       uses: SonarSource/sonarcloud-github-action@master
       env:
