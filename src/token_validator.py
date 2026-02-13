@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 
 import httpx
 from jose import jwt as jose_jwt
+from jose.exceptions import ExpiredSignatureError
 from jose.jwt import JWTError
 
 from .config import config
@@ -200,18 +201,19 @@ def _extract_claims_from_payload(payload: dict) -> tuple[str | None, str | None]
     return (user_id, account_id)
 
 
-async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> dict | None:
+async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict | None, str | None]:
     """
     Verify JWT signature using JWKS and return the payload.
 
     Uses explicit algorithm list (no alg:none). Validates exp, nbf, iat by default.
 
     Returns:
-        Decoded payload dict if signature and claims are valid, None otherwise.
+        (payload, error_message). On success: (payload_dict, None). On failure: (None, "Token expired")
+        or (None, "JWT signature or claims invalid"). If JWKS fetch failed: (None, None).
     """
     jwks_dict = await _fetch_jwks_cached(jwks_url)
     if not jwks_dict:
-        return None
+        return (None, None)
 
     try:
         payload = jose_jwt.decode(
@@ -228,10 +230,13 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> dict | None:
                 "require_exp": False,  # allow tokens without exp (validate when present)
             },
         )
-        return payload
+        return (payload, None)
+    except ExpiredSignatureError as e:
+        logger.debug(f"JWT verification failed (expired): {e}")
+        return (None, "Token expired")
     except JWTError as e:
         logger.debug(f"JWT verification failed: {e}")
-        return None
+        return (None, "JWT signature or claims invalid")
 
 
 def is_jwt_token(token: str) -> bool:
@@ -388,9 +393,9 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
             error = "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. Auth0)."
             logger.warning(f"❌ {error}")
             return (False, None, error)
-        payload = await _verify_jwt_and_get_payload(token, jwks_url)
+        payload, verify_error = await _verify_jwt_and_get_payload(token, jwks_url)
         if payload is None:
-            error = "JWT signature or claims invalid"
+            error = verify_error or "JWT signature or claims invalid"
             logger.warning(f"❌ {error}")
             return (False, None, error)
         user_id, account_id_from_jwt = _extract_claims_from_payload(payload)
