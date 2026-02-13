@@ -62,8 +62,9 @@ class GitBookClient:
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
                 try:
+                    timeout_config = httpx.Timeout(self.timeout, connect=30.0)
                     async with asyncio.timeout(self.timeout):
-                        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+                        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
                             response = await client.get(url, headers=self._get_headers())
                 except TimeoutError:
                     if attempt < MAX_RETRIES - 1:

@@ -12,6 +12,7 @@ import uvicorn
 from alembic.config import Config as AlembicConfig
 from fastmcp import FastMCP
 from fastmcp.resources import FunctionResource
+from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
@@ -89,6 +90,21 @@ async def _create_app():
     else:
         log("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
     starlette_app = mcp.http_app()
+
+    # Custom 404 response so clients see a clear hint when path is wrong (e.g. 404 on POST /mcp)
+    async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+        if exc.status_code == 404:
+            return JSONResponse(
+                {
+                    "error": "Not found",
+                    "hint": "MCP endpoint is POST /mcp (no trailing slash). Ensure MCP_SERVER_URL ends with /mcp and the MCP server is running. See README Troubleshooting.",
+                },
+                status_code=404,
+            )
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+    starlette_app.add_exception_handler(HTTPException, _http_exception_handler)
+
     wrapped_app = CredentialsMiddleware(starlette_app)
 
     class HealthCheckMiddleware:
@@ -98,6 +114,10 @@ async def _create_app():
         async def __call__(self, scope, receive, send):
             if scope["type"] == "http":
                 request = Request(scope, receive)
+                # Accept POST /mcp/ (trailing slash) by rewriting to /mcp so path matches FastMCP route
+                if request.url.path == "/mcp/" and request.method == "POST":
+                    scope = dict(scope)
+                    scope["path"] = "/mcp"
                 if request.url.path in ["/", "/health"]:
                     response = JSONResponse(
                         {

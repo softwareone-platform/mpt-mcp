@@ -238,14 +238,17 @@ def register_http_tools(mcp):
     mcp.tool()(marketplace_docs_list)
 
     @mcp.tool()
-    async def marketplace_docs_read(uri: str) -> str:
+    async def marketplace_docs_read(uri: str) -> dict[str, Any]:
+        """Read a documentation page by uri (e.g. docs://help-and-support/contact-support).
+        Returns a JSON object: {"text": "<markdown content>", "count": 1}.
+        Clients should use the "text" field for the document body and "count" (always 1) for consistency with other tools."""
         analytics = get_analytics_logger()
         start_time = time.time()
         try:
             await server_docs.initialize_documentation_cache()
             dc = server_docs.documentation_cache
             if not dc or not dc.is_enabled:
-                result = DOCUMENTATION_CACHE_UNAVAILABLE_MSG
+                result = {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
                 if analytics and config.analytics_enabled:
                     await analytics.log_resource_read(
                         resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation cache not available"
@@ -253,7 +256,7 @@ def register_http_tools(mcp):
                 return result
             content = await dc.get_resource(uri)
             if content is None:
-                result = f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages."
+                result = {"text": f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages.", "count": 0}
                 if analytics and config.analytics_enabled:
                     await analytics.log_resource_read(
                         resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation page not found"
@@ -261,7 +264,7 @@ def register_http_tools(mcp):
                 return result
             if analytics and config.analytics_enabled:
                 await analytics.log_resource_read(resource_uri=uri, success=True, response_time_ms=int((time.time() - start_time) * 1000), cache_hit=True)
-            return content
+            return {"text": content, "count": 1}
         except Exception as e:
             if analytics and config.analytics_enabled:
                 await analytics.log_resource_read(resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message=str(e))

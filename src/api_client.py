@@ -144,7 +144,9 @@ class APIClient:
             logger.info(f"   Parameters: {original_params}")
         logger.info(f"   Full URL: {url}")
 
-        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+        # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at least 30s
+        timeout_config = httpx.Timeout(self.timeout, connect=30.0)
+        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
             try:
                 with anyio.fail_after(self.timeout):
                     response = await client.get(
@@ -213,7 +215,8 @@ class APIClient:
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
 
-        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+        timeout_config = httpx.Timeout(self.timeout, connect=30.0)
+        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
             try:
                 with anyio.fail_after(self.timeout):
                     response = await client.get(

@@ -156,6 +156,7 @@ async def marketplace_query(
         page: Page number (alternative to offset)
         select: Fields to include/exclude (+name,+description or -metadata). For audit fields include 'audit'.
             Nested: +subscriptions (full), +subscriptions.id, +subscriptions.id,+subscriptions.name.
+            For catalog.products when including vendor use +vendor.id,+vendor.name (not +vendor).
             RQL filter fields must exist—use marketplace_resource_schema(resource) to check.
         order: Sort order (e.g., -created for descending, +name for ascending). When using audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
         path_params: Path parameters for resources requiring IDs
@@ -338,7 +339,7 @@ async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     Returns:
         Complete JSON schema with field types, descriptions, enums, and examples
 
-    Example: marketplace_resource_schema(resource=catalog.products) returns full schema showing all product fields like id, name, status, vendor, etc.
+    Example: marketplace_resource_schema(resource=catalog.products) returns full schema; for products use select=+vendor.id,+vendor.name when including vendor.
     """
     if not _initialized:
         await initialize_server()

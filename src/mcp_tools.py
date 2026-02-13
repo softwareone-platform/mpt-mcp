@@ -284,6 +284,12 @@ async def execute_marketplace_query(
                 "hint": hint,
             }
 
+        # When listing catalog.products without select, default to table-friendly fields to avoid
+        # huge payloads and markdown table breaks (URLs, nested objects with "|" in values).
+        if resource == "catalog.products" and (not select or not select.strip()):
+            select = "+id,+name,+shortDescription"
+            log("   💡 Default select for catalog.products: +id,+name,+shortDescription (omit select for full fields)")
+
         # Auto-detect audit field usage in RQL and ensure audit is selected
         # The API requires select=audit when filtering/sorting by audit fields
         # Use dynamic regex from spec-derived cache if provided, else fallback (includes failed)
@@ -647,6 +653,7 @@ def execute_marketplace_resources(
                 "Use select=: select=+id,+name,+status or select=-metadata. Many fields omitted by default "
                 f"({KEY_META}.omitted). Use select=+field for lines, parameters, subscriptions. Nested: "
                 "+subscriptions (full), +subscriptions.id (ids only), +subscriptions.id,+subscriptions.name. "
+                "For catalog.products when including vendor use select=+vendor.id,+vendor.name (not +vendor). "
                 "RQL filter fields must exist on the resource—use marketplace_resource_schema(resource) to check."
             ),
         },

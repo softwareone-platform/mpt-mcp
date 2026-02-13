@@ -133,6 +133,57 @@ async def test_marketplace_docs_list_tip_when_limited(monkeypatch: pytest.Monkey
 
 @pytest.mark.unit
 @pytest.mark.asyncio
+async def test_marketplace_docs_read_returns_json_shape(monkeypatch: pytest.MonkeyPatch) -> None:
+    """marketplace_docs_read returns {text, count} so agents can parse as JSON and get count."""
+    stub = _StubEnabledDocsCache(
+        resources=[{"uri": "docs://help-and-support/contact-support", "metadata": {}}],
+        index={"total_pages": 1, "sections": []},
+        content_by_uri={"docs://help-and-support/contact-support": "# Contact\n\nHello from docs."},
+    )
+
+    async def _init() -> None:
+        server_docs.documentation_cache = stub
+
+    monkeypatch.setattr(server_docs, "initialize_documentation_cache", _init, raising=True)
+    monkeypatch.setattr(server_docs, "documentation_cache", None, raising=False)
+
+    mcp = _FakeToolMCP()
+    server_tools.register_http_tools(mcp)
+    docs_read_fn = mcp.tools["marketplace_docs_read"]
+
+    result = await docs_read_fn(uri="docs://help-and-support/contact-support")
+    assert isinstance(result, dict)
+    assert "text" in result and "count" in result
+    assert result["count"] == 1
+    assert result["text"] == "# Contact\n\nHello from docs."
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
+async def test_marketplace_docs_read_not_found_returns_count_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+    stub = _StubEnabledDocsCache(
+        resources=[],
+        index={"total_pages": 0, "sections": []},
+        content_by_uri={},
+    )
+
+    async def _init() -> None:
+        server_docs.documentation_cache = stub
+
+    monkeypatch.setattr(server_docs, "initialize_documentation_cache", _init, raising=True)
+    monkeypatch.setattr(server_docs, "documentation_cache", None, raising=False)
+
+    mcp = _FakeToolMCP()
+    server_tools.register_http_tools(mcp)
+    docs_read_fn = mcp.tools["marketplace_docs_read"]
+
+    result = await docs_read_fn(uri="docs://missing/page")
+    assert result["count"] == 0
+    assert "not found" in result["text"].lower()
+
+
+@pytest.mark.unit
+@pytest.mark.asyncio
 async def test_marketplace_resources_info_reflects_docs_cache(monkeypatch: pytest.MonkeyPatch) -> None:
     stub = _StubEnabledDocsCache(
         resources=[{"uri": "docs://readme", "metadata": {}}],

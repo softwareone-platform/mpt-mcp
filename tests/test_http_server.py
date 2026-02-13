@@ -6,6 +6,7 @@ Test HTTP server implementation
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from starlette.testclient import TestClient
 
 from src import server
 from src.config import config
@@ -266,3 +267,47 @@ class TestMarketplaceDocsList:
         assert result["total"] == 1
         assert "browser_url" not in result["resources"][0]
         assert "Prefer showing users the browser_url" in result["usage"]
+
+
+class TestMCPEndpointAnd404:
+    """Test /health, custom 404 response, and POST /mcp/ trailing-slash rewrite.
+
+    Uses a single TestClient so the app lifespan (FastMCP StreamableHTTPSessionManager) runs only once.
+    """
+
+    @pytest.mark.unit
+    def test_health_404_hint_and_mcp_trailing_slash(self):
+        """GET /health, 404 with hint, and POST /mcp/ rewrite in one client session."""
+        with TestClient(server.app) as client:
+            # 1. Health returns 200 with endpoint: /mcp
+            r = client.get("/health")
+            assert r.status_code == 200
+            data = r.json()
+            assert data.get("endpoint") == "/mcp"
+            assert data.get("status") == "healthy"
+
+            # 2. Wrong path (GET) returns 404 with JSON hint
+            r = client.get("/nonexistent")
+            assert r.status_code == 404
+            data = r.json()
+            assert "hint" in data
+            assert "POST /mcp" in data["hint"]
+
+            # 3. Wrong path (POST) returns 404 with same hint
+            r = client.post("/wrong", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
+            assert r.status_code == 404
+            data = r.json()
+            assert "hint" in data
+            assert "POST /mcp" in data["hint"]
+
+            # 4. POST /mcp/ (trailing slash) is rewritten to /mcp and handled (not 404)
+            r = client.post(
+                "/mcp/",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "initialize",
+                    "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}},
+                },
+            )
+            assert r.status_code != 404, "POST /mcp/ should be rewritten to /mcp and not return 404"

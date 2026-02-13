@@ -205,3 +205,26 @@ class TestDefaultLimit:
         # Check that log message about default limit was generated
         log_text = " ".join(log_messages)
         assert "default limit=10" in log_text.lower() or "applied default" in log_text.lower(), f"Expected log message about default limit, got: {log_messages}"
+
+    @pytest.mark.asyncio
+    async def test_catalog_products_default_select_when_omit(self, api_client, mock_api_response, endpoints_registry):
+        """When resource is catalog.products and select is omitted, default to +id,+name,+shortDescription to avoid table-breaking payloads."""
+        api_client.get.return_value = mock_api_response
+
+        result = await execute_marketplace_query(
+            resource="catalog.products",
+            rql="",
+            limit=10,
+            offset=None,
+            page=None,
+            select=None,
+            order=None,
+            path_params=None,
+            api_client=api_client,
+            endpoints_registry=endpoints_registry,
+        )
+
+        params = api_client.get.call_args.kwargs.get("params", {})
+        sel = params.get("select") or ""
+        assert "id" in sel and "name" in sel and "shortDescription" in sel, f"Expected default select for catalog.products to include id, name, shortDescription, got: {sel}"
+        assert "data" in result

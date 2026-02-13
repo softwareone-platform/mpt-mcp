@@ -206,6 +206,26 @@ For stack, multi-tenancy, and guardrails, see **[docs/ARCHITECTURE.md](docs/ARCH
 - Verify Docker is running: `docker ps`
 - Check Claude logs: `tail -f ~/Library/Logs/Claude/mcp*.log`
 
+### **Agent-backend: "404 Not Found" for url 'http://host.docker.internal:8080/mcp'**
+The error means the **MCP server** is not reachable at that URL (not the Marketplace API). The agent runs in Docker and calls the MCP at `http://host.docker.internal:8080/mcp`; something at that address is returning 404.
+
+**Check:**
+1. **MCP server is running and bound to 8080**  
+   From the mpt-mcp repo: `docker compose up dev` (or ensure the container that serves MCP is up).  
+   Then from the host: `curl -s http://localhost:8080/health` → should return `{"status":"healthy",...}`.  
+   And: `curl -s -X POST http://localhost:8080/mcp -H "Content-Type: application/json" -d '{}'` → should not be 404 (may be 400/422 without proper MCP body).
+
+2. **Port 8080 on the host**  
+   `host.docker.internal:8080` from inside the agent container is the **host machine’s** port 8080. So either:
+   - Run the MCP server on the host (e.g. `uv run python -m src.server`) so it listens on `localhost:8080`, or  
+   - Run the MCP in Docker with `ports: ["8080:8080"]` (as in `docker-compose.yml` dev service) so the host’s 8080 is forwarded to the MCP container.
+
+3. **Same Docker network (alternative)**  
+   If the agent and mpt-mcp are in the same compose or shared network, point the agent at the MCP service by name instead of the host: e.g. `http://mpt-mcp-dev:8080/mcp` (and ensure the MCP container exposes 8080).
+
+4. **Path**  
+   The HTTP endpoint is **POST `/mcp`**. The server logs "Endpoint path: /mcp" at startup. If your client uses a different path (e.g. trailing slash or prefix), fix the agent’s MCP URL to end with `/mcp` with no trailing slash (unless the server is mounted elsewhere).
+
 ---
 
 ## 🔗 Links

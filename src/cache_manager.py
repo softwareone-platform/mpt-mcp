@@ -207,11 +207,12 @@ async def fetch_with_cache(
             log(f"✓ Using cached data from: {url}")
             return cached_data
 
-    # Fetch from network
+    # Fetch from network (connect and default DEFAULT_FETCH_TIMEOUT, connect at least 30s)
     log(f"📡 Fetching from: {url}")
     try:
+        timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=30.0)
         async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
-            async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+            async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
                 response = await client.get(url)
 
             # Log if redirects occurred
