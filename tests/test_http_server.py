@@ -311,3 +311,20 @@ class TestMCPEndpointAnd404:
                 },
             )
             assert r.status_code != 404, "POST /mcp/ should be rewritten to /mcp and not return 404"
+
+            # 5. POST / (root, e.g. when LB strips path) is rewritten to /mcp and handled (not 404)
+            r = client.post(
+                "/",
+                json={
+                    "jsonrpc": "2.0",
+                    "id": 0,
+                    "method": "initialize",
+                    "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}},
+                },
+            )
+            assert r.status_code != 404, "POST / should be rewritten to /mcp when platform strips path"
+
+            # 6. GET / still returns health (not MCP)
+            r = client.get("/")
+            assert r.status_code == 200
+            assert r.json().get("status") == "healthy"

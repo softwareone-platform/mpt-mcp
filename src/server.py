@@ -94,6 +94,8 @@ async def _create_app():
     # Custom 404 response so clients see a clear hint when path is wrong (e.g. 404 on POST /mcp)
     async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         if exc.status_code == 404:
+            # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips path)
+            log(f"⚠️ 404 {request.method} path={request.url.path!r}")
             return JSONResponse(
                 {
                     "error": "Not found",
@@ -118,7 +120,12 @@ async def _create_app():
                 if request.url.path == "/mcp/" and request.method == "POST":
                     scope = dict(scope)
                     scope["path"] = "/mcp"
-                if request.url.path in ["/", "/health"]:
+                # When platform (e.g. LB/API Gateway) strips path, requests arrive as POST / ; treat as MCP
+                if request.url.path == "/" and request.method == "POST":
+                    scope = dict(scope)
+                    scope["path"] = "/mcp"
+                # Health only for GET (POST / is rewritten above and must go to MCP)
+                if request.method == "GET" and request.url.path in ["/", "/health"]:
                     response = JSONResponse(
                         {
                             "status": "healthy",

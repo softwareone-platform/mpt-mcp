@@ -99,10 +99,10 @@ jobs:
           --region ${{ secrets.GCP_REGION }} \
           --allow-unauthenticated \
           --memory 1Gi \
-          --cpu 1 \
+          --cpu 2 \
           --timeout 300 \
           --concurrency 80 \
-          --min-instances 0 \
+          --min-instances 1 \
           --max-instances 10 \
           --set-env-vars \"$ENV_VARS\""
         if [ -n "$CLOUD_SQL_CONN" ]; then
