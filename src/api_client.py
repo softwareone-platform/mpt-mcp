@@ -2,6 +2,7 @@ import logging
 from typing import Any
 from urllib.parse import urlencode, urlparse
 
+import anyio
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -89,7 +90,6 @@ class APIClient:
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        timeout: float = 30.0,
     ) -> Any:
         """
         Make a GET request to the API
@@ -101,13 +101,13 @@ class APIClient:
                    - Example: {"rql": "eq(status,Failed)"} → /endpoint?eq(status,Failed)
                    - NOT sent as ?rql=... (it's not a query parameter, it IS the query string)
                    - Other params in the dict are added as normal query parameters
-            timeout: Request timeout in seconds
 
         Returns:
             JSON response from the API
 
         Raises:
             httpx.HTTPError: If the request fails
+            httpx.TimeoutException: If the request times out
         """
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
@@ -144,14 +144,18 @@ class APIClient:
             logger.info(f"   Parameters: {original_params}")
         logger.info(f"   Full URL: {url}")
 
-        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout) as client:
-            response = await client.get(
-                url,
-                params=params,  # Will be None if RQL was used
-                headers=headers,
-            )
-            response.raise_for_status()
-            response_data = response.json()
+        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+            try:
+                with anyio.fail_after(self.timeout):
+                    response = await client.get(
+                        url,
+                        params=params,  # Will be None if RQL was used
+                        headers=headers,
+                    )
+                    response.raise_for_status()
+                    response_data = response.json()
+            except TimeoutError as e:
+                raise httpx.TimeoutException(f"Request timed out after {self.timeout} seconds") from e
 
             # Log the API response
             logger.info(f"✅ Response: {response.status_code}")
@@ -195,7 +199,6 @@ class APIClient:
         self,
         endpoint: str,
         params: dict[str, Any] | None = None,
-        timeout: float = 30.0,
     ) -> str:
         """
         Make a GET request and return raw response text
@@ -203,7 +206,6 @@ class APIClient:
         Args:
             endpoint: API endpoint path
             params: Query parameters dictionary
-            timeout: Request timeout in seconds
 
         Returns:
             Raw response text from the API
@@ -211,14 +213,18 @@ class APIClient:
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
 
-        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout) as client:
-            response = await client.get(
-                url,
-                params=params,
-                headers=headers,
-            )
-            response.raise_for_status()
-            return response.text
+        async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
+            try:
+                with anyio.fail_after(self.timeout):
+                    response = await client.get(
+                        url,
+                        params=params,
+                        headers=headers,
+                    )
+                    response.raise_for_status()
+                    return response.text
+            except TimeoutError as e:
+                raise httpx.TimeoutException(f"Request timed out after {self.timeout} seconds") from e
 
     async def validate_token(self) -> bool:
         """

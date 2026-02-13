@@ -180,7 +180,6 @@ async def fetch_with_cache(
     url: str,
     cache_manager: CacheManager,
     force_refresh: bool = False,
-    timeout: float = DEFAULT_FETCH_TIMEOUT,
 ) -> dict[str, Any]:
     """
     Fetch data from URL with caching
@@ -189,7 +188,6 @@ async def fetch_with_cache(
         url: URL to fetch
         cache_manager: Cache manager instance
         force_refresh: Force refresh even if cache is valid
-        timeout: Request timeout in seconds
 
     Returns:
         Fetched or cached data
@@ -212,7 +210,7 @@ async def fetch_with_cache(
     # Fetch from network
     log(f"📡 Fetching from: {url}")
     try:
-        async with asyncio.timeout(timeout):
+        async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
             async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
                 response = await client.get(url)
 

@@ -25,6 +25,7 @@ class GitBookClient:
         space_id: str,
         base_url: str = "https://api.gitbook.com/v1",
         max_concurrent_requests: int = DEFAULT_MAX_CONCURRENT_REQUESTS,
+        timeout: float = DEFAULT_REQUEST_TIMEOUT,
     ):
         """
         Initialize GitBook API client
@@ -34,11 +35,13 @@ class GitBookClient:
             space_id: The GitBook space ID to fetch content from
             base_url: Base URL for GitBook API (default: https://api.gitbook.com/v1)
             max_concurrent_requests: Max concurrent API requests (default 2, helps avoid 429)
+            timeout: Request timeout in seconds (default 30)
         """
         self.api_key = api_key
         self.space_id = space_id
         self.base_url = base_url.rstrip("/")
         self._semaphore = asyncio.Semaphore(max_concurrent_requests)
+        self.timeout = timeout
 
         logger.info(f"📚 GitBook client initialized for space: {space_id} (max concurrent: {max_concurrent_requests})")
 
@@ -49,7 +52,7 @@ class GitBookClient:
             "Accept": "application/json",
         }
 
-    async def _get_with_retry(self, url: str, timeout: float = DEFAULT_REQUEST_TIMEOUT) -> dict[str, Any]:
+    async def _get_with_retry(self, url: str) -> dict[str, Any]:
         """
         Perform a GET request with concurrency limit and retry on 429/503.
 
@@ -59,7 +62,7 @@ class GitBookClient:
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
                 try:
-                    async with asyncio.timeout(timeout):
+                    async with asyncio.timeout(self.timeout):
                         async with httpx.AsyncClient(follow_redirects=True, http2=True) as client:
                             response = await client.get(url, headers=self._get_headers())
                 except TimeoutError:
@@ -84,14 +87,11 @@ class GitBookClient:
                 return response.json()
             raise RuntimeError("Unexpected retry loop exit")
 
-    async def fetch_space_content(self, timeout: float = DEFAULT_REQUEST_TIMEOUT) -> dict[str, Any]:
+    async def fetch_space_content(self) -> dict[str, Any]:
         """
         Fetch all content from the GitBook space
 
         This includes pages, files, and other content items.
-
-        Args:
-            timeout: Request timeout in seconds
 
         Returns:
             Dictionary containing all space content
@@ -102,20 +102,19 @@ class GitBookClient:
         url = f"{self.base_url}/spaces/{self.space_id}/content"
         logger.info(f"📥 Fetching GitBook space content from: {url}")
 
-        content = await self._get_with_retry(url, timeout=timeout)
+        content = await self._get_with_retry(url)
         logger.info("✅ Successfully fetched GitBook content")
         if "pages" in content:
             page_count = len(content["pages"]) if isinstance(content["pages"], list) else "unknown"
             logger.info(f"   📄 Pages: {page_count}")
         return content
 
-    async def fetch_page_by_path(self, page_path: str, timeout: float = DEFAULT_REQUEST_TIMEOUT) -> dict[str, Any]:
+    async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
         """
         Fetch a specific page by its path
 
         Args:
             page_path: The page path (e.g., "getting-started/authentication")
-            timeout: Request timeout in seconds
 
         Returns:
             Dictionary containing page content
@@ -126,15 +125,14 @@ class GitBookClient:
         page_path = page_path.lstrip("/")
         url = f"{self.base_url}/spaces/{self.space_id}/content/path/{page_path}"
         logger.debug(f"📥 Fetching page: {page_path}")
-        return await self._get_with_retry(url, timeout=timeout)
+        return await self._get_with_retry(url)
 
-    async def fetch_page_by_id(self, page_id: str, timeout: float = DEFAULT_REQUEST_TIMEOUT) -> dict[str, Any]:
+    async def fetch_page_by_id(self, page_id: str) -> dict[str, Any]:
         """
         Fetch a specific page by its ID
 
         Args:
             page_id: The page ID (e.g., "abc123def456")
-            timeout: Request timeout in seconds
 
         Returns:
             Dictionary containing page content
@@ -144,7 +142,7 @@ class GitBookClient:
         """
         url = f"{self.base_url}/spaces/{self.space_id}/content/page/{page_id}"
         logger.debug(f"📥 Fetching page by ID: {page_id}")
-        return await self._get_with_retry(url, timeout=timeout)
+        return await self._get_with_retry(url)
 
     async def validate_credentials(self) -> bool:
         """

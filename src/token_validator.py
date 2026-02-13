@@ -329,7 +329,7 @@ def normalize_token(token: str) -> str:
         return ""
     s = token.strip()
     if s.upper().startswith("BEARER "):
-        s = s[7:].strip()  # len("Bearer ") = 7
+        s = s[7:].strip()
     return s
 
 
