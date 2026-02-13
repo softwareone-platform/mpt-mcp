@@ -1,12 +1,17 @@
+from __future__ import annotations
+
 import logging
 import re
-from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from .api_client import APIClient
 from .query_templates import get_query_templates
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+    from .api_client import APIClient
 
 logger = logging.getLogger(__name__)
 

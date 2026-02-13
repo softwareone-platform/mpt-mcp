@@ -3,7 +3,7 @@ name = "mpt-mcp"
 version = "0.1.0"
 description = "Multi-tenant MCP server for the SoftwareOne Marketplace API (stdio + HTTP streamable)"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "fastmcp>=3.0.0b2",  # 3.0 line (3.0.0 final not on PyPI yet; upgrade to >=3.0.0 when released)
     "httpx[http2]>=0.25.0",
@@ -35,7 +35,7 @@ dev = [
 
 [tool.ruff]
 # Python version
-target-version = "py312"
+target-version = "py314"
 
 # Line length
 line-length = 180

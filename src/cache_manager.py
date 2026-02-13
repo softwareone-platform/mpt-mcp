@@ -57,7 +57,7 @@ class CacheManager:
             expires_at = cached_at + self.ttl
 
             return datetime.now() < expires_at
-        except (KeyError, ValueError):
+        except KeyError, ValueError:
             return False
 
     def get(self, key: str) -> dict[str, Any] | None:
@@ -81,7 +81,7 @@ class CacheManager:
         try:
             with open(cache_path) as f:
                 return json.load(f)
-        except (OSError, json.JSONDecodeError):
+        except OSError, json.JSONDecodeError:
             return None
 
     def set(self, key: str, data: dict[str, Any]) -> None:
@@ -163,7 +163,7 @@ class CacheManager:
                         valid_count += 1
                     else:
                         expired_count += 1
-                except (KeyError, ValueError):
+                except KeyError, ValueError:
                     expired_count += 1
 
         return {

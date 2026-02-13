@@ -1,7 +1,7 @@
 # Dockerfile for SoftwareOne Marketplace MCP Server (HTTP Streamable Transport)
 # This allows deployment to cloud platforms like Google Cloud Run
 
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # Set working directory
 WORKDIR /app
