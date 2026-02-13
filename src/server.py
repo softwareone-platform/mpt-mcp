@@ -34,12 +34,10 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
-# Stateless HTTP spawns a new process per request; in-memory state (e.g. docs cache) is lost.
-# Force "false" so the same process serves all requests and the docs cache works.
-# For serverless (e.g. Modal), set MPT_STATELESS_HTTP=true before import to allow stateless.
-if os.getenv("MPT_STATELESS_HTTP", "").lower() != "true":
-    os.environ["FASTMCP_STATELESS_HTTP"] = "false"
-log(f"📡 FASTMCP_STATELESS_HTTP={os.getenv('FASTMCP_STATELESS_HTTP', '(unset)')} (docs cache in-process)")
+# Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
+# Docs cache is populated at startup and remains in memory for all requests in that process.
+os.environ["FASTMCP_STATELESS_HTTP"] = "true"
+log("📡 FASTMCP_STATELESS_HTTP=true (stateless always; docs cache in-process, long-lived per instance)")
 
 mcp = FastMCP("softwareone-marketplace")
 register_http_tools(mcp)
@@ -90,12 +88,16 @@ async def _create_app():
     else:
         log("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
     starlette_app = mcp.http_app()
+    # Route POST /mcp is registered by FastMCP here and never unregistered in this process.
+    # Intermittent 404s are usually: path stripped to / (we rewrite POST / → /mcp), or traffic hitting an old revision during deploy.
 
     # Custom 404 response so clients see a clear hint when path is wrong (e.g. 404 on POST /mcp)
     async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         if exc.status_code == 404:
             # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips path)
-            log(f"⚠️ 404 {request.method} path={request.url.path!r}")
+            has_mcp_session_id = bool(request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id"))
+            ua = (request.headers.get("user-agent") or "")[:80]
+            log(f"⚠️ 404 {request.method} path={request.url.path!r} mcp_session_id={'yes' if has_mcp_session_id else 'no'} ua={ua!r}")
             return JSONResponse(
                 {
                     "error": "Not found",
@@ -225,7 +227,7 @@ def main():
         log_startup("=" * 60)
         log_startup(f"\n🌐 Starting server on {server_host}:{server_port}")
         log_startup("📡 Transport: Streamable HTTP (POST/DELETE)")
-        log_startup("📡 Endpoint path: /mcp")
+        log_startup("📡 Endpoint path: /mcp (registered at startup, not per-request)")
         log_startup(f"📡 Default API endpoint: {config.sse_default_base_url}")
         log_startup("\n🔑 Multi-tenant Authentication:")
         log_startup("   - Clients MUST provide X-MPT-Authorization header")

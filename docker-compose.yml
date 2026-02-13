@@ -81,9 +81,6 @@ services:
       DEBUG: ${DEBUG:-true}
       PYTHONUNBUFFERED: "1"
       PYTHONPATH: "/app"
-      # Keep in-process docs cache (stateless HTTP spawns a new process per request and loses cache)
-      FASTMCP_STATELESS_HTTP: "false"
-      
       # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
       # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header.
       # Middleware captures the request and passes headers to the marketplace API.
@@ -141,8 +138,7 @@ services:
       # Production settings
       DEBUG: "false"
       REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30}
-      FASTMCP_STATELESS_HTTP: "false"
-      
+
       # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
       # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header
     

@@ -70,6 +70,9 @@ X-MPT-Authorization: idt:TKN-XXXX-XXXX:your_token_here
 X-MPT-Endpoint: https://api.platform.softwareone.com  # Optional, defaults to production
 ```
 
+### **HTTP server (stateless and docs cache)**
+The HTTP server always runs in stateless mode (no server-side sessions), avoiding 404 "Session not found" when load-balanced. The documentation cache is in memory per instance: populated at startup and long-lived for all requests in that process. `marketplace_docs_list` and `docs://` resources work with long-lived workers (default uvicorn/Cloud Run).
+
 ---
 
 ## 📚 API Query Examples
