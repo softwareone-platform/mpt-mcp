@@ -3,15 +3,14 @@
 
 FROM python:3.14-slim
 
-# Set working directory
-WORKDIR /app
+# Install uv from official image (reliable in CI; no install script)
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 
-# Install system dependencies and uv
-RUN apt-get update && apt-get install -y \
-    curl \
-    && rm -rf /var/lib/apt/lists/* \
-    && curl -LsSf https://astral.sh/uv/install.sh | sh \
-    && mv /root/.local/bin/uv /usr/local/bin/uv
+# Install curl for healthcheck
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
 
 # Install Python dependencies with uv (lockfile ensures reproducible builds)
 COPY pyproject.toml uv.lock ./
