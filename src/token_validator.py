@@ -45,12 +45,12 @@ class TokenValidationCache:
     storing full tokens in memory. This prevents token exposure if memory is dumped.
     """
 
-    def __init__(self, ttl_minutes: int = 60):
+    def __init__(self, ttl_minutes: int = 10):
         """
         Initialize token validation cache
 
         Args:
-            ttl_minutes: Time-to-live for cache entries in minutes (default: 60)
+            ttl_minutes: Time-to-live for cache entries in minutes (default: 10)
         """
         self.ttl = timedelta(minutes=ttl_minutes)
         # SECURITY: Keys are SHA256 hashes of token+endpoint, not raw tokens
@@ -140,7 +140,7 @@ class TokenValidationCache:
 _token_cache: TokenValidationCache | None = None
 
 
-def get_token_cache(ttl_minutes: int = 60) -> TokenValidationCache:
+def get_token_cache(ttl_minutes: int = 10) -> TokenValidationCache:
     """Get or create the global token validation cache"""
     global _token_cache
 
