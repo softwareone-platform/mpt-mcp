@@ -2,11 +2,10 @@ import json
 import time
 from typing import Any
 
-from . import endpoint_registry
+from . import endpoint_registry, server_docs
 from .analytics import get_analytics_logger
 from .config import config
 from .server_context import get_current_credentials
-from .server_docs import documentation_cache, initialize_documentation_cache
 
 
 async def get_openapi_spec() -> str:
@@ -122,8 +121,9 @@ def register_http_resources(mcp: Any) -> None:
         start_time = time.time()
         uri = f"docs://{path}"
         try:
-            await initialize_documentation_cache()
-            if not documentation_cache or not documentation_cache.is_enabled:
+            await server_docs.initialize_documentation_cache()
+            dc = server_docs.documentation_cache
+            if not dc or not dc.is_enabled:
                 error_msg = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
                 if analytics and config.analytics_enabled:
                     await analytics.log_resource_read(
@@ -134,11 +134,11 @@ def register_http_resources(mcp: Any) -> None:
                     )
                 return error_msg
             cache_hit = False
-            if uri in documentation_cache._resources:
-                resource = documentation_cache._resources[uri]
+            if uri in dc._resources:
+                resource = dc._resources[uri]
                 if resource.get("content") is not None:
                     cache_hit = True
-            content = await documentation_cache.get_resource(uri)
+            content = await dc.get_resource(uri)
             if content is None:
                 error_msg = f"Documentation page not found: {uri}"
                 if analytics and config.analytics_enabled:

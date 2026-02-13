@@ -4,6 +4,7 @@ from typing import Any
 from . import (
     audit_fields as audit_fields_module,
     endpoint_registry,
+    server_docs,
 )
 from .analytics import get_analytics_logger
 from .config import config
@@ -15,7 +16,6 @@ from .mcp_tools import (
     execute_marketplace_resources,
 )
 from .server_context import _current_user_id, get_client_api_client_http, log
-from .server_docs import documentation_cache, initialize_documentation_cache
 
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 AUTH_HINT_HEADER_TOKEN = "Provide X-MPT-Authorization header with your API token"
@@ -27,8 +27,9 @@ async def marketplace_docs_list(section: str = None, subsection: str = None, sea
     analytics = get_analytics_logger()
     start_time = time.time()
     try:
-        await initialize_documentation_cache()
-        if not documentation_cache or not documentation_cache.is_enabled:
+        await server_docs.initialize_documentation_cache()
+        dc = server_docs.documentation_cache
+        if not dc or not dc.is_enabled:
             result = {
                 "total": 0,
                 "resources": [],
@@ -42,7 +43,7 @@ async def marketplace_docs_list(section: str = None, subsection: str = None, sea
                     error_message="Not initialized",
                 )
             return result
-        resources = await documentation_cache.list_resources(section=section, subsection=subsection, search=search, limit=limit)
+        resources = await dc.list_resources(section=section, subsection=subsection, search=search, limit=limit)
         resources_for_response = []
         for r in resources:
             item = dict(r)
@@ -210,8 +211,9 @@ def register_http_tools(mcp):
         analytics = get_analytics_logger()
         start_time = time.time()
         try:
-            await initialize_documentation_cache()
-            if not documentation_cache or not documentation_cache.is_enabled:
+            await server_docs.initialize_documentation_cache()
+            dc = server_docs.documentation_cache
+            if not dc or not dc.is_enabled:
                 result = {
                     "total_pages": 0,
                     "sections": [],
@@ -222,7 +224,7 @@ def register_http_tools(mcp):
                         tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message="Not initialized"
                     )
                 return result
-            result = await documentation_cache.get_documentation_index()
+            result = await dc.get_documentation_index()
             if analytics and config.analytics_enabled:
                 await analytics.log_tool_call(
                     tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=True, result_count=result.get("total_pages", 0)
@@ -240,15 +242,16 @@ def register_http_tools(mcp):
         analytics = get_analytics_logger()
         start_time = time.time()
         try:
-            await initialize_documentation_cache()
-            if not documentation_cache or not documentation_cache.is_enabled:
+            await server_docs.initialize_documentation_cache()
+            dc = server_docs.documentation_cache
+            if not dc or not dc.is_enabled:
                 result = DOCUMENTATION_CACHE_UNAVAILABLE_MSG
                 if analytics and config.analytics_enabled:
                     await analytics.log_resource_read(
                         resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation cache not available"
                     )
                 return result
-            content = await documentation_cache.get_resource(uri)
+            content = await dc.get_resource(uri)
             if content is None:
                 result = f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages."
                 if analytics and config.analytics_enabled:
@@ -273,8 +276,9 @@ def register_http_tools(mcp):
                 "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
                 "token_validation": {"enabled": False, "cache_stats": None},
             }
-            if documentation_cache and documentation_cache.is_enabled:
-                cache_info = documentation_cache.get_cache_info()
+            dc = server_docs.documentation_cache
+            if dc and dc.is_enabled:
+                cache_info = dc.get_cache_info()
                 result["documentation"] = {
                     "enabled": True,
                     "total_pages": cache_info.get("resource_count", 0),

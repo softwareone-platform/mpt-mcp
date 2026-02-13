@@ -1,5 +1,11 @@
+import contextlib
 import sys
 from contextvars import ContextVar
+
+# Ensure stderr is unbuffered so startup and request logs appear in Docker/console immediately
+if hasattr(sys.stderr, "reconfigure"):
+    with contextlib.suppress(Exception):
+        sys.stderr.reconfigure(line_buffering=True)
 
 from .api_client import APIClient
 from .config import config

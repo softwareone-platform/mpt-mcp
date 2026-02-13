@@ -33,7 +33,12 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
-os.environ.setdefault("FASTMCP_STATELESS_HTTP", "true")
+# Stateless HTTP spawns a new process per request; in-memory state (e.g. docs cache) is lost.
+# Force "false" so the same process serves all requests and the docs cache works.
+# For serverless (e.g. Modal), set MPT_STATELESS_HTTP=true before import to allow stateless.
+if os.getenv("MPT_STATELESS_HTTP", "").lower() != "true":
+    os.environ["FASTMCP_STATELESS_HTTP"] = "false"
+log(f"📡 FASTMCP_STATELESS_HTTP={os.getenv('FASTMCP_STATELESS_HTTP', '(unset)')} (docs cache in-process)")
 
 mcp = FastMCP("softwareone-marketplace")
 register_http_tools(mcp)

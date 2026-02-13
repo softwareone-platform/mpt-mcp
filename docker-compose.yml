@@ -3,11 +3,19 @@ services:
   stdio:
     build: .
     container_name: mpt-mcp-stdio
+    env_file:
+      - .env
     environment:
       # Required API Configuration
       MARKETPLACE_API_BASE_URL: ${MARKETPLACE_API_BASE_URL:-https://api.platform.softwareone.com}
       MARKETPLACE_API_TOKEN: ${MARKETPLACE_API_TOKEN}
       OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
+      
+      # GitBook: from .env via env_file only (so Cursor/IDE sees docs; no override with empty)
+      GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
+      GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
+      GITBOOK_MAX_CONCURRENT_REQUESTS: ${GITBOOK_MAX_CONCURRENT_REQUESTS:-2}
+      GITBOOK_PUBLIC_URL: ${GITBOOK_PUBLIC_URL:-}
       
       # Python Configuration
       PYTHONUNBUFFERED: "1"
@@ -46,7 +54,8 @@ services:
     depends_on:
       analytics-db:
         condition: service_healthy
-    # Load .env so GITBOOK_API_KEY, GITBOOK_SPACE_ID etc. are available in the container
+    # Load .env from this repo (path relative to this compose file).
+    # Do NOT override GITBOOK_* in environment with ${VAR:-} or the host's empty env can overwrite .env.
     env_file:
       - .env
     environment:
@@ -57,9 +66,8 @@ services:
       PORT: "8080"
       SSE_DEFAULT_BASE_URL: ${SSE_DEFAULT_BASE_URL:-https://api.platform.softwareone.com}
       
-      # GitBook Documentation Integration (Optional)
-      GITBOOK_API_KEY: ${GITBOOK_API_KEY:-}
-      GITBOOK_SPACE_ID: ${GITBOOK_SPACE_ID:-}
+      # GitBook: loaded from env_file (.env only). Not set here so host substitution cannot
+      # overwrite with empty when compose is run from another directory (e.g. agent/).
       GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
       GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
       GITBOOK_MAX_CONCURRENT_REQUESTS: ${GITBOOK_MAX_CONCURRENT_REQUESTS:-2}
@@ -69,10 +77,12 @@ services:
       # Note: Do NOT use ${ANALYTICS_DATABASE_URL} here as it's set by db-local.sh for host access
       ANALYTICS_DATABASE_URL: postgresql+asyncpg://mcp_user:mcp_password@analytics-db:5432/mcp_analytics
       
-      # Development settings
-      DEBUG: "true"
+      # Development settings (set DEBUG=false in .env to disable hot-reload and use single process for docs cache)
+      DEBUG: ${DEBUG:-true}
       PYTHONUNBUFFERED: "1"
       PYTHONPATH: "/app"
+      # Keep in-process docs cache (stateless HTTP spawns a new process per request and loses cache)
+      FASTMCP_STATELESS_HTTP: "false"
       
       # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
       # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header.
@@ -83,6 +93,8 @@ services:
       - ./src:/app/src
       - ./config:/app/config
       - ./tests:/app/tests
+      # So subprocesses (e.g. FastMCP request handlers) can load GITBOOK_* via load_dotenv
+      - ./.env:/app/.env:ro
       - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
       - ./pyproject.toml:/app/pyproject.toml
@@ -110,6 +122,8 @@ services:
     container_name: mpt-mcp-prod
     ports:
       - "8080:8080"
+    env_file:
+      - .env
     environment:
       # OpenAPI Spec URL (public, no auth required)
       OPENAPI_SPEC_URL: ${OPENAPI_SPEC_URL:-https://api.platform.softwareone.com/public/v1/openapi.json}
@@ -118,9 +132,7 @@ services:
       PORT: "8080"
       SSE_DEFAULT_BASE_URL: ${SSE_DEFAULT_BASE_URL:-https://api.platform.softwareone.com}
       
-      # GitBook Documentation Integration (Optional)
-      GITBOOK_API_KEY: ${GITBOOK_API_KEY:-}
-      GITBOOK_SPACE_ID: ${GITBOOK_SPACE_ID:-}
+      # GitBook: from .env via env_file only (no GITBOOK_API_KEY/SPACE_ID here to avoid empty override)
       GITBOOK_API_BASE_URL: ${GITBOOK_API_BASE_URL:-https://api.gitbook.com/v1}
       GITBOOK_CACHE_REFRESH_HOURS: ${GITBOOK_CACHE_REFRESH_HOURS:-24}
       GITBOOK_MAX_CONCURRENT_REQUESTS: ${GITBOOK_MAX_CONCURRENT_REQUESTS:-2}
@@ -129,6 +141,7 @@ services:
       # Production settings
       DEBUG: "false"
       REQUEST_TIMEOUT: ${REQUEST_TIMEOUT:-30}
+      FASTMCP_STATELESS_HTTP: "false"
       
       # NOTE: No MARKETPLACE_API_TOKEN or MARKETPLACE_API_BASE_URL needed!
       # HTTP server is multi-tenant - clients provide credentials via X-MPT-Authorization header

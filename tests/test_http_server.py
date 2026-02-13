@@ -228,8 +228,8 @@ class TestMarketplaceDocsList:
         mock_cache.is_enabled = True
         mock_cache.list_resources = AsyncMock(return_value=mock_resources)
 
-        with patch("src.server_tools.documentation_cache", mock_cache):
-            with patch("src.server_tools.initialize_documentation_cache", AsyncMock()):
+        with patch("src.server_docs.documentation_cache", mock_cache):
+            with patch("src.server_docs.initialize_documentation_cache", AsyncMock()):
                 from src.server_tools import marketplace_docs_list
 
                 result = await marketplace_docs_list(search="contact support")
@@ -257,8 +257,8 @@ class TestMarketplaceDocsList:
         mock_cache.is_enabled = True
         mock_cache.list_resources = AsyncMock(return_value=mock_resources)
 
-        with patch("src.server_tools.documentation_cache", mock_cache):
-            with patch("src.server_tools.initialize_documentation_cache", AsyncMock()):
+        with patch("src.server_docs.documentation_cache", mock_cache):
+            with patch("src.server_docs.initialize_documentation_cache", AsyncMock()):
                 from src.server_tools import marketplace_docs_list
 
                 result = await marketplace_docs_list(search="some")
