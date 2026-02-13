@@ -157,7 +157,7 @@ class TestTokenValidationCache:
 
         stats = cache.get_stats()
         assert stats["total_entries"] == 0
-        assert stats["ttl_minutes"] == 60  # default
+        assert stats["ttl_minutes"] == 10  # default
 
         await cache.set(token1, endpoint, is_valid=True, token_info={})
         await cache.set(token2, endpoint, is_valid=False, token_info=None)
