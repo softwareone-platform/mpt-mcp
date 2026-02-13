@@ -92,7 +92,7 @@ async def _create_app():
     # Intermittent 404s are usually: path stripped to / (we rewrite POST / → /mcp), or traffic hitting an old revision during deploy.
 
     # Custom 404 response so clients see a clear hint when path is wrong (e.g. 404 on POST /mcp)
-    async def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
+    def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         if exc.status_code == 404:
             # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips path)
             has_mcp_session_id = bool(request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id"))
