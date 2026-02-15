@@ -3,6 +3,7 @@ import base64
 import hashlib
 import json
 import logging
+import time
 from datetime import datetime, timedelta
 
 import httpx
@@ -205,7 +206,7 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
     """
     Verify JWT signature using JWKS and return the payload.
 
-    Uses explicit algorithm list (no alg:none). Validates exp, nbf, iat by default.
+    Uses explicit algorithm list (no alg:none). Validates exp with leeway (clock skew).
 
     Returns:
         (payload, error_message). On success: (payload_dict, None). On failure: (None, "Token expired")
@@ -215,7 +216,10 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
     if not jwks_dict:
         return (None, None)
 
+    leeway = getattr(config, "jwt_exp_leeway_seconds", 120) or 0
+
     try:
+        # Decode with verify_exp=False so we can apply leeway (avoids "Token expired" when server clock is ahead)
         payload = jose_jwt.decode(
             token,
             jwks_dict,
@@ -223,13 +227,18 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
             options={
                 "verify_signature": True,
                 "verify_aud": False,
-                "verify_exp": True,  # validate exp when present
+                "verify_exp": False,
                 "verify_iat": True,
                 "verify_nbf": True,
                 "verify_iss": False,
-                "require_exp": False,  # allow tokens without exp (validate when present)
+                "require_exp": False,
             },
         )
+        # Manual exp check with leeway: accept if exp >= now - leeway
+        exp = payload.get("exp")
+        if isinstance(exp, (int, float)) and exp < (time.time() - leeway):
+            logger.debug("JWT exp claim in past (exp=%s, leeway=%ss)", exp, leeway)
+            return (None, "Token expired")
         return (payload, None)
     except ExpiredSignatureError as e:
         logger.debug(f"JWT verification failed (expired): {e}")

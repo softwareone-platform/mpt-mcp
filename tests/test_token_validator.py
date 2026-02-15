@@ -11,6 +11,7 @@ import pytest
 from src.token_validator import (
     TokenValidationCache,
     _hash_token,
+    _verify_jwt_and_get_payload,
     normalize_token,
     parse_jwt_claims,
     parse_token_id,
@@ -475,3 +476,80 @@ class TestValidateToken:
             assert token_info is None
             assert error is not None
             assert "JWT verification" in error or "JWT_JWKS_URL" in error or "iss" in error
+
+
+class TestJwtExpLeeway:
+    """Test JWT exp leeway in _verify_jwt_and_get_payload (clock skew tolerance)."""
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_jwt_exp_within_leeway_accepted(self):
+        """Token with exp in the past but within leeway is accepted."""
+        token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
+        jwks_url = "https://auth.test.com/.well-known/jwks.json"
+        # exp = 0 (Jan 1 1970). now - leeway = now - 120. So exp (0) < (now - 120) -> rejected.
+        # So we need exp such that exp >= (now - 120). Set exp = now - 60 (1 min ago), leeway 120 -> accepted.
+        now = 1000000.0
+        payload_within_leeway = {"exp": now - 60, "iat": now - 3600, "nbf": now - 3600}
+
+        with patch("src.token_validator.time.time", return_value=now):
+            with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+                with patch("src.token_validator.jose_jwt.decode", return_value=payload_within_leeway):
+                    result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
+
+        assert result_payload == payload_within_leeway
+        assert error is None
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_jwt_exp_beyond_leeway_rejected(self):
+        """Token with exp in the past beyond leeway is rejected with 'Token expired'."""
+        token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
+        jwks_url = "https://auth.test.com/.well-known/jwks.json"
+        now = 1000000.0
+        # exp 200 seconds ago; leeway 120 -> exp < (now - 120) -> rejected
+        payload_expired = {"exp": now - 200, "iat": now - 3600, "nbf": now - 3600}
+
+        with patch("src.token_validator.time.time", return_value=now):
+            with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+                with patch("src.token_validator.jose_jwt.decode", return_value=payload_expired):
+                    result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
+
+        assert result_payload is None
+        assert error == "Token expired"
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_jwt_exp_leeway_uses_config(self):
+        """Leeway is read from config.jwt_exp_leeway_seconds."""
+        now = 1000000.0
+        # exp 200 seconds ago; with leeway 300 would be accepted
+        payload_expired = {"exp": now - 200, "iat": now - 3600, "nbf": now - 3600}
+        token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
+        jwks_url = "https://auth.test.com/.well-known/jwks.json"
+
+        with patch("src.token_validator.time.time", return_value=now):
+            with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+                with patch("src.token_validator.jose_jwt.decode", return_value=payload_expired):
+                    with patch("src.token_validator.config") as mock_config:
+                        mock_config.jwt_exp_leeway_seconds = 300
+                        result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
+
+        # With leeway 300, exp (now-200) >= (now-300) -> accepted
+        assert result_payload == payload_expired
+        assert error is None
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_jwt_no_exp_accepted(self):
+        """Token without exp claim is accepted (no expiry check)."""
+        payload_no_exp = {"iat": 999000, "nbf": 999000}
+        token = "eyJhbGciOiJSUzI1NiJ9.eyJpYXQiOjk5OX0.sig"
+        jwks_url = "https://auth.test.com/.well-known/jwks.json"
+
+        with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+            with patch("src.token_validator.jose_jwt.decode", return_value=payload_no_exp):
+                result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
+
+        assert result_payload == payload_no_exp
+        assert error is None

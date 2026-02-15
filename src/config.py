@@ -63,6 +63,8 @@ class Config:
     # When set, JWT tokens are verified using the issuer's JWKS before trusting claims.
     # Example: https://auth.softwareone.com/.well-known/jwks.json or your IdP's JWKS URL.
     jwt_jwks_url: str = os.getenv("JWT_JWKS_URL", "")
+    # JWT exp leeway in seconds for clock skew (default 120). Token accepted if exp >= now - leeway.
+    jwt_exp_leeway_seconds: int = int(os.getenv("JWT_EXP_LEEWAY_SECONDS", "120"))
 
     # Analytics Database (Optional - for usage tracking)
     # Format: postgresql+asyncpg://user:password@host:port/database

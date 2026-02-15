@@ -328,3 +328,60 @@ class TestMCPEndpointAnd404:
             r = client.get("/")
             assert r.status_code == 200
             assert r.json().get("status") == "healthy"
+
+
+class TestGetClientApiClientHttp:
+    """Test get_client_api_client_http (token validation and APIClient creation)."""
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_missing_token_raises(self):
+        """When no token is in context, get_client_api_client_http raises ValueError."""
+        from src.server_context import _current_token, get_client_api_client_http
+
+        token_ctx = _current_token.set(None)
+        try:
+            with pytest.raises(ValueError) as exc_info:
+                await get_client_api_client_http(validate_token=True)
+            assert "X-MPT-Authorization" in str(exc_info.value) or "Missing" in str(exc_info.value)
+        finally:
+            _current_token.reset(token_ctx)
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_invalid_token_raises(self):
+        """When validate_token returns invalid, get_client_api_client_http raises ValueError."""
+        from src.server_context import _current_endpoint, _current_token, get_client_api_client_http
+
+        token_ctx = _current_token.set("idt:TKN-INVALID:secret")
+        endpoint_ctx = _current_endpoint.set("https://api.test.com")
+        try:
+            with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+                mock_validate.return_value = (False, None, "Token expired")
+                with pytest.raises(ValueError) as exc_info:
+                    await get_client_api_client_http(validate_token=True)
+                assert "Token validation failed" in str(exc_info.value) or "Token expired" in str(exc_info.value)
+            mock_validate.assert_called_once()
+        finally:
+            _current_token.reset(token_ctx)
+            _current_endpoint.reset(endpoint_ctx)
+
+    @pytest.mark.unit
+    @pytest.mark.asyncio
+    async def test_valid_token_returns_api_client(self):
+        """When token is valid, get_client_api_client_http returns APIClient with that token."""
+        from src.api_client import APIClient
+        from src.server_context import _current_endpoint, _current_token, get_client_api_client_http
+
+        token_ctx = _current_token.set("idt:TKN-1234-5678:SECRET")
+        endpoint_ctx = _current_endpoint.set("https://api.test.com")
+        try:
+            with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+                mock_validate.return_value = (True, {"account": {"name": "Test", "id": "ACC-1"}}, None)
+                client = await get_client_api_client_http(validate_token=True)
+            assert isinstance(client, APIClient)
+            assert client.base_url == "https://api.test.com"
+            assert "idt:TKN-1234-5678:SECRET" in client.token or client.token.endswith("SECRET")
+        finally:
+            _current_token.reset(token_ctx)
+            _current_endpoint.reset(endpoint_ctx)
