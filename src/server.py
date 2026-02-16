@@ -7,6 +7,9 @@ import os
 import sys
 import warnings
 
+# Set before importing FastMCP so stateless HTTP is used (required for load-balanced/cloud deployment).
+os.environ["FASTMCP_STATELESS_HTTP"] = "true"
+
 import anyio
 import uvicorn
 from alembic.config import Config as AlembicConfig
@@ -36,10 +39,9 @@ server_host = "0.0.0.0"
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
 # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
 # Docs cache is populated at startup and remains in memory for all requests in that process.
-os.environ["FASTMCP_STATELESS_HTTP"] = "true"
 log("📡 FASTMCP_STATELESS_HTTP=true (stateless always; docs cache in-process, long-lived per instance)")
 
-mcp = FastMCP("softwareone-marketplace")
+mcp = FastMCP("softwareone-marketplace", stateless_http=True)
 register_http_tools(mcp)
 register_http_resources(mcp)
 
