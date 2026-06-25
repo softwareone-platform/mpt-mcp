@@ -10,13 +10,15 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && rm -rf /var/lib/apt/lists/*
 
+RUN curl -fsSL https://claude.ai/install.sh | bash
+
 WORKDIR /app
 
 # Install Python dependencies with uv (lockfile ensures reproducible builds)
 COPY pyproject.toml uv.lock ./
 RUN uv sync --frozen --no-install-project
 
-ENV PATH="/app/.venv/bin:$PATH"
+ENV PATH="/app/.venv/bin:/root/.local/bin:$PATH"
 
 # Copy source code
 COPY src/ ./src/
