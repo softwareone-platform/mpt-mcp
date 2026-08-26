@@ -354,7 +354,7 @@ class TestGetClientApiClientHttp:
         from src.server_context import _current_endpoint, _current_token, get_client_api_client_http
 
         token_ctx = _current_token.set("idt:TKN-INVALID:secret")
-        endpoint_ctx = _current_endpoint.set("https://api.test.com")
+        endpoint_ctx = _current_endpoint.set("https://api.platform.softwareone.com")
         try:
             with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (False, None, "Token expired")
@@ -374,13 +374,13 @@ class TestGetClientApiClientHttp:
         from src.server_context import _current_endpoint, _current_token, get_client_api_client_http
 
         token_ctx = _current_token.set("idt:TKN-1234-5678:SECRET")
-        endpoint_ctx = _current_endpoint.set("https://api.test.com")
+        endpoint_ctx = _current_endpoint.set("https://api.platform.softwareone.com")
         try:
             with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (True, {"account": {"name": "Test", "id": "ACC-1"}}, None)
                 client = await get_client_api_client_http(validate_token=True)
             assert isinstance(client, APIClient)
-            assert client.base_url == "https://api.test.com"
+            assert client.base_url == "https://api.platform.softwareone.com"
             assert "idt:TKN-1234-5678:SECRET" in client.token or client.token.endswith("SECRET")
         finally:
             _current_token.reset(token_ctx)

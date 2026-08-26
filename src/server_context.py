@@ -1,6 +1,8 @@
 import contextlib
+import ipaddress
 import sys
 from contextvars import ContextVar
+from urllib.parse import urlparse
 
 # Ensure stderr is unbuffered so startup and request logs appear in Docker/console immediately
 if hasattr(sys.stderr, "reconfigure"):
@@ -38,10 +40,55 @@ def normalize_endpoint_url(endpoint: str) -> str:
     return endpoint
 
 
+def validate_endpoint_url(endpoint: str) -> tuple[bool, str | None]:
+    """Validate a client-supplied endpoint URL to prevent SSRF / credential exfiltration.
+
+    Returns (is_valid, error). The endpoint must use https, must not point at a
+    private/loopback/link-local/reserved/multicast IP (e.g. cloud metadata at
+    169.254.169.254), and its host must fall under the configured allowlist.
+    """
+    parsed = urlparse(endpoint)
+
+    if parsed.scheme != "https":
+        return False, "endpoint must use https"
+
+    hostname = parsed.hostname
+    if not hostname:
+        return False, "endpoint host not allowed"
+
+    # If the hostname is a literal IP address, block internal/reserved ranges.
+    try:
+        ip = ipaddress.ip_address(hostname)
+    except ValueError:
+        ip = None  # Not an IP literal -> treat as a DNS name and continue.
+    if ip is not None and (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast):
+        return False, "endpoint host not allowed"
+
+    hostname = hostname.lower()
+
+    allowed = [h.strip().lower() for h in (config.mpt_allowed_endpoint_hosts or "").split(",") if h.strip()]
+    # Always allow the trusted default base URL's host.
+    default_host = urlparse(config.sse_default_base_url).hostname
+    if default_host:
+        allowed.append(default_host.lower())
+
+    for suffix in allowed:
+        if hostname == suffix or hostname.endswith("." + suffix):
+            return True, None
+
+    return False, "endpoint host not in allowlist"
+
+
 def get_current_credentials() -> tuple[str | None, str]:
     token = _current_token.get()
-    endpoint = _current_endpoint.get() or config.sse_default_base_url
-    return token, normalize_endpoint_url(endpoint)
+    raw_endpoint = _current_endpoint.get()
+    endpoint = normalize_endpoint_url(raw_endpoint or config.sse_default_base_url)
+    # Only validate a client-supplied endpoint header; the default base URL is trusted.
+    if raw_endpoint:
+        is_valid, error = validate_endpoint_url(endpoint)
+        if not is_valid:
+            raise ValueError(f"Invalid X-MPT-Endpoint: {error}")
+    return token, endpoint
 
 
 async def get_client_api_client_http(validate_token: bool = True) -> APIClient:
