@@ -11,6 +11,7 @@ import pytest
 from src.token_validator import (
     TokenValidationCache,
     _hash_token,
+    _resolve_jwks_url,
     _verify_jwt_and_get_payload,
     normalize_token,
     parse_jwt_claims,
@@ -552,4 +553,72 @@ class TestJwtExpLeeway:
                 result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
 
         assert result_payload == payload_no_exp
+        assert error is None
+
+
+def _make_jwt_with_iss(iss: str | None) -> str:
+    """Build a JWT-shaped 'header.payload.signature' token (signature is not a real one)."""
+    import base64
+    import json
+
+    payload: dict = {"https://claims.softwareone.com/userId": "USR-1234-5678"}
+    if iss is not None:
+        payload["iss"] = iss
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    return f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
+
+
+class TestResolveJwksUrl:
+    """Test _resolve_jwks_url: fail-closed issuer allowlist gating (issue #6)."""
+
+    @pytest.mark.unit
+    def test_explicit_jwks_url_takes_precedence(self, monkeypatch):
+        """When JWT_JWKS_URL is set, it is returned directly regardless of the token's iss."""
+        monkeypatch.setattr("src.token_validator.config.jwt_jwks_url", "https://idp.example.com/jwks.json")
+        monkeypatch.setattr("src.token_validator.config.jwt_allowed_issuers", "")
+
+        token = _make_jwt_with_iss("https://evil.example.com")
+        jwks_url, error = _resolve_jwks_url(token)
+
+        assert jwks_url == "https://idp.example.com/jwks.json"
+        assert error is None
+
+    @pytest.mark.unit
+    def test_no_config_fails_closed(self, monkeypatch):
+        """No JWT_JWKS_URL and no allowlist -> fail closed (no url, error set)."""
+        monkeypatch.setattr("src.token_validator.config.jwt_jwks_url", "")
+        monkeypatch.setattr("src.token_validator.config.jwt_allowed_issuers", "")
+
+        token = _make_jwt_with_iss("https://auth.softwareone.com")
+        jwks_url, error = _resolve_jwks_url(token)
+
+        assert jwks_url is None
+        assert error == "JWT verification not configured. Set JWT_JWKS_URL or JWT_ALLOWED_ISSUERS."
+
+    @pytest.mark.unit
+    def test_issuer_not_in_allowlist_rejected(self, monkeypatch):
+        """Allowlist set but the token's iss is not in it -> rejected (SSRF/forgery guard)."""
+        monkeypatch.setattr("src.token_validator.config.jwt_jwks_url", "")
+        monkeypatch.setattr("src.token_validator.config.jwt_allowed_issuers", "https://auth.softwareone.com")
+
+        token = _make_jwt_with_iss("https://evil.example.com")
+        jwks_url, error = _resolve_jwks_url(token)
+
+        assert jwks_url is None
+        assert error == "JWT issuer not in allowlist"
+
+    @pytest.mark.unit
+    def test_issuer_in_allowlist_derives_url(self, monkeypatch):
+        """Allowlist set and the token's iss is in it -> derived JWKS url returned, no error."""
+        monkeypatch.setattr("src.token_validator.config.jwt_jwks_url", "")
+        # Allowlist with surrounding whitespace and a trailing slash to exercise normalization.
+        monkeypatch.setattr(
+            "src.token_validator.config.jwt_allowed_issuers",
+            " https://auth.softwareone.com/ , https://other.example.com ",
+        )
+
+        token = _make_jwt_with_iss("https://auth.softwareone.com")
+        jwks_url, error = _resolve_jwks_url(token)
+
+        assert jwks_url == "https://auth.softwareone.com/.well-known/jwks.json"
         assert error is None
