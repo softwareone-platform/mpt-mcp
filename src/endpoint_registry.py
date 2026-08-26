@@ -22,6 +22,11 @@ _endpoint_registries: dict[str, dict[str, dict[str, Any]]] = {}
 # Global OpenAPI specs per API base URL (for schema lookups)
 _openapi_specs: dict[str, dict[str, Any]] = {}
 
+# Per-key async locks to dedupe concurrent first-loads and prevent a failing
+# request from clobbering a good registry. Guarded by _registry_locks_guard.
+_registry_locks: dict[str, asyncio.Lock] = {}
+_registry_locks_guard = asyncio.Lock()
+
 # Global cache manager (shared across all endpoints)
 _cache_manager: CacheManager | None = None
 
@@ -118,6 +123,21 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
         raise
 
 
+async def _get_registry_lock(api_base_url: str) -> asyncio.Lock:
+    """
+    Get (creating if needed) the per-key async lock for an API base URL.
+
+    Creation is serialized by _registry_locks_guard so concurrent callers share
+    the same lock instance for a given key.
+    """
+    async with _registry_locks_guard:
+        lock = _registry_locks.get(api_base_url)
+        if lock is None:
+            lock = asyncio.Lock()
+            _registry_locks[api_base_url] = lock
+        return lock
+
+
 def _path_to_resource_id(path: str) -> str:
     """
     Convert an API path to a resource identifier
@@ -153,64 +173,77 @@ async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False)
     Returns:
         Dictionary mapping resource IDs to endpoint information
     """
-    # Check if we already have this registry cached
-    if api_base_url in _endpoint_registries and not force_refresh:
+    # Fast-path: return an already-cached registry without locking. A key is
+    # only present after a successful load (failures never populate it), so
+    # presence — not truthiness — is the correct cache-hit test.
+    if not force_refresh and api_base_url in _endpoint_registries:
         _log(f"✓ Using cached endpoints registry for {api_base_url}")
         return _endpoint_registries[api_base_url]
 
-    _log(f"🔄 Initializing endpoints registry for {api_base_url}")
+    # Serialize concurrent first-loads for this key so a single fetch populates
+    # the cache and a failing request cannot clobber a good registry.
+    lock = await _get_registry_lock(api_base_url)
+    async with lock:
+        # Re-check inside the lock: another coroutine may have populated the
+        # registry while we were waiting to acquire the lock.
+        if not force_refresh and api_base_url in _endpoint_registries:
+            _log(f"✓ Using cached endpoints registry for {api_base_url}")
+            return _endpoint_registries[api_base_url]
 
-    try:
-        # Fetch the OpenAPI spec for this endpoint
-        spec = await fetch_openapi_spec(api_base_url, force_refresh=force_refresh)
+        _log(f"🔄 Initializing endpoints registry for {api_base_url}")
 
-        # Store the full OpenAPI spec for schema lookups
-        _openapi_specs[api_base_url] = spec
-
-        # Parse the OpenAPI spec
-        parser = OpenAPIParser()
-        tools = parser.extract_get_endpoints(spec)
-
-        # Build the registry with richer metadata
-        registry: dict[str, dict[str, Any]] = {}
-
-        for tool in tools:
-            tool_info = json.loads(tool.description)
-            path = tool_info.get("path", "")
-
-            # Create a resource identifier from the path
-            resource_id = _path_to_resource_id(path)
-
-            registry[resource_id] = {
-                "path": path,
-                "summary": tool_info.get("summary", ""),
-                "description": tool_info.get("description", ""),
-                "parameters": tool_info.get("parameters", []),
-                "response": tool_info.get("response", {}),
-            }
-
-        # Cache the registry
-        _endpoint_registries[api_base_url] = registry
-
-        # Build audit fields cache from spec (for auto-add regex and marketplace_audit_fields tool)
         try:
-            from . import audit_fields
+            # Fetch the OpenAPI spec for this endpoint
+            spec = await fetch_openapi_spec(api_base_url, force_refresh=force_refresh)
 
-            await asyncio.to_thread(audit_fields.update_cache, api_base_url, spec, _path_to_resource_id)
-            _log(f"✓ Audit fields cache updated for {api_base_url}")
-        except Exception as audit_err:
-            _log(f"⚠ Audit fields cache skipped: {audit_err}")
+            # Store the full OpenAPI spec for schema lookups
+            _openapi_specs[api_base_url] = spec
 
-        _log(f"✓ Discovered {len(registry)} GET endpoints for {api_base_url}")
-        _log(f"✓ Stored in registry with {len(registry)} resource IDs")
+            # Parse the OpenAPI spec
+            parser = OpenAPIParser()
+            tools = parser.extract_get_endpoints(spec)
 
-        return registry
+            # Build the registry with richer metadata
+            registry: dict[str, dict[str, Any]] = {}
 
-    except Exception as e:
-        _log(f"❌ Failed to initialize endpoints registry for {api_base_url}: {e}")
-        # Return empty registry on failure
-        _endpoint_registries[api_base_url] = {}
-        return {}
+            for tool in tools:
+                tool_info = json.loads(tool.description)
+                path = tool_info.get("path", "")
+
+                # Create a resource identifier from the path
+                resource_id = _path_to_resource_id(path)
+
+                registry[resource_id] = {
+                    "path": path,
+                    "summary": tool_info.get("summary", ""),
+                    "description": tool_info.get("description", ""),
+                    "parameters": tool_info.get("parameters", []),
+                    "response": tool_info.get("response", {}),
+                }
+
+            # Cache the registry. Reached only on a successful fetch+parse, so
+            # the key is set here and never on the failure path below.
+            _endpoint_registries[api_base_url] = registry
+
+            # Build audit fields cache from spec (for auto-add regex and marketplace_audit_fields tool)
+            try:
+                from . import audit_fields
+
+                await asyncio.to_thread(audit_fields.update_cache, api_base_url, spec, _path_to_resource_id)
+                _log(f"✓ Audit fields cache updated for {api_base_url}")
+            except Exception as audit_err:
+                _log(f"⚠ Audit fields cache skipped: {audit_err}")
+
+            _log(f"✓ Discovered {len(registry)} GET endpoints for {api_base_url}")
+            _log(f"✓ Stored in registry with {len(registry)} resource IDs")
+
+            return registry
+
+        except Exception as e:
+            _log(f"❌ Failed to initialize endpoints registry for {api_base_url}: {e}")
+            # Do NOT cache the failure: leaving the key unset lets the next
+            # request retry instead of being bricked with {} until restart.
+            return {}
 
 
 def clear_registry(api_base_url: str | None = None):
