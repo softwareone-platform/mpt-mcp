@@ -63,6 +63,11 @@ class Config:
     # When set, JWT tokens are verified using the issuer's JWKS before trusting claims.
     # Example: https://auth.softwareone.com/.well-known/jwks.json or your IdP's JWKS URL.
     jwt_jwks_url: str = os.getenv("JWT_JWKS_URL", "")
+    # Comma-separated list of trusted issuer origins (e.g. https://auth.softwareone.com).
+    # Gates the "derive JWKS URL from the token's iss claim" path: when JWT_JWKS_URL is unset,
+    # the derived JWKS URL is only used if the token's iss origin is in this allowlist.
+    # If neither JWT_JWKS_URL nor this is set, JWT verification fails closed (SSRF/forgery guard).
+    jwt_allowed_issuers: str = os.getenv("JWT_ALLOWED_ISSUERS", "")
     # JWT exp leeway in seconds for clock skew (default 120). Token accepted if exp >= now - leeway.
     jwt_exp_leeway_seconds: int = int(os.getenv("JWT_EXP_LEEWAY_SECONDS", "120"))
 

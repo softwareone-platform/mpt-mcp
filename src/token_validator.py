@@ -175,7 +175,9 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
     try:
         # 30s connect and default for JWKS fetch
         timeout_config = httpx.Timeout(30.0, connect=30.0)
-        async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as client:
+        # follow_redirects=False: defense in depth against redirect-based SSRF (do not let the
+        # JWKS host bounce us to an attacker-controlled or internal address).
+        async with httpx.AsyncClient(follow_redirects=False, timeout=timeout_config) as client:
             response = await client.get(jwks_url)
             response.raise_for_status()
             jwks_dict = response.json()
@@ -267,13 +269,13 @@ def is_jwt_token(token: str) -> bool:
     return len(parts) == 3
 
 
-def _get_jwks_url_from_token(token: str) -> str | None:
+def _get_issuer_from_token(token: str) -> str | None:
     """
-    Derive JWKS URL from the token's issuer (iss) claim.
+    Parse the normalized issuer (iss) origin from a token's payload segment.
 
-    Standard for OIDC/Auth0: {issuer}/.well-known/jwks.json
-    We only read the payload segment to get iss for the URL; the token is verified
-    afterward via JWKS in _verify_jwt_and_get_payload (we do not trust claims here).
+    Only the payload segment is base64url-decoded to read iss; the signature is NOT
+    verified here. The returned value is stripped, has any trailing slash removed, and
+    must be an https:// origin. Returns None if iss is missing/invalid/non-https.
     """
     try:
         parts = token.split(".")
@@ -292,9 +294,51 @@ def _get_jwks_url_from_token(token: str) -> str | None:
         iss = iss.strip().rstrip("/")
         if not iss.startswith("https://"):
             return None
-        return f"{iss}/.well-known/jwks.json"
+        return iss
     except Exception:
         return None
+
+
+def _get_jwks_url_from_token(token: str) -> str | None:
+    """
+    Derive JWKS URL from the token's issuer (iss) claim.
+
+    Standard for OIDC/Auth0: {issuer}/.well-known/jwks.json
+    We only read the payload segment to get iss for the URL; the token is verified
+    afterward via JWKS in _verify_jwt_and_get_payload (we do not trust claims here).
+    """
+    iss = _get_issuer_from_token(token)
+    if not iss:
+        return None
+    return f"{iss}/.well-known/jwks.json"
+
+
+def _resolve_jwks_url(token: str) -> tuple[str | None, str | None]:
+    """
+    Resolve the JWKS URL to use for verifying a JWT, fail-closed.
+
+    Returns (jwks_url, error):
+      - If JWT_JWKS_URL is configured, use it directly (trusted, static).
+      - Otherwise the JWKS URL is derived from the token's own (unverified) iss claim.
+        Because the token chooses its own signing-key source, this path is an SSRF /
+        signature-bypass primitive unless constrained. We therefore only allow it when
+        the token's iss origin is present in the JWT_ALLOWED_ISSUERS allowlist. With no
+        allowlist configured, JWT verification fails closed.
+    """
+    if config.jwt_jwks_url:
+        return (config.jwt_jwks_url, None)
+
+    allowed = [i.strip().rstrip("/") for i in (config.jwt_allowed_issuers or "").split(",") if i.strip()]
+    if not allowed:
+        return (None, "JWT verification not configured. Set JWT_JWKS_URL or JWT_ALLOWED_ISSUERS.")
+
+    iss = _get_issuer_from_token(token)
+    if not iss:
+        return (None, "JWT issuer missing or invalid")
+    if iss not in allowed:
+        return (None, "JWT issuer not in allowlist")
+
+    return (f"{iss}/.well-known/jwks.json", None)
 
 
 def parse_jwt_claims(token: str) -> tuple[str | None, str | None]:
@@ -397,9 +441,9 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
     account_id_from_jwt: str | None = None
 
     if is_jwt:
-        jwks_url = config.jwt_jwks_url or _get_jwks_url_from_token(token)
+        jwks_url, resolve_error = _resolve_jwks_url(token)
         if not jwks_url:
-            error = "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. Auth0)."
+            error = resolve_error or "JWT verification required."
             logger.warning(f"❌ {error}")
             return (False, None, error)
         payload, verify_error = await _verify_jwt_and_get_payload(token, jwks_url)
