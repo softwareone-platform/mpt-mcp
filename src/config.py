@@ -43,6 +43,9 @@ class Config:
     # SSE is always multi-tenant - clients MUST provide credentials via MPT_Authorization header
     # Default base URL used when client doesn't specify MPT_Endpoint header
     sse_default_base_url: str = os.getenv("SSE_DEFAULT_BASE_URL", "https://api.platform.softwareone.com")
+    # Comma-separated list of allowed host suffixes for the client-supplied X-MPT-Endpoint header.
+    # Prevents SSRF / credential exfiltration: a client-supplied endpoint outside this allowlist is rejected.
+    mpt_allowed_endpoint_hosts: str = os.getenv("MPT_ALLOWED_ENDPOINT_HOSTS", "softwareone.com")
 
     # Tool Filtering (comma-separated path patterns)
     # Examples: "accounts,catalog" or "commerce/orders,commerce/subscriptions"

@@ -5,7 +5,12 @@ Test endpoint validation and normalization
 
 import pytest
 
-from src.server_context import normalize_endpoint_url
+import src.server_context as server_context
+from src.server_context import (
+    get_current_credentials,
+    normalize_endpoint_url,
+    validate_endpoint_url,
+)
 
 
 class TestEndpointNormalization:
@@ -69,3 +74,89 @@ class TestEndpointNormalizationEdgeCases:
         url = "https://api.example.com/Public"
         result = normalize_endpoint_url(url)
         assert result == url  # Should not be modified
+
+
+class TestEndpointUrlValidation:
+    """Test SSRF/credential-exfil protection for the client-supplied X-MPT-Endpoint header"""
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://api.platform.softwareone.com",
+            "https://softwareone.com",
+            "https://api.staging.platform.softwareone.com",
+        ],
+    )
+    def test_allowed_hosts_are_valid(self, url):
+        """Allowlisted hosts and their subdomains are accepted"""
+        is_valid, error = validate_endpoint_url(url)
+        assert is_valid is True
+        assert error is None
+
+    def test_http_scheme_rejected(self):
+        """Non-https schemes are rejected"""
+        is_valid, error = validate_endpoint_url("http://api.platform.softwareone.com")
+        assert is_valid is False
+        assert error == "endpoint must use https"
+
+    def test_foreign_host_rejected(self):
+        """A host outside the allowlist is rejected"""
+        is_valid, error = validate_endpoint_url("https://evil.example.com")
+        assert is_valid is False
+        assert error == "endpoint host not in allowlist"
+
+    def test_metadata_ip_rejected(self):
+        """The cloud metadata IP (link-local) is rejected"""
+        is_valid, error = validate_endpoint_url("https://169.254.169.254/latest/meta-data")
+        assert is_valid is False
+        assert error == "endpoint host not allowed"
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "https://127.0.0.1",
+            "https://10.0.0.5",
+        ],
+    )
+    def test_private_and_loopback_ips_rejected(self, url):
+        """Private and loopback IP literals are rejected"""
+        is_valid, error = validate_endpoint_url(url)
+        assert is_valid is False
+        assert error == "endpoint host not allowed"
+
+
+class TestGetCurrentCredentialsValidation:
+    """Test that get_current_credentials enforces endpoint validation"""
+
+    def test_invalid_endpoint_header_raises(self):
+        """A client-supplied invalid endpoint header causes a ValueError"""
+        token_tok = server_context._current_token.set("test-token")
+        endpoint_tok = server_context._current_endpoint.set("https://evil.example.com")
+        try:
+            with pytest.raises(ValueError, match="Invalid X-MPT-Endpoint"):
+                get_current_credentials()
+        finally:
+            server_context._current_token.reset(token_tok)
+            server_context._current_endpoint.reset(endpoint_tok)
+
+    def test_valid_endpoint_header_accepted(self):
+        """A client-supplied allowlisted endpoint header is accepted"""
+        token_tok = server_context._current_token.set("test-token")
+        endpoint_tok = server_context._current_endpoint.set("https://api.platform.softwareone.com/public")
+        try:
+            token, endpoint = get_current_credentials()
+            assert token == "test-token"
+            assert endpoint == "https://api.platform.softwareone.com"
+        finally:
+            server_context._current_token.reset(token_tok)
+            server_context._current_endpoint.reset(endpoint_tok)
+
+    def test_no_endpoint_header_uses_trusted_default(self):
+        """When no endpoint header is provided, the trusted default is used without raising"""
+        token_tok = server_context._current_token.set("test-token")
+        try:
+            token, endpoint = get_current_credentials()
+            assert token == "test-token"
+            assert endpoint == normalize_endpoint_url(server_context.config.sse_default_base_url)
+        finally:
+            server_context._current_token.reset(token_tok)
