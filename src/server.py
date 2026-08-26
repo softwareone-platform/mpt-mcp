@@ -2,6 +2,7 @@
 
 import asyncio
 import concurrent.futures
+import contextlib
 import logging
 import os
 import sys
@@ -46,13 +47,30 @@ register_http_tools(mcp)
 register_http_resources(mcp)
 
 
-async def _create_app():
-    """Build the ASGI app (init + middleware). Used so uvicorn can load via 'src.server:app' for reload."""
+@contextlib.asynccontextmanager
+async def _analytics_lifespan(app):
+    """Initialize analytics on the serving loop (ASGI startup) and close it on shutdown.
+
+    Analytics must be initialized here rather than at import time: the eager import-time
+    path ran on a throwaway asyncio loop that was closed immediately, binding the asyncpg
+    engine/pool and background flush task to a dead loop. Initializing in the lifespan runs
+    on the loop uvicorn actually serves with, so writes succeed and periodic flushing runs.
+    """
     await initialize_analytics(database_url=config.analytics_database_url)
     if config.analytics_enabled:
         log("📊 Analytics enabled - tracking usage metrics")
     else:
         log("📊 Analytics disabled (no database configured)")
+    try:
+        yield
+    finally:
+        analytics = get_analytics_logger()
+        if analytics:
+            await analytics.close()
+
+
+async def _create_app():
+    """Build the ASGI app (init + middleware). Used so uvicorn can load via 'src.server:app' for reload."""
     await initialize_documentation_cache()
     from . import server_docs
 
@@ -90,6 +108,18 @@ async def _create_app():
     else:
         log("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
     starlette_app = mcp.http_app()
+    # FastMCP's http_app() (v3.0.0b2) does NOT accept a `lifespan=` param, so we compose our
+    # analytics lifespan with FastMCP's own (the session manager) instead of replacing it.
+    # Our lifespan wraps FastMCP's, so both run on the serving loop; FastMCP's session-manager
+    # lifespan MUST still execute.
+    _mcp_lifespan = starlette_app.lifespan
+
+    @contextlib.asynccontextmanager
+    async def _combined_lifespan(inner_app):
+        async with _analytics_lifespan(inner_app), _mcp_lifespan(inner_app):
+            yield
+
+    starlette_app.router.lifespan_context = _combined_lifespan
     # Route POST /mcp is registered by FastMCP here and never unregistered in this process.
     # Intermittent 404s are usually: path stripped to / (we rewrite POST / → /mcp), or traffic hitting an old revision during deploy.
 
