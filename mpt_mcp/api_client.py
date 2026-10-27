@@ -197,38 +197,6 @@ class APIClient:
 
             return response_data
 
-    async def get_raw(
-        self,
-        endpoint: str,
-        params: dict[str, Any] | None = None,
-    ) -> str:
-        """
-        Make a GET request and return raw response text
-
-        Args:
-            endpoint: API endpoint path
-            params: Query parameters dictionary
-
-        Returns:
-            Raw response text from the API
-        """
-        url = f"{self.base_url}{endpoint}"
-        headers = self._get_headers()
-
-        timeout_config = httpx.Timeout(self.timeout, connect=30.0)
-        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
-            try:
-                with anyio.fail_after(self.timeout):
-                    response = await client.get(
-                        url,
-                        params=params,
-                        headers=headers,
-                    )
-                    response.raise_for_status()
-                    return response.text
-            except TimeoutError as e:
-                raise httpx.TimeoutException(f"Request timed out after {self.timeout} seconds") from e
-
     async def validate_token(self) -> bool:
         """
         Validate that the authentication token is valid

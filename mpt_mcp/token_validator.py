@@ -634,18 +634,3 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
             logger.error(f"❌ {error}")
             # Don't cache unexpected errors
             return (False, None, error)
-
-
-async def validate_token_for_resources(token: str, api_base_url: str) -> tuple[bool, str | None]:
-    """
-    Validate token for resource access (simplified interface)
-
-    Args:
-        token: The API token
-        api_base_url: The API endpoint base URL
-
-    Returns:
-        Tuple of (is_valid, error_message)
-    """
-    is_valid, _, error = await validate_token(token, api_base_url)
-    return (is_valid, error)

@@ -348,72 +348,6 @@ class AnalyticsLogger:
         else:
             logger.warning(f"📊 Resource: {resource_uri} | Token: {token_id} | Error: {error_message}")
 
-    async def log_token_validation(
-        self,
-        validation_result: str,
-        response_time_ms: int,
-        cache_hit: bool = False,
-        error_message: str | None = None,
-        server_type: str = "http",
-    ):
-        """
-        Log a token validation event.
-
-        Args:
-            validation_result: valid, invalid, inactive
-            response_time_ms: Validation time
-            cache_hit: Whether cache was used
-            error_message: Error message if validation failed
-            server_type: http or stdio
-        """
-        event = {
-            **self._get_context(),
-            "timestamp": datetime.now(timezone.utc),
-            "event_type": "token_validation",
-            "server_type": server_type,
-            "response_time_ms": response_time_ms,
-            "cache_hit": cache_hit,
-            "cache_type": "token" if cache_hit else None,
-            "error_type": "auth_error" if validation_result != "valid" else None,
-            "error_message": error_message,
-        }
-
-        await self._queue_event(event)
-
-    async def log_error(
-        self,
-        error_type: str,
-        error_message: str,
-        tool_name: str | None = None,
-        api_resource: str | None = None,
-        error_details: dict[str, Any] | None = None,
-        server_type: str = "http",
-    ):
-        """
-        Log an error event.
-
-        Args:
-            error_type: Type of error (validation, api_error, auth_error, internal)
-            error_message: Error message
-            tool_name: Tool where error occurred
-            api_resource: API resource if applicable
-            error_details: Additional error context (be careful with sensitive data!)
-            server_type: http or stdio
-        """
-        event = {
-            **self._get_context(),
-            "timestamp": datetime.now(timezone.utc),
-            "event_type": "error",
-            "server_type": server_type,
-            "tool_name": tool_name,
-            "api_resource": api_resource,
-            "error_type": error_type,
-            "error_message": error_message,
-            "error_details": error_details,
-        }
-
-        await self._queue_event(event)
-
         # Error patterns are tracked in mcp_events table
 
     # ========================================================================
@@ -448,26 +382,6 @@ class AnalyticsLogger:
         return parse_token_id(token_value)
 
     @staticmethod
-    def set_session_id(session_id: str):
-        """Set session ID for current request context."""
-        _current_session_id.set(session_id)
-
-    @staticmethod
-    def set_token_id(token_id: str | None):
-        """Set token ID for current request context (TKN-XXXX-XXXX or USR-XXXX-XXXX)."""
-        _current_token_id.set(token_id)
-
-    @staticmethod
-    def set_api_endpoint(api_endpoint: str | None):
-        """Set API endpoint for current request context."""
-        _current_api_endpoint.set(api_endpoint)
-
-    @staticmethod
-    def set_client_info(client_info: str | None):
-        """Set client info for current request context."""
-        _current_client_info.set(client_info)
-
-    @staticmethod
     def set_context(token: str | None = None, endpoint: str | None = None, client_info: str | None = None, session_id: str | None = None, client_ip: str | None = None):
         """
         Set context variables for analytics tracking.
@@ -491,15 +405,6 @@ class AnalyticsLogger:
             _current_client_info.set(client_info)
         if client_ip:
             _current_client_ip.set(client_ip)
-
-    @staticmethod
-    def clear_context():
-        """Clear all context variables."""
-        _current_session_id.set(None)
-        _current_token_id.set(None)
-        _current_api_endpoint.set(None)
-        _current_client_info.set(None)
-        _current_client_ip.set(None)
 
 
 # ============================================================================

@@ -29,11 +29,6 @@ cache_manager: CacheManager | None = None
 _initialized: bool = False
 
 
-def _log_stderr(message: str) -> None:
-    """Print to stderr for tool diagnostics (RQL, params, count). Safe for STDIO (stdout is JSON-RPC only)."""
-    print(message, file=sys.stderr, flush=True)
-
-
 async def initialize_server(force_refresh: bool = False):
     """
     Initialize the server with API client and discover endpoints
@@ -121,11 +116,6 @@ def _path_to_resource_id(path: str) -> str:
     resource_id = path.replace("/", ".")
 
     return resource_id
-
-
-def _build_resource_enum() -> list[str]:
-    """Build list of available resource IDs for the enum"""
-    return sorted(endpoints_registry.keys())
 
 
 @mcp.tool()

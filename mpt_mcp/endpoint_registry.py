@@ -213,35 +213,6 @@ async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False)
         return {}
 
 
-def clear_registry(api_base_url: str | None = None):
-    """
-    Clear the endpoints registry cache
-
-    Args:
-        api_base_url: If provided, clear only this endpoint's registry.
-                     If None, clear all registries.
-    """
-    global _endpoint_registries
-
-    if api_base_url:
-        if api_base_url in _endpoint_registries:
-            del _endpoint_registries[api_base_url]
-            _log(f"✓ Cleared registry for {api_base_url}")
-    else:
-        _endpoint_registries = {}
-        _log("✓ Cleared all endpoint registries")
-
-
-def get_all_registries() -> dict[str, dict[str, dict[str, Any]]]:
-    """
-    Get all cached endpoint registries
-
-    Returns:
-        Dictionary mapping API base URLs to their endpoint registries
-    """
-    return _endpoint_registries.copy()
-
-
 async def get_openapi_spec(api_base_url: str, force_refresh: bool = False) -> dict[str, Any]:
     """
     Get the OpenAPI specification for a given API base URL

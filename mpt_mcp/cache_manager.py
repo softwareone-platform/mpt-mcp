@@ -119,19 +119,6 @@ class CacheManager:
         if meta_path.exists():
             meta_path.unlink()
 
-    def clear_all(self) -> int:
-        """
-        Clear all cached data
-
-        Returns:
-            Number of cache entries cleared
-        """
-        count = 0
-        for cache_file in self.cache_dir.glob("*.json"):
-            cache_file.unlink()
-            count += 1
-        return count // 2  # Each entry has 2 files (data + metadata)
-
     def get_cache_info(self) -> dict[str, Any]:
         """
         Get information about the cache

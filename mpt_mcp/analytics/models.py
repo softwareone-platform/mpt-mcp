@@ -71,20 +71,3 @@ Index("idx_events_error_type", mcp_events.c.error_type, postgresql_where=mcp_eve
 Index("idx_events_date_token", func.date(mcp_events.c.timestamp), mcp_events.c.token_id)
 Index("idx_events_date_tool", func.date(mcp_events.c.timestamp), mcp_events.c.tool_name)
 Index("idx_events_client_ip", mcp_events.c.client_ip)
-
-
-# ============================================================================
-# Database Management Class
-# ============================================================================
-class AnalyticsDB:
-    """Helper class for analytics database operations."""
-
-    @staticmethod
-    def get_all_tables():
-        """Return all table definitions."""
-        return [mcp_events]
-
-    @staticmethod
-    def get_metadata():
-        """Return SQLAlchemy metadata."""
-        return metadata

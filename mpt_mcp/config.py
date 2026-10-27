@@ -34,7 +34,6 @@ class Config:
     request_timeout: float = float(os.getenv("REQUEST_TIMEOUT", "30"))
 
     # SSE Server Configuration (for cloud deployment)
-    sse_enabled: bool = os.getenv("SSE_ENABLED", "false").lower() == "true"
     sse_host: str = os.getenv("SSE_HOST", "0.0.0.0")
     # Railway/Render use PORT, fallback to SSE_PORT (default 8000)
     sse_port: int = int(os.getenv("PORT", os.getenv("SSE_PORT", "8000")))
@@ -43,11 +42,6 @@ class Config:
     # SSE is always multi-tenant - clients MUST provide credentials via MPT_Authorization header
     # Default base URL used when client doesn't specify MPT_Endpoint header
     sse_default_base_url: str = os.getenv("SSE_DEFAULT_BASE_URL", "https://api.platform.softwareone.com")
-
-    # Tool Filtering (comma-separated path patterns)
-    # Examples: "accounts,catalog" or "commerce/orders,commerce/subscriptions"
-    tool_include_patterns: str = os.getenv("TOOL_INCLUDE_PATTERNS", "")
-    tool_exclude_patterns: str = os.getenv("TOOL_EXCLUDE_PATTERNS", "")
 
     # GitBook Documentation Integration (Optional)
     gitbook_api_key: str = os.getenv("GITBOOK_API_KEY", "")

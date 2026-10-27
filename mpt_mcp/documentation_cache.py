@@ -5,8 +5,6 @@ from datetime import datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    import asyncio
-
     from .gitbook_client import GitBookClient
 
 logger = logging.getLogger(__name__)
@@ -32,7 +30,6 @@ class DocumentationCache:
 
         self._content: dict[str, Any] | None = None
         self._last_refresh: datetime | None = None
-        self._refresh_task: asyncio.Task | None = None
         self._is_refreshing = False
 
         self._resources: dict[str, dict[str, Any]] = {}
@@ -156,16 +153,6 @@ class DocumentationCache:
 
         if self.needs_refresh:
             await self.refresh()
-
-    async def get_content(self) -> dict[str, Any] | None:
-        """
-        Get cached content, refreshing if necessary
-
-        Returns:
-            Cached content dictionary or None if unavailable
-        """
-        await self.ensure_cached()
-        return self._content
 
     async def list_resources(
         self,
