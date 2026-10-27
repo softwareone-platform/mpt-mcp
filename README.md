@@ -105,8 +105,8 @@ This project uses **[uv](https://docs.astral.sh/uv/)** for dependency management
 ```bash
 uv sync                    # Create venv and install deps (incl. dev)
 uv run pytest              # Run tests
-uv run python -m src.server # Run HTTP server
-uv run python -m src.server_stdio  # Run stdio server
+uv run python -m mpt_mcp.server # Run HTTP server
+uv run python -m mpt_mcp.server_stdio  # Run stdio server
 ```
 
 To generate a `requirements.txt` for tools that still need it: `uv export --no-dev -o requirements.txt` (not stored in the repo).
@@ -161,7 +161,7 @@ docker compose --profile sonar up -d sonar
 # Open http://localhost:9000, login admin/admin, create project "mpt-mcp", generate a token
 
 # 2. Generate coverage (optional)
-uv run pytest --cov=src --cov-report=xml
+uv run pytest --cov=mpt_mcp --cov-report=xml
 
 # 3. Run scanner (set SONAR_TOKEN from SonarQube UI)
 SONAR_TOKEN=your_token docker compose --profile sonar run --rm sonar-scanner
@@ -175,7 +175,7 @@ See **[docs/sonar.md](docs/sonar.md)** for full steps.
 
 ```
 mpt-mcp/
-├── src/
+├── mpt_mcp/
 │   ├── server.py              # HTTP server (Cursor, Antigravity, cloud)
 │   ├── server_stdio.py        # stdio server (Claude Desktop)
 │   ├── api_client.py          # Marketplace API client
@@ -220,7 +220,7 @@ The error means the **MCP server** is not reachable at that URL (not the Marketp
 
 2. **Port 8080 on the host**  
    `host.docker.internal:8080` from inside the agent container is the **host machine’s** port 8080. So either:
-   - Run the MCP server on the host (e.g. `uv run python -m src.server`) so it listens on `localhost:8080`, or  
+   - Run the MCP server on the host (e.g. `uv run python -m mpt_mcp.server`) so it listens on `localhost:8080`, or  
    - Run the MCP in Docker with `ports: ["8080:8080"]` (as in `docker-compose.yml` dev service) so the host’s 8080 is forwarded to the MCP container.
 
 3. **Same Docker network (alternative)**  

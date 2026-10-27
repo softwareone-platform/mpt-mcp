@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from src.token_validator import (
+from mpt_mcp.token_validator import (
     TokenValidationCache,
     _hash_token,
     _verify_jwt_and_get_payload,
@@ -283,7 +283,7 @@ class TestValidateToken:
             },
         }
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_response_obj = AsyncMock()
             mock_response_obj.status_code = 200
             mock_response_obj.json = lambda: mock_response
@@ -311,7 +311,7 @@ class TestValidateToken:
             "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
         }
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_response_obj = AsyncMock()
             mock_response_obj.status_code = 200
             mock_response_obj.json = lambda: mock_response
@@ -335,7 +335,7 @@ class TestValidateToken:
         token = "idt:TKN-9999-9999:SECRET"
         api_base_url = "https://api.test.com"
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(side_effect=Exception("404 Not Found"))
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -352,7 +352,7 @@ class TestValidateToken:
         token = "idt:TKN-8888-8888:SECRET"
         api_base_url = "https://api.test.com"
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_client = AsyncMock()
             mock_client.get = AsyncMock(side_effect=Exception("401 Unauthorized"))
             mock_client_class.return_value.__aenter__.return_value = mock_client
@@ -376,7 +376,7 @@ class TestValidateToken:
             "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
         }
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_response_obj = AsyncMock()
             mock_response_obj.status_code = 200
             mock_response_obj.json = lambda: mock_response
@@ -410,7 +410,7 @@ class TestValidateToken:
             "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
         }
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_response_obj = AsyncMock()
             mock_response_obj.status_code = 200
             mock_response_obj.json = lambda: mock_response
@@ -440,7 +440,7 @@ class TestValidateToken:
             "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
         }
 
-        with patch("src.token_validator.httpx.AsyncClient") as mock_client_class:
+        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
             mock_response_obj = AsyncMock()
             mock_response_obj.status_code = 200
             mock_response_obj.json = lambda: mock_response
@@ -467,7 +467,7 @@ class TestValidateToken:
         token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
         api_base_url = "https://api.test.com"
 
-        with patch("src.token_validator.config") as mock_config:
+        with patch("mpt_mcp.token_validator.config") as mock_config:
             mock_config.jwt_jwks_url = ""
 
             is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
@@ -492,9 +492,9 @@ class TestJwtExpLeeway:
         now = 1000000.0
         payload_within_leeway = {"exp": now - 60, "iat": now - 3600, "nbf": now - 3600}
 
-        with patch("src.token_validator.time.time", return_value=now):
-            with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-                with patch("src.token_validator.jose_jwt.decode", return_value=payload_within_leeway):
+        with patch("mpt_mcp.token_validator.time.time", return_value=now):
+            with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+                with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_within_leeway):
                     result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
 
         assert result_payload == payload_within_leeway
@@ -510,9 +510,9 @@ class TestJwtExpLeeway:
         # exp 200 seconds ago; leeway 120 -> exp < (now - 120) -> rejected
         payload_expired = {"exp": now - 200, "iat": now - 3600, "nbf": now - 3600}
 
-        with patch("src.token_validator.time.time", return_value=now):
-            with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-                with patch("src.token_validator.jose_jwt.decode", return_value=payload_expired):
+        with patch("mpt_mcp.token_validator.time.time", return_value=now):
+            with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+                with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_expired):
                     result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
 
         assert result_payload is None
@@ -528,10 +528,10 @@ class TestJwtExpLeeway:
         token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
         jwks_url = "https://auth.test.com/.well-known/jwks.json"
 
-        with patch("src.token_validator.time.time", return_value=now):
-            with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-                with patch("src.token_validator.jose_jwt.decode", return_value=payload_expired):
-                    with patch("src.token_validator.config") as mock_config:
+        with patch("mpt_mcp.token_validator.time.time", return_value=now):
+            with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+                with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_expired):
+                    with patch("mpt_mcp.token_validator.config") as mock_config:
                         mock_config.jwt_exp_leeway_seconds = 300
                         result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
 
@@ -547,8 +547,8 @@ class TestJwtExpLeeway:
         token = "eyJhbGciOiJSUzI1NiJ9.eyJpYXQiOjk5OX0.sig"
         jwks_url = "https://auth.test.com/.well-known/jwks.json"
 
-        with patch("src.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-            with patch("src.token_validator.jose_jwt.decode", return_value=payload_no_exp):
+        with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
+            with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_no_exp):
                 result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
 
         assert result_payload == payload_no_exp

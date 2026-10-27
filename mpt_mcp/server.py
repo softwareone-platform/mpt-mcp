@@ -47,7 +47,7 @@ register_http_resources(mcp)
 
 
 async def _create_app():
-    """Build the ASGI app (init + middleware). Used so uvicorn can load via 'src.server:app' for reload."""
+    """Build the ASGI app (init + middleware). Used so uvicorn can load via 'mpt_mcp.server:app' for reload."""
     await initialize_analytics(database_url=config.analytics_database_url)
     if config.analytics_enabled:
         log("📊 Analytics enabled - tracking usage metrics")
@@ -197,9 +197,9 @@ def run_migrations():
 def _run_uvicorn():
     """Run uvicorn; use import string so reload works in dev."""
     enable_reload = os.getenv("DEBUG", "false").lower() == "true"
-    reload_dirs = ["src", "config", "alembic"] if enable_reload else None
+    reload_dirs = ["mpt_mcp", "config", "alembic"] if enable_reload else None
     if enable_reload:
-        print("🔄 Hot reload enabled - watching for .py file changes in: src, config, alembic", file=sys.stderr, flush=True)
+        print("🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic", file=sys.stderr, flush=True)
     uvicorn_log_level = "debug" if config.debug else "info"
     print(
         f"📋 Log level: {uvicorn_log_level} (DEBUG={os.getenv('DEBUG', '(not set)')!r})",
@@ -207,7 +207,7 @@ def _run_uvicorn():
         flush=True,
     )
     uvicorn.run(
-        "src.server:app",
+        "mpt_mcp.server:app",
         host=server_host,
         port=server_port,
         log_level=uvicorn_log_level,

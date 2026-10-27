@@ -12,8 +12,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.api_client import APIClient
-from src.mcp_tools import execute_marketplace_resource_info, execute_marketplace_resources
+from mpt_mcp.api_client import APIClient
+from mpt_mcp.mcp_tools import execute_marketplace_resource_info, execute_marketplace_resources
 
 
 class TestOmittedFieldsLogging:
@@ -43,7 +43,7 @@ class TestOmittedFieldsLogging:
             mock_client.return_value.__aenter__.return_value.get = mock_get
 
             # Capture log output
-            with patch("src.api_client.logger") as mock_logger:
+            with patch("mpt_mcp.api_client.logger") as mock_logger:
                 endpoint = "/public/v1/commerce/orders"
                 result = await api_client.get(endpoint, params={"limit": 10})
 

@@ -4,7 +4,7 @@
       "command": "/absolute/path/to/mpt-mcp/venv/bin/python",
       "args": [
         "-m",
-        "src.server_stdio"
+        "mpt_mcp.server_stdio"
       ],
       "cwd": "/absolute/path/to/mpt-mcp",
       "env": {

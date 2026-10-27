@@ -12,7 +12,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from src.mcp_tools import (
+from mpt_mcp.mcp_tools import (
     _get_allowed_select_fields,
     _sanitize_select,
     execute_marketplace_query,

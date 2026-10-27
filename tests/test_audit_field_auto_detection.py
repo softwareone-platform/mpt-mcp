@@ -15,7 +15,7 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from src.mcp_tools import execute_marketplace_query
+from mpt_mcp.mcp_tools import execute_marketplace_query
 
 
 class TestAuditFieldAutoDetection:

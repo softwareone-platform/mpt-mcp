@@ -7,8 +7,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.documentation_cache import DocumentationCache
-from src.gitbook_client import GitBookClient
+from mpt_mcp.documentation_cache import DocumentationCache
+from mpt_mcp.gitbook_client import GitBookClient
 
 
 class TestGitBookClient:
@@ -483,7 +483,7 @@ class TestGitBookConfigIntegration:
 
     def test_config_has_gitbook_settings(self):
         """Test config includes GitBook settings"""
-        from src.config import config
+        from mpt_mcp.config import config
 
         # These should exist even if empty
         assert hasattr(config, "gitbook_api_key")
@@ -493,7 +493,7 @@ class TestGitBookConfigIntegration:
 
     def test_config_default_values(self):
         """Test config has correct default values"""
-        from src.config import config
+        from mpt_mcp.config import config
 
         # Default base URL should be GitBook API v1
         assert config.gitbook_api_base_url == "https://api.gitbook.com/v1"

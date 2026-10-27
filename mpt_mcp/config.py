@@ -4,13 +4,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-# Load .env from project root (directory containing src/), so env is found regardless of cwd.
+# Load .env from project root (directory containing mpt_mcp/), so env is found regardless of cwd.
 # When Cursor or another tool starts the MCP, cwd may not be the repo root.
 _project_root = Path(__file__).resolve().parent.parent
 _env_file = _project_root / ".env"
 load_dotenv(_env_file)
 if not _env_file.exists():
-    # Fallback: try cwd (e.g. when run as "python -m src.server" from repo root)
+    # Fallback: try cwd (e.g. when run as "python -m mpt_mcp.server" from repo root)
     load_dotenv()
 
 

@@ -5,8 +5,8 @@ Tests for MCP server middleware: CredentialsMiddleware (X-MPT-Authorization, X-M
 
 import pytest
 
-from src.server_context import _current_endpoint, _current_token, _current_validate_fresh
-from src.server_middleware import CredentialsMiddleware
+from mpt_mcp.server_context import _current_endpoint, _current_token, _current_validate_fresh
+from mpt_mcp.server_middleware import CredentialsMiddleware
 
 
 async def _capture_context_app(scope, receive, send):

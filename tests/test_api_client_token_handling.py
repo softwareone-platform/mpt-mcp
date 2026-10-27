@@ -2,7 +2,7 @@
 Test API client token handling and user identification
 """
 
-from src.api_client import APIClient
+from mpt_mcp.api_client import APIClient
 
 
 class TestBearerTokenHandling:

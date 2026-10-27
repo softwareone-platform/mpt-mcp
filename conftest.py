@@ -11,7 +11,7 @@ if str(project_root) not in sys.path:
 
 
 def _patch_server_callables():
-    from src import server
+    from mpt_mcp import server
 
     async def _patch():
         mcp = server.mcp

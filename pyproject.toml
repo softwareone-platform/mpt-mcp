@@ -97,7 +97,7 @@ lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
 # Import sorting configuration
 combine-as-imports = true
 force-wrap-aliases = true
-known-first-party = ["src"]
+known-first-party = ["mpt_mcp"]
 
 [tool.ruff.format]
 # Use double quotes

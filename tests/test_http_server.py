@@ -8,8 +8,8 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from starlette.testclient import TestClient
 
-from src import server
-from src.config import config
+from mpt_mcp import server
+from mpt_mcp.config import config
 
 
 class TestHTTPServer:
@@ -43,7 +43,7 @@ class TestHTTPServer:
     @pytest.mark.unit
     def test_mcp_instance(self):
         """Test that MCP instance is created"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         assert mcp is not None
         # FastMCP should have http_app for HTTP transport
@@ -52,7 +52,7 @@ class TestHTTPServer:
     @pytest.mark.unit
     def test_tools_registered(self):
         """Test that tools are registered"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         # The MCP instance should have tool methods
         # (checking internal structure may vary by FastMCP version)
@@ -61,7 +61,7 @@ class TestHTTPServer:
     @pytest.mark.unit
     def test_normalize_endpoint_from_server(self):
         """Test normalize_endpoint_url function"""
-        from src.server_context import normalize_endpoint_url
+        from mpt_mcp.server_context import normalize_endpoint_url
 
         # Test removing /public suffix
         assert normalize_endpoint_url("https://api.test.com/public") == "https://api.test.com"
@@ -71,7 +71,7 @@ class TestHTTPServer:
     @pytest.mark.unit
     def test_get_current_credentials_without_context(self):
         """Test credential retrieval without context set"""
-        from src.server_context import get_current_credentials
+        from mpt_mcp.server_context import get_current_credentials
 
         # Without context, should return None for token and default for endpoint
         token, endpoint = get_current_credentials()
@@ -86,7 +86,7 @@ class TestHTTPServerConfiguration:
     @pytest.mark.unit
     def test_mcp_server_initialization(self):
         """Test that MCP server is properly initialized"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         # The MCP instance should be initialized
         assert mcp is not None
@@ -101,7 +101,7 @@ class TestHTTPServerConfiguration:
     @pytest.mark.unit
     def test_context_vars_defined(self):
         """Test that context variables for credentials are properly defined"""
-        from src.server_context import _current_endpoint, _current_session_id, _current_token, _current_user_id
+        from mpt_mcp.server_context import _current_endpoint, _current_session_id, _current_token, _current_user_id
 
         # Test that context vars are properly defined
         assert _current_token is not None
@@ -118,7 +118,7 @@ class TestHTTPServerConfiguration:
     @pytest.mark.unit
     def test_normalize_endpoint_url_function(self):
         """Test URL normalization function removes /public suffix"""
-        from src.server_context import normalize_endpoint_url
+        from mpt_mcp.server_context import normalize_endpoint_url
 
         # Test various URL formats
         assert normalize_endpoint_url("https://api.s1.show/public") == "https://api.s1.show"
@@ -130,8 +130,8 @@ class TestHTTPServerConfiguration:
     @pytest.mark.asyncio
     async def test_get_current_credentials_defaults(self):
         """Test get_current_credentials returns defaults when no context set"""
-        from src.config import config
-        from src.server_context import get_current_credentials
+        from mpt_mcp.config import config
+        from mpt_mcp.server_context import get_current_credentials
 
         # Without context, should return None for token and default for endpoint
         token, endpoint = get_current_credentials()
@@ -148,7 +148,7 @@ class TestHTTPServerTools:
     @pytest.mark.asyncio
     async def test_production_tools_only(self):
         """Test that only production tools are exposed (no debug tools)"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         tools_dict = {t.name: t for t in (await mcp.list_tools())}
         tool_names = list(tools_dict.keys())
@@ -172,7 +172,7 @@ class TestHTTPServerTools:
     @pytest.mark.asyncio
     async def test_tool_functions_exist(self):
         """Test that all expected tool functions are registered"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         tools_dict = {t.name: t for t in (await mcp.list_tools())}
         tool_names = list(tools_dict.keys())
@@ -192,7 +192,7 @@ class TestHTTPServerTools:
     @pytest.mark.asyncio
     async def test_debug_tools_not_in_production(self):
         """Test that debug/internal tools are not exposed in production server"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         tools_dict = {t.name: t for t in (await mcp.list_tools())}
         tool_names = list(tools_dict.keys())
@@ -229,9 +229,9 @@ class TestMarketplaceDocsList:
         mock_cache.is_enabled = True
         mock_cache.list_resources = AsyncMock(return_value=mock_resources)
 
-        with patch("src.server_docs.documentation_cache", mock_cache):
-            with patch("src.server_docs.initialize_documentation_cache", AsyncMock()):
-                from src.server_tools import marketplace_docs_list
+        with patch("mpt_mcp.server_docs.documentation_cache", mock_cache):
+            with patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()):
+                from mpt_mcp.server_tools import marketplace_docs_list
 
                 result = await marketplace_docs_list(search="contact support")
 
@@ -258,9 +258,9 @@ class TestMarketplaceDocsList:
         mock_cache.is_enabled = True
         mock_cache.list_resources = AsyncMock(return_value=mock_resources)
 
-        with patch("src.server_docs.documentation_cache", mock_cache):
-            with patch("src.server_docs.initialize_documentation_cache", AsyncMock()):
-                from src.server_tools import marketplace_docs_list
+        with patch("mpt_mcp.server_docs.documentation_cache", mock_cache):
+            with patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()):
+                from mpt_mcp.server_tools import marketplace_docs_list
 
                 result = await marketplace_docs_list(search="some")
 
@@ -337,7 +337,7 @@ class TestGetClientApiClientHttp:
     @pytest.mark.asyncio
     async def test_missing_token_raises(self):
         """When no token is in context, get_client_api_client_http raises ValueError."""
-        from src.server_context import _current_token, get_client_api_client_http
+        from mpt_mcp.server_context import _current_token, get_client_api_client_http
 
         token_ctx = _current_token.set(None)
         try:
@@ -351,12 +351,12 @@ class TestGetClientApiClientHttp:
     @pytest.mark.asyncio
     async def test_invalid_token_raises(self):
         """When validate_token returns invalid, get_client_api_client_http raises ValueError."""
-        from src.server_context import _current_endpoint, _current_token, get_client_api_client_http
+        from mpt_mcp.server_context import _current_endpoint, _current_token, get_client_api_client_http
 
         token_ctx = _current_token.set("idt:TKN-INVALID:secret")
         endpoint_ctx = _current_endpoint.set("https://api.test.com")
         try:
-            with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+            with patch("mpt_mcp.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (False, None, "Token expired")
                 with pytest.raises(ValueError) as exc_info:
                     await get_client_api_client_http(validate_token=True)
@@ -370,13 +370,13 @@ class TestGetClientApiClientHttp:
     @pytest.mark.asyncio
     async def test_valid_token_returns_api_client(self):
         """When token is valid, get_client_api_client_http returns APIClient with that token."""
-        from src.api_client import APIClient
-        from src.server_context import _current_endpoint, _current_token, get_client_api_client_http
+        from mpt_mcp.api_client import APIClient
+        from mpt_mcp.server_context import _current_endpoint, _current_token, get_client_api_client_http
 
         token_ctx = _current_token.set("idt:TKN-1234-5678:SECRET")
         endpoint_ctx = _current_endpoint.set("https://api.test.com")
         try:
-            with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+            with patch("mpt_mcp.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (True, {"account": {"name": "Test", "id": "ACC-1"}}, None)
                 client = await get_client_api_client_http(validate_token=True)
             assert isinstance(client, APIClient)

@@ -5,7 +5,7 @@ Test STDIO server implementation (local development)
 
 import pytest
 
-from src import server_stdio
+from mpt_mcp import server_stdio
 
 
 class TestSTDIOServer:
@@ -20,7 +20,7 @@ class TestSTDIOServer:
     @pytest.mark.unit
     def test_mcp_instance(self):
         """Test that MCP instance is created"""
-        from src.server_stdio import mcp
+        from mpt_mcp.server_stdio import mcp
 
         assert mcp is not None
 
@@ -32,7 +32,7 @@ class TestSTDIOServerTools:
     @pytest.mark.asyncio
     async def test_production_tools_exist(self):
         """Test that production tools are registered in STDIO server"""
-        from src.server_stdio import mcp
+        from mpt_mcp.server_stdio import mcp
 
         tools_list = await mcp.list_tools()
         tool_names = [t.name for t in tools_list]
@@ -53,7 +53,7 @@ class TestSTDIOServerTools:
     @pytest.mark.asyncio
     async def test_debug_tools_exist(self):
         """Test that debug/cache tools ARE available in STDIO server (for local dev)"""
-        from src.server_stdio import mcp
+        from mpt_mcp.server_stdio import mcp
 
         tools_list = await mcp.list_tools()
         tool_names = [t.name for t in tools_list]
@@ -68,8 +68,8 @@ class TestSTDIOServerTools:
     @pytest.mark.asyncio
     async def test_tool_count_difference(self):
         """Test that HTTP server has documentation tools that STDIO doesn't have"""
-        from src.server import mcp as http_mcp
-        from src.server_stdio import mcp as stdio_mcp
+        from mpt_mcp.server import mcp as http_mcp
+        from mpt_mcp.server_stdio import mcp as stdio_mcp
 
         stdio_tools = [t.name for t in (await stdio_mcp.list_tools())]
         http_tools = [t.name for t in (await http_mcp.list_tools())]

@@ -9,7 +9,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from src.api_client import APIClient
+from mpt_mcp.api_client import APIClient
 
 
 class TestRQLImplementation:

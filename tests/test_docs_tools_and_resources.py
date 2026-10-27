@@ -6,7 +6,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from src import server_docs, server_resources, server_tools
+from mpt_mcp import server_docs, server_resources, server_tools
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Coroutine

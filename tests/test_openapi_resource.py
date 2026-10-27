@@ -16,7 +16,7 @@ class TestOpenAPIResource:
         """Test successful retrieval of OpenAPI spec"""
         import json
 
-        from src.server_resources import get_openapi_spec
+        from mpt_mcp.server_resources import get_openapi_spec
 
         mock_spec = {
             "openapi": "3.0.0",
@@ -29,10 +29,10 @@ class TestOpenAPIResource:
         mock_token_info = {"id": "TKN-123-456", "account": {"id": "ACC-123", "name": "Test Account"}}
 
         # Mock get_current_credentials, token validation, and OpenAPI spec fetch (get_openapi_spec lives in server_resources)
-        with patch("src.server_resources.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
-            with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+        with patch("mpt_mcp.server_resources.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
+            with patch("mpt_mcp.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (True, mock_token_info, None)
-                with patch("src.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
+                with patch("mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
                     mock_get_spec.return_value = mock_spec
 
                     result = await get_openapi_spec()
@@ -50,10 +50,10 @@ class TestOpenAPIResource:
         """Test that missing token raises error"""
         import json
 
-        from src.server_resources import get_openapi_spec
+        from mpt_mcp.server_resources import get_openapi_spec
 
         # Mock get_current_credentials to return no token (get_openapi_spec lives in server_resources)
-        with patch("src.server_resources.get_current_credentials", return_value=(None, "https://api.test.com")):
+        with patch("mpt_mcp.server_resources.get_current_credentials", return_value=(None, "https://api.test.com")):
             result = await get_openapi_spec()
             result_dict = json.loads(result)
             assert "error" in result_dict
@@ -64,13 +64,13 @@ class TestOpenAPIResource:
         """Test handling of OpenAPI fetch errors"""
         import json
 
-        from src.server_resources import get_openapi_spec
+        from mpt_mcp.server_resources import get_openapi_spec
 
         # Mock get_current_credentials and token validation
-        with patch("src.server_resources.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
-            with patch("src.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+        with patch("mpt_mcp.server_resources.get_current_credentials", return_value=("idt:TKN-123-456-SECRET", "https://api.test.com")):
+            with patch("mpt_mcp.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
                 mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
-                with patch("src.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
+                with patch("mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
                     mock_get_spec.side_effect = Exception("Failed to fetch OpenAPI spec")
 
                     result = await get_openapi_spec()
@@ -80,7 +80,7 @@ class TestOpenAPIResource:
     @pytest.mark.asyncio
     async def test_openapi_spec_cached_per_endpoint(self):
         """Test that OpenAPI spec is cached per endpoint"""
-        from src.endpoint_registry import get_openapi_spec
+        from mpt_mcp.endpoint_registry import get_openapi_spec
 
         mock_spec1 = {
             "openapi": "3.0.0",
@@ -91,7 +91,7 @@ class TestOpenAPIResource:
             "info": {"title": "API 2", "version": "1.0.0"},
         }
 
-        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+        with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
             # Configure mock to return different specs
             async def side_effect(endpoint, force_refresh=False):
                 if "api1" in endpoint:
@@ -119,7 +119,7 @@ class TestOpenAPIResourceIntegration:
     @pytest.mark.asyncio
     async def test_openapi_resource_listed_in_resources(self):
         """Test that api://openapi.json is listed in MCP resources"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         resources = {str(r.uri): r for r in (await mcp.list_resources())}
         resource_uris = [str(uri) for uri in resources.keys()]
@@ -129,7 +129,7 @@ class TestOpenAPIResourceIntegration:
     @pytest.mark.asyncio
     async def test_openapi_resource_has_correct_metadata(self):
         """Test that OpenAPI resource has correct name and description"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         resources = {str(r.uri): r for r in (await mcp.list_resources())}
         openapi_resource = resources.get("api://openapi.json")
@@ -142,7 +142,7 @@ class TestOpenAPIResourceIntegration:
     @pytest.mark.asyncio
     async def test_openapi_resource_mime_type(self):
         """Test that OpenAPI resource has a mime type specified"""
-        from src.server import mcp
+        from mpt_mcp.server import mcp
 
         resources = {str(r.uri): r for r in (await mcp.list_resources())}
         openapi_resource = resources.get("api://openapi.json")
@@ -160,7 +160,7 @@ class TestEndpointRegistryOpenAPI:
     @pytest.mark.asyncio
     async def test_registry_initializes_empty(self):
         """Test that registry starts with no cached specs"""
-        from src.endpoint_registry import _openapi_specs
+        from mpt_mcp.endpoint_registry import _openapi_specs
 
         # The global registry should exist (may or may not be empty)
         assert isinstance(_openapi_specs, dict)
@@ -168,14 +168,14 @@ class TestEndpointRegistryOpenAPI:
     @pytest.mark.asyncio
     async def test_registry_caches_spec_after_fetch(self):
         """Test that registry caches spec after fetching"""
-        from src.endpoint_registry import _openapi_specs, get_openapi_spec
+        from mpt_mcp.endpoint_registry import _openapi_specs, get_openapi_spec
 
         mock_spec = {
             "openapi": "3.0.0",
             "info": {"title": "Test API", "version": "1.0.0"},
         }
 
-        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+        with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_spec
 
             endpoint = "https://api.test.com"
@@ -189,14 +189,14 @@ class TestEndpointRegistryOpenAPI:
     @pytest.mark.asyncio
     async def test_registry_normalizes_endpoint(self):
         """Test that registry normalizes endpoints before caching"""
-        from src.endpoint_registry import get_openapi_spec
+        from mpt_mcp.endpoint_registry import get_openapi_spec
 
         mock_spec = {
             "openapi": "3.0.0",
             "info": {"title": "Test API", "version": "1.0.0"},
         }
 
-        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+        with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_spec
 
             # Request with trailing slash
@@ -215,7 +215,7 @@ class TestEndpointRegistryOpenAPI:
     @pytest.mark.asyncio
     async def test_get_openapi_spec_function(self):
         """Test the module-level get_openapi_spec function"""
-        from src.endpoint_registry import _openapi_specs, get_openapi_spec
+        from mpt_mcp.endpoint_registry import _openapi_specs, get_openapi_spec
 
         mock_spec = {
             "openapi": "3.0.0",
@@ -229,7 +229,7 @@ class TestEndpointRegistryOpenAPI:
         if endpoint in _openapi_specs:
             del _openapi_specs[endpoint]
 
-        with patch("src.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+        with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
             mock_fetch.return_value = mock_spec
 
             spec = await get_openapi_spec(endpoint)

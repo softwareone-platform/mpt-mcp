@@ -5,7 +5,7 @@ The API client normalizes base URLs to extract only scheme://hostname[:port]
 This prevents path duplication when OpenAPI paths are absolute.
 """
 
-from src.api_client import APIClient
+from mpt_mcp.api_client import APIClient
 
 
 def test_api_client_strips_public_path():

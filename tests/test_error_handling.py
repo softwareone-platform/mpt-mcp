@@ -14,7 +14,7 @@ class TestAuthenticationErrors:
     @pytest.mark.asyncio
     async def test_missing_authorization_header(self):
         """Test error when X-MPT-Authorization header is missing"""
-        from src.server_context import get_client_api_client_http
+        from mpt_mcp.server_context import get_client_api_client_http
 
         # No context vars set - should raise ValueError
         with pytest.raises(ValueError) as exc_info:
@@ -25,7 +25,7 @@ class TestAuthenticationErrors:
 
     def test_normalize_endpoint_url(self):
         """Test URL normalization"""
-        from src.server_context import normalize_endpoint_url
+        from mpt_mcp.server_context import normalize_endpoint_url
 
         assert normalize_endpoint_url("https://api.s1.show/public") == "https://api.s1.show"
         assert normalize_endpoint_url("https://api.s1.show") == "https://api.s1.show"
@@ -37,7 +37,7 @@ class TestAPIErrorResponses:
     @pytest.mark.asyncio
     async def test_401_unauthorized_error(self):
         """Test 401 error handling"""
-        from src.api_client import APIClient
+        from mpt_mcp.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = Mock()
@@ -59,7 +59,7 @@ class TestAPIErrorResponses:
     @pytest.mark.asyncio
     async def test_403_forbidden_error(self):
         """Test 403 error handling"""
-        from src.api_client import APIClient
+        from mpt_mcp.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = Mock()
@@ -81,7 +81,7 @@ class TestAPIErrorResponses:
     @pytest.mark.asyncio
     async def test_404_not_found_error(self):
         """Test 404 error handling"""
-        from src.api_client import APIClient
+        from mpt_mcp.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = Mock()
@@ -103,7 +103,7 @@ class TestAPIErrorResponses:
     @pytest.mark.asyncio
     async def test_429_rate_limit_error(self):
         """Test 429 rate limit error handling"""
-        from src.api_client import APIClient
+        from mpt_mcp.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = Mock()
@@ -125,7 +125,7 @@ class TestAPIErrorResponses:
     @pytest.mark.asyncio
     async def test_500_server_error(self):
         """Test 500 server error handling"""
-        from src.api_client import APIClient
+        from mpt_mcp.api_client import APIClient
 
         with patch("httpx.AsyncClient") as mock_client:
             mock_response = Mock()
@@ -151,7 +151,7 @@ class TestErrorMessages:
     @pytest.mark.asyncio
     async def test_missing_auth_error_message_is_clear(self):
         """Test that missing auth error message is clear and actionable"""
-        from src.server_context import get_client_api_client_http
+        from mpt_mcp.server_context import get_client_api_client_http
 
         with pytest.raises(ValueError) as exc_info:
             await get_client_api_client_http()

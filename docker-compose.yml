@@ -23,7 +23,7 @@ services:
     
     volumes:
       # Mount source code for live development
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
       - ./config:/app/config
       - ./conftest.py:/app/conftest.py
       - ./pytest.ini:/app/pytest.ini
@@ -35,9 +35,9 @@ services:
       - ./cache-data:/app/.cache
       
       # Exclude Python cache
-      - /app/src/__pycache__
+      - /app/mpt_mcp/__pycache__
     
-    command: python -m src.server_stdio
+    command: python -m mpt_mcp.server_stdio
     
     stdin_open: true
     tty: false
@@ -87,7 +87,7 @@ services:
     
     volumes:
       # Mount source code for live development
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
       - ./config:/app/config
       - ./tests:/app/tests
       # So subprocesses (e.g. FastMCP request handlers) can load GITBOOK_* via load_dotenv
@@ -102,7 +102,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       
       # Exclude Python cache
-      - /app/src/__pycache__
+      - /app/mpt_mcp/__pycache__
     
     restart: unless-stopped
     
@@ -170,7 +170,7 @@ services:
     
     volumes:
       # Mount source and tests
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
       - ./tests:/app/tests
       - ./config:/app/config
       - ./conftest.py:/app/conftest.py
@@ -180,7 +180,7 @@ services:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
     
-    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check src/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest ===' && python -m pytest"
+    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check mpt_mcp/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check mpt_mcp/ tests/ && echo '\n=== Running Pytest ===' && python -m pytest"
   
   # Ruff service - runs only Ruff linter and formatter (no profile so CI can run it)
   ruff:
@@ -190,12 +190,12 @@ services:
       PYTHONUNBUFFERED: "1"
     
     volumes:
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
       - ./tests:/app/tests
       - ./pyproject.toml:/app/pyproject.toml
       - ./uv.lock:/app/uv.lock
     
-    command: sh -c "echo '=== Ruff lint (check) ===' && ruff check src/ tests/ && echo '=== Ruff format (check) ===' && ruff format --check src/ tests/ && echo '=== All Ruff checks passed ==='"
+    command: sh -c "echo '=== Ruff lint (check) ===' && ruff check mpt_mcp/ tests/ && echo '=== Ruff format (check) ===' && ruff format --check mpt_mcp/ tests/ && echo '=== All Ruff checks passed ==='"
   
   # Ruff fix service - runs Ruff with auto-fix (no profile so CI/local can run it)
   ruff-fix:
@@ -205,12 +205,12 @@ services:
       PYTHONUNBUFFERED: "1"
     
     volumes:
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
       - ./tests:/app/tests
       - ./pyproject.toml:/app/pyproject.toml
       - ./uv.lock:/app/uv.lock
     
-    command: sh -c "ruff check --fix src/ tests/ && ruff format src/ tests/ && echo '\n✅ Ruff fixes applied!'"
+    command: sh -c "ruff check --fix mpt_mcp/ tests/ && ruff format mpt_mcp/ tests/ && echo '\n✅ Ruff fixes applied!'"
   
   # Test with coverage (term, html, and xml for SonarQube)
   # Note: No profile - this service is built by default with 'docker compose build'
@@ -225,7 +225,7 @@ services:
       PYTHONPATH: "/app"
     
     volumes:
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
       - ./tests:/app/tests
       - ./config:/app/config
       - ./conftest.py:/app/conftest.py
@@ -236,7 +236,7 @@ services:
       - ./alembic.ini:/app/alembic.ini
       # So coverage.xml is written on the host for SonarQube scanner
       - .:/coverage-out
-    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check src/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check src/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=src --cov-report=term-missing --cov-report=html --cov-report=xml:/coverage-out/coverage.xml"
+    command: sh -c "echo '=== Running Ruff Linter ===' && ruff check mpt_mcp/ tests/ && echo '\n=== Running Ruff Formatter Check ===' && ruff format --check mpt_mcp/ tests/ && echo '\n=== Running Pytest with Coverage ===' && python -m pytest --cov=mpt_mcp --cov-report=term-missing --cov-report=html --cov-report=xml:/coverage-out/coverage.xml"
 
   # PostgreSQL service for analytics (local development)
   analytics-db:
@@ -266,7 +266,7 @@ services:
     volumes:
       - ./alembic:/app/alembic
       - ./alembic.ini:/app/alembic.ini
-      - ./src:/app/src
+      - ./mpt_mcp:/app/mpt_mcp
     command: alembic upgrade head
     depends_on:
       analytics-db:

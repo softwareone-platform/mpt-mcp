@@ -12,7 +12,7 @@ from sqlalchemy import engine_from_config, pool
 from sqlalchemy.engine import Connection
 
 # Import your models metadata
-from src.analytics.models import metadata
+from mpt_mcp.analytics.models import metadata
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

@@ -15,7 +15,7 @@ class TestDidYouMeanSuggestions:
     @pytest.mark.asyncio
     async def test_unknown_resource_suggests_similar(self):
         """Test that unknown resource errors suggest similar resources"""
-        from src.server import marketplace_query
+        from mpt_mcp.server import marketplace_query
 
         # Mock the endpoint registry with some sample resources
         mock_registry = {
@@ -29,8 +29,8 @@ class TestDidYouMeanSuggestions:
             "accounts.buyers": {"path": "/public/v1/accounts/buyers", "summary": "Buyers", "parameters": []},
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -48,15 +48,15 @@ class TestDidYouMeanSuggestions:
     @pytest.mark.asyncio
     async def test_unknown_resource_shows_categories(self):
         """Test that unknown resource errors show available categories"""
-        from src.server import marketplace_query
+        from mpt_mcp.server import marketplace_query
 
         mock_registry = {
             "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
             "commerce.orders": {"path": "/public/v1/commerce/orders", "summary": "Orders", "parameters": []},
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -75,7 +75,7 @@ class TestEnhancedPathParamsErrors:
     @pytest.mark.asyncio
     async def test_missing_path_params_shows_example(self):
         """Test that missing path params error includes realistic example"""
-        from src.server import marketplace_query
+        from mpt_mcp.server import marketplace_query
 
         mock_registry = {
             "catalog.products.by_id": {
@@ -85,8 +85,8 @@ class TestEnhancedPathParamsErrors:
             }
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -106,7 +106,7 @@ class TestEnhancedPathParamsErrors:
     @pytest.mark.asyncio
     async def test_path_params_error_includes_realistic_values(self):
         """Test that path params examples use realistic IDs"""
-        from src.server import marketplace_query
+        from mpt_mcp.server import marketplace_query
 
         mock_registry = {
             "commerce.orders.by_id": {
@@ -116,8 +116,8 @@ class TestEnhancedPathParamsErrors:
             }
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -135,7 +135,7 @@ class TestRelatedResourcesDiscovery:
     @pytest.mark.asyncio
     async def test_resource_info_shows_children(self):
         """Test that resource_info shows child resources"""
-        from src.server import marketplace_resource_info
+        from mpt_mcp.server import marketplace_resource_info
 
         mock_registry = {
             "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
@@ -151,8 +151,8 @@ class TestRelatedResourcesDiscovery:
             },
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -169,7 +169,7 @@ class TestRelatedResourcesDiscovery:
     @pytest.mark.asyncio
     async def test_resource_info_shows_parent(self):
         """Test that resource_info shows parent resource"""
-        from src.server import marketplace_resource_info
+        from mpt_mcp.server import marketplace_resource_info
 
         mock_registry = {
             "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
@@ -180,8 +180,8 @@ class TestRelatedResourcesDiscovery:
             },
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -201,7 +201,7 @@ class TestMultipleQueryExamples:
     @pytest.mark.asyncio
     async def test_resource_info_shows_multiple_examples(self):
         """Test that resources with enums show multiple examples"""
-        from src.server import marketplace_resource_info
+        from mpt_mcp.server import marketplace_resource_info
 
         mock_registry = {
             "commerce.orders": {
@@ -217,8 +217,8 @@ class TestMultipleQueryExamples:
             }
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -237,7 +237,7 @@ class TestMultipleQueryExamples:
     @pytest.mark.asyncio
     async def test_resource_info_shows_filtering_tips(self):
         """Test that resources with enums show filtering tips"""
-        from src.server import marketplace_resource_info
+        from mpt_mcp.server import marketplace_resource_info
 
         mock_registry = {
             "commerce.orders": {
@@ -247,8 +247,8 @@ class TestMultipleQueryExamples:
             }
         }
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -267,12 +267,12 @@ class TestAPIErrorDetailsPreservation:
     @pytest.mark.asyncio
     async def test_api_error_includes_status_code(self):
         """Test that HTTP errors include status code"""
-        from src.server import marketplace_query
+        from mpt_mcp.server import marketplace_query
 
         mock_registry = {"catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []}}
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
@@ -303,12 +303,12 @@ class TestAPIErrorDetailsPreservation:
     @pytest.mark.asyncio
     async def test_api_error_includes_request_url(self):
         """Test that errors include the full request URL"""
-        from src.server import marketplace_query
+        from mpt_mcp.server import marketplace_query
 
         mock_registry = {"catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []}}
 
-        with patch("src.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-            with patch("src.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
+        with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
+            with patch("mpt_mcp.server_tools.get_client_api_client_http", new_callable=AsyncMock) as mock_get_client:
                 mock_get_registry.return_value = mock_registry
                 mock_client = Mock()
                 mock_client.base_url = "https://api.test.com"
