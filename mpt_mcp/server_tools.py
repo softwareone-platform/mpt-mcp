@@ -1,21 +1,24 @@
 import time
 from typing import Any
 
-from . import (
+from fastmcp.dependencies import Depends
+
+from mpt_mcp import (
     audit_fields as audit_fields_module,
     endpoint_registry,
     server_docs,
 )
-from .analytics import get_analytics_logger
-from .config import config
-from .mcp_tools import (
+from mpt_mcp.analytics import get_analytics_logger
+from mpt_mcp.call_context import CallContext, get_call_context
+from mpt_mcp.config import config
+from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
     execute_marketplace_quick_queries,
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
 )
-from .server_context import _current_user_id, get_client_api_client_http, log
+from mpt_mcp.server_context import log
 
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 AUTH_HINT_HEADER_TOKEN = "Provide X-MPT-Authorization header with your API token"
@@ -101,9 +104,10 @@ def register_http_tools(mcp):
         select: str | None = None,
         order: str | None = None,
         path_params: dict[str, str] | None = None,
+        call_context: CallContext = Depends(get_call_context),
     ) -> dict[str, Any]:
         try:
-            api_client = await get_client_api_client_http()
+            api_client = await call_context.create_api_client()
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
@@ -142,9 +146,9 @@ def register_http_tools(mcp):
         return execute_marketplace_quick_queries()
 
     @mcp.tool()
-    async def marketplace_resources() -> dict[str, Any]:
+    async def marketplace_resources(call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
         try:
-            api_client = await get_client_api_client_http()
+            api_client = await call_context.create_api_client()
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
@@ -152,17 +156,16 @@ def register_http_tools(mcp):
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
         except Exception as e:
             return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(e)}
-        user_id = _current_user_id.get()
         return execute_marketplace_resources(
             api_base_url=api_base_url,
-            user_id=user_id,
+            user_id=call_context.user_id,
             endpoints_registry=endpoints_registry_data,
         )
 
     @mcp.tool()
-    async def marketplace_resource_info(resource: str) -> dict[str, Any]:
+    async def marketplace_resource_info(resource: str, call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
         try:
-            api_client = await get_client_api_client_http()
+            api_client = await call_context.create_api_client()
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
@@ -176,9 +179,9 @@ def register_http_tools(mcp):
         )
 
     @mcp.tool()
-    async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
+    async def marketplace_resource_schema(resource: str, call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
         try:
-            api_client = await get_client_api_client_http()
+            api_client = await call_context.create_api_client()
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
@@ -194,9 +197,9 @@ def register_http_tools(mcp):
         )
 
     @mcp.tool()
-    async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any]:
+    async def marketplace_audit_fields(resource: str | None = None, call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
         try:
-            api_client = await get_client_api_client_http()
+            api_client = await call_context.create_api_client()
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
@@ -288,7 +291,7 @@ def register_http_tools(mcp):
                     "cache_info": cache_info,
                 }
             try:
-                from .token_validator import get_token_cache
+                from mpt_mcp.token_validator import get_token_cache
 
                 token_cache = get_token_cache()
                 result["token_validation"] = {

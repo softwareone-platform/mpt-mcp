@@ -2,18 +2,20 @@ import json
 import time
 from typing import Any
 
-from . import endpoint_registry, server_docs
-from .analytics import get_analytics_logger
-from .config import config
-from .server_context import get_current_credentials
+from fastmcp.dependencies import Depends
+
+from mpt_mcp import endpoint_registry, server_docs
+from mpt_mcp.analytics import get_analytics_logger
+from mpt_mcp.call_context import CallContext, get_call_context
+from mpt_mcp.config import config
 
 
-async def get_openapi_spec() -> str:
+async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)) -> str:
     """Return OpenAPI spec for the current endpoint (requires auth)."""
     analytics = get_analytics_logger()
     start_time = time.time()
     uri = "api://openapi.json"
-    token, endpoint = get_current_credentials()
+    token, endpoint = call_context.token, call_context.endpoint
     if not token:
         error_response = json.dumps(
             {
@@ -31,7 +33,7 @@ async def get_openapi_spec() -> str:
                 error_message="Authentication required",
             )
         return error_response
-    from .token_validator import validate_token
+    from mpt_mcp.token_validator import validate_token
 
     is_valid, token_info, error = await validate_token(token, endpoint)
     if not is_valid:

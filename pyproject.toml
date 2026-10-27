@@ -109,6 +109,10 @@ lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
     "SIM",   # Simplify rules (tests can be verbose for clarity)
 ]
 
+[tool.ruff.lint.flake8-bugbear]
+# FastMCP dependency markers are meant to be used as argument defaults
+extend-immutable-calls = ["fastmcp.dependencies.CurrentRequest", "fastmcp.dependencies.Depends"]
+
 [tool.ruff.lint.isort]
 # Import sorting configuration
 combine-as-imports = true

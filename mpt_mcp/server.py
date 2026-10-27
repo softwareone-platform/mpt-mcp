@@ -17,14 +17,13 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from alembic import command
-
-from .analytics import get_analytics_logger, initialize_analytics
-from .config import config
-from .server_context import log
-from .server_docs import initialize_documentation_cache
-from .server_middleware import CredentialsMiddleware
-from .server_resources import register_http_resources
-from .server_tools import register_http_tools
+from mpt_mcp.analytics import get_analytics_logger, initialize_analytics
+from mpt_mcp.config import config
+from mpt_mcp.server_context import log
+from mpt_mcp.server_docs import initialize_documentation_cache
+from mpt_mcp.server_middleware import RequestContextMiddleware
+from mpt_mcp.server_resources import register_http_resources
+from mpt_mcp.server_tools import register_http_tools
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="websockets")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*websockets.*deprecated.*")
@@ -34,7 +33,7 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
-mcp = FastMCP("softwareone-marketplace")
+mcp = FastMCP("softwareone-marketplace", middleware=[RequestContextMiddleware()])
 register_http_tools(mcp)
 register_http_resources(mcp)
 
@@ -47,7 +46,7 @@ async def _create_app():
     else:
         log("📊 Analytics disabled (no database configured)")
     await initialize_documentation_cache()
-    from . import server_docs
+    from mpt_mcp import server_docs
 
     doc_cache = server_docs.documentation_cache
     doc_resource_count = 0
@@ -106,8 +105,6 @@ async def _create_app():
 
     starlette_app.add_exception_handler(HTTPException, _http_exception_handler)
 
-    wrapped_app = CredentialsMiddleware(starlette_app)
-
     class HealthCheckMiddleware:
         def __init__(self, app):
             self.app = app
@@ -137,8 +134,8 @@ async def _create_app():
                     return
             await self.app(scope, receive, send)
 
-    final_app = HealthCheckMiddleware(wrapped_app)
-    print("✅ Middleware added: CredentialsMiddleware, HealthCheckMiddleware", file=sys.stderr, flush=True)
+    final_app = HealthCheckMiddleware(starlette_app)
+    print("✅ Middleware added: RequestContextMiddleware, HealthCheckMiddleware", file=sys.stderr, flush=True)
 
     class AccessLogFilter(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:

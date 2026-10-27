@@ -1,153 +1,75 @@
-#!/usr/bin/env python3
-"""
-Tests for MCP server middleware: CredentialsMiddleware (X-MPT-Authorization, X-MPT-Endpoint, X-MPT-Validate-Fresh).
-"""
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from starlette.requests import Request
 
-from mpt_mcp.server_context import _current_endpoint, _current_token, _current_validate_fresh
-from mpt_mcp.server_middleware import CredentialsMiddleware
-
-
-async def _capture_context_app(scope, receive, send):
-    """Minimal ASGI app that captures credential context and returns it in a body."""
-    token = _current_token.get()
-    endpoint = _current_endpoint.get()
-    validate_fresh = _current_validate_fresh.get()
-    body = f"token={repr(token)}|endpoint={repr(endpoint)}|validate_fresh={validate_fresh}".encode()
-    await send(
-        {
-            "type": "http.response.start",
-            "status": 200,
-            "headers": [[b"content-type", b"text/plain"]],
-        }
-    )
-    await send({"type": "http.response.body", "body": body})
+from mpt_mcp.server_context import current_session_id, current_user_id
+from mpt_mcp.server_middleware import RequestContextMiddleware
 
 
-def _make_scope(path: str = "/mcp", method: str = "POST", headers: list | None = None):
-    scope = {
-        "type": "http",
-        "path": path,
-        "method": method,
-        "query_string": b"",
-        "headers": headers or [],
-        "client": ("127.0.0.1", 12345),
-        "server": ("localhost", 8080),
-        "scheme": "http",
-        "asgi": {"version": "3.0", "spec_version": "2.0"},
-    }
-    return scope
+@pytest.fixture
+def make_request():
+    def _make_request(headers, query_string=b""):
+        raw_headers = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
+        scope = {"type": "http", "method": "POST", "path": "/mcp", "query_string": query_string, "headers": raw_headers, "client": ("10.0.0.1", 12345)}
+        return Request(scope)
+
+    return _make_request
 
 
-async def _receive():
-    return {"type": "http.request", "body": b"", "more_body": False}
+@pytest.fixture
+def capture_log_context():
+    async def _capture_log_context(context):
+        return (current_user_id.get(), current_session_id.get())
+
+    return _capture_log_context
 
 
-class TestCredentialsMiddleware:
-    """Test CredentialsMiddleware sets context from request headers."""
+async def test_on_request_sets_log_context_during_call(make_request, capture_log_context):
+    request = make_request({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456")
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_sets_token_from_x_mpt_authorization(self):
-        """X-MPT-Authorization header is normalized and set in _current_token for the request."""
-        app = CredentialsMiddleware(_capture_context_app)
-        scope = _make_scope(
-            headers=[
-                [b"x-mpt-authorization", b"Bearer idt:TKN-A-B:SECRET"],
-                [b"content-type", b"application/json"],
-            ]
-        )
-        body_chunks = []
+    with patch("mpt_mcp.server_middleware.get_http_request", return_value=request):
+        result = await RequestContextMiddleware().on_request(Mock(), capture_log_context)
 
-        async def send(message):
-            if message.get("type") == "http.response.body":
-                body_chunks.append(message.get("body", b""))
+    assert result == ("TKN-1234-5678", "abcdef123456")
 
-        await app(scope, _receive, send)
-        body = b"".join(body_chunks).decode()
-        assert "token='idt:TKN-A-B:SECRET'" in body or 'token="idt:TKN-A-B:SECRET"' in body
-        assert _current_token.get() is None  # reset in finally
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_sets_endpoint_from_x_mpt_endpoint(self):
-        """X-MPT-Endpoint header is set in _current_endpoint for the request."""
-        app = CredentialsMiddleware(_capture_context_app)
-        scope = _make_scope(
-            headers=[
-                [b"x-mpt-authorization", b"idt:TKN-X:Y"],
-                [b"x-mpt-endpoint", b"https://api.example.com"],
-            ]
-        )
-        body_chunks = []
+async def test_on_request_resets_log_context_after_call(make_request, capture_log_context):
+    request = make_request({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456")
 
-        async def send(message):
-            if message.get("type") == "http.response.body":
-                body_chunks.append(message.get("body", b""))
+    with patch("mpt_mcp.server_middleware.get_http_request", return_value=request):
+        await RequestContextMiddleware().on_request(Mock(), capture_log_context)  # act
 
-        await app(scope, _receive, send)
-        body = b"".join(body_chunks).decode()
-        assert "endpoint='https://api.example.com'" in body or 'endpoint="https://api.example.com"' in body
+    assert (current_user_id.get(), current_session_id.get()) == (None, None)
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_sets_validate_fresh_from_header(self):
-        """X-MPT-Validate-Fresh: true sets _current_validate_fresh for the request."""
-        app = CredentialsMiddleware(_capture_context_app)
-        scope = _make_scope(
-            headers=[
-                [b"x-mpt-authorization", b"idt:TKN-X:Y"],
-                [b"x-mpt-validate-fresh", b"true"],
-            ]
-        )
-        body_chunks = []
 
-        async def send(message):
-            if message.get("type") == "http.response.body":
-                body_chunks.append(message.get("body", b""))
+async def test_on_request_without_http_request_passes_through():
+    call_next = AsyncMock(return_value="result")
 
-        await app(scope, _receive, send)
-        body = b"".join(body_chunks).decode()
-        assert "validate_fresh=True" in body
+    with patch("mpt_mcp.server_middleware.get_http_request", side_effect=RuntimeError("No active HTTP request found.")):
+        result = await RequestContextMiddleware().on_request(Mock(), call_next)
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_no_auth_header_leaves_token_none(self):
-        """When X-MPT-Authorization is missing, token in context is None."""
-        app = CredentialsMiddleware(_capture_context_app)
-        scope = _make_scope(headers=[[b"content-type", b"application/json"]])
+    assert result == "result"
 
-        body_chunks = []
 
-        async def send(message):
-            if message.get("type") == "http.response.body":
-                body_chunks.append(message.get("body", b""))
+@pytest.mark.parametrize(
+    ("headers", "client_info", "client_ip"),
+    [
+        ({"User-Agent": "Cursor/1.0", "X-Forwarded-For": "203.0.113.7, 10.0.0.2"}, "Cursor", "203.0.113.7"),
+        ({"User-Agent": "Claude-User/2.0", "X-Real-IP": "198.51.100.4"}, "Claude Desktop", "198.51.100.4"),
+        ({"User-Agent": "python-httpx/0.28"}, "python-httpx", "10.0.0.1"),
+        ({}, None, "10.0.0.1"),
+    ],
+)
+async def test_on_request_sets_analytics_context(make_request, headers, client_info, client_ip):
+    request = make_request({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET", "X-MPT-Endpoint": "https://api.s1.show/public", **headers})
+    analytics = Mock()
 
-        await app(scope, _receive, send)
-        body = b"".join(body_chunks).decode()
-        assert "token=None" in body
+    with (
+        patch("mpt_mcp.server_middleware.get_http_request", return_value=request),
+        patch("mpt_mcp.server_middleware.get_analytics_logger", return_value=analytics),
+        patch("mpt_mcp.server_middleware.config.analytics_enabled", new=True),
+    ):
+        await RequestContextMiddleware().on_request(Mock(), AsyncMock())  # act
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_non_http_scope_passes_through(self):
-        """Non-http scope is passed to app without setting context."""
-        call_count = 0
-
-        async def passthrough_app(scope, receive, send):
-            nonlocal call_count
-            call_count += 1
-            assert scope["type"] == "lifespan"
-            await send({"type": "lifespan.startup.complete"})
-
-        app = CredentialsMiddleware(passthrough_app)
-        scope = {"type": "lifespan", "asgi": {"version": "3.0"}}
-
-        async def receive():
-            return {"type": "lifespan.shutdown"}
-
-        async def send(msg):
-            pass
-
-        await app(scope, receive, send)
-        assert call_count == 1
+    analytics.set_context.assert_called_once_with(token="idt:TKN-1234-5678:SECRET", endpoint="https://api.s1.show", client_info=client_info, client_ip=client_ip)
