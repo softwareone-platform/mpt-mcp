@@ -72,7 +72,6 @@ fly.toml
 render.yaml
 
 # Development configs and secrets
-pytest.ini
 .env
 .env.local
 .env.*.local

@@ -41,7 +41,7 @@ jobs:
       run: make build
 
     - name: Run tests with coverage
-      run: make test args="--cov=mpt_mcp --cov-report=term-missing --cov-report=xml"
+      run: make test
 
     - name: Fix coverage paths for SonarCloud
       run: |
