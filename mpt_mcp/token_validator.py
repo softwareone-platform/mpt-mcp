@@ -3,13 +3,10 @@ import base64
 import hashlib
 import json
 import logging
-import time
 from datetime import datetime, timedelta
 
 import httpx
-from jose import jwt as jose_jwt
-from jose.exceptions import ExpiredSignatureError
-from jose.jwt import JWTError
+import jwt
 
 from .config import config
 
@@ -202,11 +199,31 @@ def _extract_claims_from_payload(payload: dict) -> tuple[str | None, str | None]
     return (user_id, account_id)
 
 
+def _get_signing_keys(token: str, jwks_dict: dict) -> list[jwt.PyJWK]:
+    """
+    Select the JWKS keys that may have signed the token.
+
+    Uses the key matching the token's ``kid`` header, or every key in the set when the
+    token has no ``kid``.
+
+    Raises:
+        jwt.PyJWTError: If the JWKS has no usable keys or no key matches the ``kid``.
+    """
+    jwk_set = jwt.PyJWKSet.from_dict(jwks_dict)
+    kid = jwt.get_unverified_header(token).get("kid")
+    if kid is None:
+        return list(jwk_set.keys)
+    try:
+        return [jwk_set[kid]]
+    except KeyError:
+        raise jwt.InvalidKeyError(f"No JWKS key matches kid {kid!r}") from None
+
+
 async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict | None, str | None]:
     """
     Verify JWT signature using JWKS and return the payload.
 
-    Uses explicit algorithm list (no alg:none). Validates exp with leeway (clock skew).
+    Uses explicit algorithm list (no alg:none). Validates exp and nbf with leeway (clock skew).
 
     Returns:
         (payload, error_message). On success: (payload_dict, None). On failure: (None, "Token expired")
@@ -219,31 +236,25 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
     leeway = getattr(config, "jwt_exp_leeway_seconds", 120) or 0
 
     try:
-        # Decode with verify_exp=False so we can apply leeway (avoids "Token expired" when server clock is ahead)
-        payload = jose_jwt.decode(
-            token,
-            jwks_dict,
-            algorithms=JWT_ALGORITHMS,
-            options={
-                "verify_signature": True,
-                "verify_aud": False,
-                "verify_exp": False,
-                "verify_iat": True,
-                "verify_nbf": True,
-                "verify_iss": False,
-                "require_exp": False,
-            },
-        )
-        # Manual exp check with leeway: accept if exp >= now - leeway
-        exp = payload.get("exp")
-        if isinstance(exp, (int, float)) and exp < (time.time() - leeway):
-            logger.debug("JWT exp claim in past (exp=%s, leeway=%ss)", exp, leeway)
-            return (None, "Token expired")
-        return (payload, None)
-    except ExpiredSignatureError as e:
-        logger.debug(f"JWT verification failed (expired): {e}")
+        last_error: jwt.PyJWTError = jwt.InvalidKeyError("JWKS has no signing keys")
+        for signing_key in _get_signing_keys(token, jwks_dict):
+            try:
+                payload = jwt.decode(
+                    token,
+                    signing_key,
+                    algorithms=JWT_ALGORITHMS,
+                    leeway=leeway,
+                    options={"verify_aud": False, "verify_iss": False},
+                )
+            except jwt.InvalidSignatureError as e:
+                last_error = e
+                continue
+            return (payload, None)
+        raise last_error
+    except jwt.ExpiredSignatureError as e:
+        logger.debug(f"JWT verification failed (expired, leeway={leeway}s): {e}")
         return (None, "Token expired")
-    except JWTError as e:
+    except jwt.PyJWTError as e:
         logger.debug(f"JWT verification failed: {e}")
         return (None, "JWT signature or claims invalid")
 

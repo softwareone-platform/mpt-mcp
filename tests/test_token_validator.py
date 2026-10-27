@@ -1,555 +1,524 @@
 #!/usr/bin/env python3
-"""
-Tests for token validation functionality including secure hashing and caching
-"""
+import json
+import time
+from unittest.mock import AsyncMock, Mock, patch
 
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, patch
-
+import httpx
+import jwt
 import pytest
+from cryptography.hazmat.primitives.asymmetric import rsa
 
 from mpt_mcp.token_validator import (
     TokenValidationCache,
-    _hash_token,
-    _verify_jwt_and_get_payload,
+    config,
     normalize_token,
     parse_jwt_claims,
     parse_token_id,
     validate_token,
 )
 
+API_BASE_URL = "https://api.test.com"
+JWT_USER_ID = "USR-1234-5678"
 
-class TestTokenValidationCache:
-    """Test the token validation cache with secure hashing"""
 
-    @pytest.mark.unit
-    def test_cache_initialization(self):
-        """Test cache initializes with correct TTL"""
-        cache = TokenValidationCache(ttl_minutes=30)
-        assert cache.ttl == timedelta(minutes=30)
-        assert len(cache._cache) == 0
+@pytest.mark.unit
+def test_cache_initialization():
+    cache = TokenValidationCache(ttl_minutes=30)
 
-    @pytest.mark.unit
-    def test_hash_token_consistent(self):
-        """Test that hashing the same token+endpoint produces consistent results"""
-        token = "idt:TKN-1234-5678-SECRET"
-        endpoint = "https://api.test.com"
+    result = cache.get_stats()
 
-        hash1 = _hash_token(token, endpoint)
-        hash2 = _hash_token(token, endpoint)
+    assert (result["total_entries"], result["ttl_minutes"]) == (0, 30)
 
-        assert hash1 == hash2
-        assert len(hash1) == 64  # SHA256 produces 64 hex characters
-        assert token not in hash1  # Secret should not be in hash
-        assert endpoint not in hash1  # Endpoint should not be in hash
 
-    @pytest.mark.unit
-    def test_hash_token_different_for_different_inputs(self):
-        """Test that different tokens or endpoints produce different hashes"""
-        token1 = "idt:TKN-1234-5678-SECRET1"
-        token2 = "idt:TKN-1234-5678-SECRET2"
-        endpoint1 = "https://api.test1.com"
-        endpoint2 = "https://api.test2.com"
+@pytest.mark.unit
+async def test_cache_set_and_get():
+    cache = TokenValidationCache(ttl_minutes=60)
+    token_info = {"account": {"id": "ACC-123", "name": "Test"}}
+    await cache.set("idt:TKN-1234-5678-SECRET", API_BASE_URL, is_valid=True, token_info=token_info)
 
-        hash1 = _hash_token(token1, endpoint1)
-        hash2 = _hash_token(token2, endpoint1)
-        hash3 = _hash_token(token1, endpoint2)
+    result = await cache.get("idt:TKN-1234-5678-SECRET", API_BASE_URL)
 
-        assert hash1 != hash2  # Different tokens
-        assert hash1 != hash3  # Different endpoints
-        assert hash2 != hash3  # Different both
+    assert result == (True, token_info)
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_cache_set_and_get(self):
-        """Test setting and getting from cache"""
-        cache = TokenValidationCache(ttl_minutes=60)
-        token = "idt:TKN-1234-5678-SECRET"
-        endpoint = "https://api.test.com"
-        token_info = {"account": {"id": "ACC-123", "name": "Test"}}
 
-        await cache.set(token, endpoint, is_valid=True, token_info=token_info)
-        result = await cache.get(token, endpoint)
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    ("token", "endpoint"),
+    [("idt:TKN-1234-5678-SECRET2", API_BASE_URL), ("idt:TKN-1234-5678-SECRET1", "https://api.other.com")],
+)
+async def test_cache_keys_differ_per_token_and_endpoint(token, endpoint):
+    cache = TokenValidationCache()
+    await cache.set("idt:TKN-1234-5678-SECRET1", API_BASE_URL, is_valid=True, token_info={})
 
-        assert result is not None
-        is_valid, cached_info = result
+    result = await cache.get(token, endpoint)
+
+    assert result is None
+
+
+@pytest.mark.unit
+async def test_cache_miss():
+    cache = TokenValidationCache()
+
+    result = await cache.get("idt:TKN-1234-5678-SECRET", API_BASE_URL)
+
+    assert result is None
+
+
+@pytest.mark.unit
+async def test_cache_expiry():
+    cache = TokenValidationCache(ttl_minutes=0)
+    await cache.set("idt:TKN-1234-5678-SECRET", API_BASE_URL, is_valid=True, token_info={"account": {"id": "ACC-123"}})
+
+    result = await cache.get("idt:TKN-1234-5678-SECRET", API_BASE_URL)
+
+    assert result is None
+
+
+@pytest.mark.unit
+async def test_cache_stores_invalid_tokens():
+    cache = TokenValidationCache()
+    await cache.set("idt:TKN-INVALID-TOKEN", API_BASE_URL, is_valid=False, token_info=None)
+
+    result = await cache.get("idt:TKN-INVALID-TOKEN", API_BASE_URL)
+
+    assert result == (False, None)
+
+
+@pytest.mark.unit
+async def test_cache_invalidate():
+    cache = TokenValidationCache()
+    await cache.set("idt:TKN-1234-5678-SECRET", API_BASE_URL, is_valid=True, token_info={})
+
+    await cache.invalidate("idt:TKN-1234-5678-SECRET", API_BASE_URL)  # act
+
+    assert await cache.get("idt:TKN-1234-5678-SECRET", API_BASE_URL) is None
+
+
+@pytest.mark.unit
+async def test_cache_get_stats():
+    cache = TokenValidationCache()
+    await cache.set("idt:TKN-1234-5678-SECRET1", API_BASE_URL, is_valid=True, token_info={})
+    await cache.set("idt:TKN-1234-5678-SECRET2", API_BASE_URL, is_valid=False, token_info=None)
+
+    result = cache.get_stats()
+
+    assert result == {"total_entries": 2, "valid_entries": 2, "expired_entries": 0, "ttl_minutes": 10}
+
+
+@pytest.mark.unit
+def test_parse_tkn_token():
+    token = "idt:TKN-1234-5678:SECRET"
+    token_id = parse_token_id(token)
+    assert token_id == "TKN-1234-5678"
+
+
+@pytest.mark.unit
+def test_parse_bearer_tkn_token():
+    token = "Bearer idt:TKN-1234-5678:SECRET"
+    token_id = parse_token_id(token)
+    assert token_id == "TKN-1234-5678"
+
+
+@pytest.mark.unit
+def test_parse_idt_user_token():
+    token = "idt:IDT-USR-9999-8888:SECRET"
+    token_id = parse_token_id(token)
+    # IDT tokens are user tokens, not API tokens, so parse_token_id returns None
+    assert token_id is None
+
+
+@pytest.mark.unit
+def test_parse_api_token_without_idt_prefix():
+    token = "TKN-1234-5678:SECRET"
+    token_id = parse_token_id(token)
+    # Without idt: prefix, parsing fails
+    assert token_id is None
+
+
+@pytest.mark.unit
+def test_parse_malformed_token():
+    token = "INVALID-TOKEN"
+    token_id = parse_token_id(token)
+    assert token_id is None
+
+
+@pytest.mark.unit
+def test_parse_token_without_secret():
+    token = "idt:TKN-1234-5678"
+    token_id = parse_token_id(token)
+    # parse_token_id extracts the TKN part
+    assert token_id == "TKN-1234-5678"
+
+
+@pytest.mark.unit
+def test_parse_token_id_jwt_returns_none():
+    import base64
+    import json
+
+    payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}
+    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
+    token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
+    token_id = parse_token_id(token)
+    assert token_id is None
+
+
+@pytest.mark.unit
+def test_parse_jwt_claims_always_returns_none():
+    out = parse_jwt_claims("header.payload.signature")
+    assert out == (None, None)
+
+
+@pytest.mark.unit
+def test_normalize_strips_bearer_prefix():
+    assert normalize_token("Bearer idt:TKN-1234-5678:SECRET") == "idt:TKN-1234-5678:SECRET"
+    assert normalize_token("bearer idt:TKN-X:Y") == "idt:TKN-X:Y"
+
+
+@pytest.mark.unit
+def test_normalize_strips_whitespace():
+    assert normalize_token("  idt:TKN-A:B  ") == "idt:TKN-A:B"
+    assert normalize_token("  Bearer idt:TKN-A:B  ") == "idt:TKN-A:B"
+
+
+@pytest.mark.unit
+def test_normalize_empty_returns_empty():
+    assert normalize_token("") == ""
+    assert normalize_token("   ") == ""
+    # Only "Bearer " (with trailing space) is stripped; "Bearer" alone has no trailing space so stays
+    assert normalize_token("  Bearer   ") == "Bearer"
+
+
+@pytest.mark.asyncio
+async def test_validate_token_success():
+    token = "idt:TKN-1234-5678:SECRET"
+    api_base_url = "https://api.test.com"
+
+    mock_response = {
+        "id": "TKN-1234-5678",
+        "status": "Active",
+        "name": "Test Token",
+        "account": {
+            "id": "ACC-123-456",
+            "name": "Test Account",
+            "type": "Vendor",
+        },
+    }
+
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.status_code = 200
+        mock_response_obj.json = lambda: mock_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response_obj)
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+
         assert is_valid is True
-        assert cached_info == token_info
+        assert token_info == mock_response
+        assert error is None
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_cache_miss(self):
-        """Test cache returns None for non-existent entries"""
-        cache = TokenValidationCache()
-        token = "idt:TKN-1234-5678-SECRET"
-        endpoint = "https://api.test.com"
 
-        result = await cache.get(token, endpoint)
-        assert result is None
+@pytest.mark.asyncio
+async def test_validate_token_inactive():
+    token = "idt:TKN-1234-5678:SECRET"
+    api_base_url = "https://api.test.com"
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_cache_expiry(self):
-        """Test that cache entries expire after TTL"""
-        cache = TokenValidationCache(ttl_minutes=60)
-        token = "idt:TKN-1234-5678-SECRET"
-        endpoint = "https://api.test.com"
-        token_info = {"account": {"id": "ACC-123", "name": "Test"}}
+    mock_response = {
+        "id": "TKN-1234-5678",
+        "status": "Inactive",
+        "name": "Inactive Token",
+        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
+    }
 
-        # Set cache entry
-        await cache.set(token, endpoint, is_valid=True, token_info=token_info)
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.status_code = 200
+        mock_response_obj.json = lambda: mock_response
 
-        # Manually expire it by modifying the expiry time
-        cache_key = _hash_token(token, endpoint)
-        is_valid, expiry_time, token_info_cached = cache._cache[cache_key]
-        cache._cache[cache_key] = (is_valid, datetime.now() - timedelta(seconds=1), token_info_cached)
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response_obj)
+        mock_client_class.return_value.__aenter__.return_value = mock_client
 
-        # Should return None now
-        result = await cache.get(token, endpoint)
-        assert result is None
+        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
 
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_cache_stores_invalid_tokens(self):
-        """Test that cache can store invalid token results"""
-        cache = TokenValidationCache()
-        token = "idt:TKN-INVALID-TOKEN"
-        endpoint = "https://api.test.com"
-
-        await cache.set(token, endpoint, is_valid=False, token_info=None)
-        result = await cache.get(token, endpoint)
-
-        assert result is not None
-        is_valid, cached_info = result
+        # Inactive tokens should be rejected even if API returns 200
         assert is_valid is False
-        assert cached_info is None
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_cache_invalidate(self):
-        """Test cache invalidation"""
-        cache = TokenValidationCache()
-        token = "idt:TKN-1234-5678-SECRET"
-        endpoint = "https://api.test.com"
-        token_info = {"account": {"id": "ACC-123", "name": "Test"}}
-
-        # Set cache entry
-        await cache.set(token, endpoint, is_valid=True, token_info=token_info)
-
-        # Verify it exists
-        result = await cache.get(token, endpoint)
-        assert result is not None
-
-        # Invalidate
-        await cache.invalidate(token, endpoint)
-
-        # Verify it's gone
-        result = await cache.get(token, endpoint)
-        assert result is None
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_cache_get_stats(self):
-        """Test getting cache statistics"""
-        cache = TokenValidationCache()
-        token1 = "idt:TKN-1234-5678-SECRET1"
-        token2 = "idt:TKN-1234-5678-SECRET2"
-        endpoint = "https://api.test.com"
-
-        stats = cache.get_stats()
-        assert stats["total_entries"] == 0
-        assert stats["ttl_minutes"] == 10  # default
-
-        await cache.set(token1, endpoint, is_valid=True, token_info={})
-        await cache.set(token2, endpoint, is_valid=False, token_info=None)
-
-        stats = cache.get_stats()
-        assert stats["total_entries"] == 2
-        assert stats["valid_entries"] == 2  # Both are still valid (not expired)
-
-
-class TestParseTokenId:
-    """Test token ID parsing"""
-
-    @pytest.mark.unit
-    def test_parse_tkn_token(self):
-        """Test parsing TKN-formatted tokens"""
-        token = "idt:TKN-1234-5678:SECRET"
-        token_id = parse_token_id(token)
-        assert token_id == "TKN-1234-5678"
-
-    @pytest.mark.unit
-    def test_parse_bearer_tkn_token(self):
-        """Test parsing TKN tokens with Bearer prefix"""
-        token = "Bearer idt:TKN-1234-5678:SECRET"
-        token_id = parse_token_id(token)
-        assert token_id == "TKN-1234-5678"
-
-    @pytest.mark.unit
-    def test_parse_idt_user_token(self):
-        """Test parsing IDT user tokens (not supported, returns None)"""
-        token = "idt:IDT-USR-9999-8888:SECRET"
-        token_id = parse_token_id(token)
-        # IDT tokens are user tokens, not API tokens, so parse_token_id returns None
-        assert token_id is None
-
-    @pytest.mark.unit
-    def test_parse_api_token_without_idt_prefix(self):
-        """Test parsing tokens without idt prefix (not supported)"""
-        token = "TKN-1234-5678:SECRET"
-        token_id = parse_token_id(token)
-        # Without idt: prefix, parsing fails
-        assert token_id is None
-
-    @pytest.mark.unit
-    def test_parse_malformed_token(self):
-        """Test parsing malformed tokens returns None"""
-        token = "INVALID-TOKEN"
-        token_id = parse_token_id(token)
-        assert token_id is None
-
-    @pytest.mark.unit
-    def test_parse_token_without_secret(self):
-        """Test parsing tokens without secret part"""
-        token = "idt:TKN-1234-5678"
-        token_id = parse_token_id(token)
-        # parse_token_id extracts the TKN part
-        assert token_id == "TKN-1234-5678"
-
-    @pytest.mark.unit
-    def test_parse_token_id_jwt_returns_none(self):
-        """JWT: we do not decode without verification; parse_token_id returns None (user ID from validate_token only)"""
-        import base64
-        import json
-
-        payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}
-        payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-        token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
-        token_id = parse_token_id(token)
-        assert token_id is None
-
-
-class TestParseJwtClaims:
-    """parse_jwt_claims returns (None, None); we do not decode JWT without verification"""
-
-    @pytest.mark.unit
-    def test_parse_jwt_claims_always_returns_none(self):
-        """We never trust unverified claims; always (None, None)"""
-        out = parse_jwt_claims("header.payload.signature")
-        assert out == (None, None)
-
-
-class TestNormalizeToken:
-    """Test token normalization (used by HTTP server middleware)"""
-
-    @pytest.mark.unit
-    def test_normalize_strips_bearer_prefix(self):
-        """Bearer prefix is stripped so cache key and API call use raw token"""
-        assert normalize_token("Bearer idt:TKN-1234-5678:SECRET") == "idt:TKN-1234-5678:SECRET"
-        assert normalize_token("bearer idt:TKN-X:Y") == "idt:TKN-X:Y"
-
-    @pytest.mark.unit
-    def test_normalize_strips_whitespace(self):
-        """Leading/trailing whitespace is stripped"""
-        assert normalize_token("  idt:TKN-A:B  ") == "idt:TKN-A:B"
-        assert normalize_token("  Bearer idt:TKN-A:B  ") == "idt:TKN-A:B"
-
-    @pytest.mark.unit
-    def test_normalize_empty_returns_empty(self):
-        """Empty or whitespace-only returns empty string"""
-        assert normalize_token("") == ""
-        assert normalize_token("   ") == ""
-        # Only "Bearer " (with trailing space) is stripped; "Bearer" alone has no trailing space so stays
-        assert normalize_token("  Bearer   ") == "Bearer"
-
-
-class TestValidateToken:
-    """Test the main token validation function"""
-
-    @pytest.mark.asyncio
-    async def test_validate_token_success(self):
-        """Test successful token validation"""
-        token = "idt:TKN-1234-5678:SECRET"
-        api_base_url = "https://api.test.com"
-
-        mock_response = {
-            "id": "TKN-1234-5678",
-            "status": "Active",
-            "name": "Test Token",
-            "account": {
-                "id": "ACC-123-456",
-                "name": "Test Account",
-                "type": "Vendor",
-            },
-        }
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status_code = 200
-            mock_response_obj.json = lambda: mock_response
-
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response_obj)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-            assert is_valid is True
-            assert token_info == mock_response
-            assert error is None
-
-    @pytest.mark.asyncio
-    async def test_validate_token_inactive(self):
-        """Test validation of inactive token - SKIPPED: implementation accepts any status"""
-        token = "idt:TKN-1234-5678:SECRET"
-        api_base_url = "https://api.test.com"
-
-        mock_response = {
-            "id": "TKN-1234-5678",
-            "status": "Inactive",
-            "name": "Inactive Token",
-            "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
-        }
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status_code = 200
-            mock_response_obj.json = lambda: mock_response
-
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response_obj)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-            # Inactive tokens should be rejected even if API returns 200
-            assert is_valid is False
-            assert token_info == mock_response
-            assert error is not None
-            assert "not active" in error.lower()
-            assert "Inactive" in error
-
-    @pytest.mark.asyncio
-    async def test_validate_token_not_found(self):
-        """Test validation when token doesn't exist"""
-        token = "idt:TKN-9999-9999:SECRET"
-        api_base_url = "https://api.test.com"
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(side_effect=Exception("404 Not Found"))
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-            assert is_valid is False
-            assert token_info is None
-            assert "404" in error or "not found" in error.lower()
-
-    @pytest.mark.asyncio
-    async def test_validate_token_unauthorized(self):
-        """Test validation when token is unauthorized"""
-        token = "idt:TKN-8888-8888:SECRET"
-        api_base_url = "https://api.test.com"
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(side_effect=Exception("401 Unauthorized"))
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-            assert is_valid is False
-            assert token_info is None
-            assert "401" in error or "unauthorized" in error.lower()
-
-    @pytest.mark.asyncio
-    async def test_validate_token_uses_cache(self):
-        """Test that validation uses cache on subsequent calls"""
-        token = "idt:TKN-5555-5555:SECRET"
-        api_base_url = "https://api.test.com"
-
-        mock_response = {
-            "id": "TKN-5555-5555",
-            "status": "Active",
-            "name": "Test Token",
-            "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
-        }
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status_code = 200
-            mock_response_obj.json = lambda: mock_response
-
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response_obj)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            # First call - should hit API
-            is_valid1, token_info1, error1 = await validate_token(token, api_base_url, use_cache=True)
-            assert is_valid1 is True
-            assert mock_client.get.call_count == 1
-
-            # Second call - should use cache
-            is_valid2, token_info2, error2 = await validate_token(token, api_base_url, use_cache=True)
-            assert is_valid2 is True
-            assert token_info2 == token_info1
-            # Should still be 1 because cache was used
-            assert mock_client.get.call_count == 1
-
-    @pytest.mark.asyncio
-    async def test_validate_token_bypass_cache(self):
-        """Test that use_cache=False bypasses the cache"""
-        token = "idt:TKN-6666-6666:SECRET"
-        api_base_url = "https://api.test.com"
-
-        mock_response = {
-            "id": "TKN-6666-6666",
-            "status": "Active",
-            "name": "Test Token",
-            "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
-        }
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status_code = 200
-            mock_response_obj.json = lambda: mock_response
-
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response_obj)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            # First call
-            await validate_token(token, api_base_url, use_cache=False)
-            assert mock_client.get.call_count == 1
-
-            # Second call with use_cache=False - should hit API again
-            await validate_token(token, api_base_url, use_cache=False)
-            assert mock_client.get.call_count == 2
-
-    @pytest.mark.asyncio
-    async def test_validate_token_with_normalized_token(self):
-        """Validate_token receives normalized token (Bearer stripped by HTTP middleware)."""
-        token = "idt:TKN-7777-7777:SECRET"
-        api_base_url = "https://api.test.com"
-
-        mock_response = {
-            "id": "TKN-7777-7777",
-            "status": "Active",
-            "name": "Test Token",
-            "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
-        }
-
-        with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-            mock_response_obj = AsyncMock()
-            mock_response_obj.status_code = 200
-            mock_response_obj.json = lambda: mock_response
-
-            mock_client = AsyncMock()
-            mock_client.get = AsyncMock(return_value=mock_response_obj)
-            mock_client_class.return_value.__aenter__.return_value = mock_client
-
-            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-            assert is_valid is True
-            assert mock_client.get.call_count == 1
-            # API must be called with single "Bearer " prefix (middleware passes normalized token)
-            call_args = mock_client.get.call_args
-            assert call_args[1]["headers"]["Authorization"] == "Bearer idt:TKN-7777-7777:SECRET"
-
-    @pytest.mark.asyncio
-    async def test_validate_token_jwt_requires_jwks_url_or_iss(self):
-        """When JWT has no iss and JWT_JWKS_URL is not set, validation is rejected (no unverified decode)"""
-        import base64
-
-        payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
-        payload_b64 = base64.urlsafe_b64encode(__import__("json").dumps(payload).encode()).decode().rstrip("=")
-        token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
-        api_base_url = "https://api.test.com"
-
-        with patch("mpt_mcp.token_validator.config") as mock_config:
-            mock_config.jwt_jwks_url = ""
-
-            is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-            assert is_valid is False
-            assert token_info is None
-            assert error is not None
-            assert "JWT verification" in error or "JWT_JWKS_URL" in error or "iss" in error
-
-
-class TestJwtExpLeeway:
-    """Test JWT exp leeway in _verify_jwt_and_get_payload (clock skew tolerance)."""
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_jwt_exp_within_leeway_accepted(self):
-        """Token with exp in the past but within leeway is accepted."""
-        token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
-        jwks_url = "https://auth.test.com/.well-known/jwks.json"
-        # exp = 0 (Jan 1 1970). now - leeway = now - 120. So exp (0) < (now - 120) -> rejected.
-        # So we need exp such that exp >= (now - 120). Set exp = now - 60 (1 min ago), leeway 120 -> accepted.
-        now = 1000000.0
-        payload_within_leeway = {"exp": now - 60, "iat": now - 3600, "nbf": now - 3600}
-
-        with patch("mpt_mcp.token_validator.time.time", return_value=now):
-            with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-                with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_within_leeway):
-                    result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
-
-        assert result_payload == payload_within_leeway
-        assert error is None
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_jwt_exp_beyond_leeway_rejected(self):
-        """Token with exp in the past beyond leeway is rejected with 'Token expired'."""
-        token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
-        jwks_url = "https://auth.test.com/.well-known/jwks.json"
-        now = 1000000.0
-        # exp 200 seconds ago; leeway 120 -> exp < (now - 120) -> rejected
-        payload_expired = {"exp": now - 200, "iat": now - 3600, "nbf": now - 3600}
-
-        with patch("mpt_mcp.token_validator.time.time", return_value=now):
-            with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-                with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_expired):
-                    result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
-
-        assert result_payload is None
-        assert error == "Token expired"
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_jwt_exp_leeway_uses_config(self):
-        """Leeway is read from config.jwt_exp_leeway_seconds."""
-        now = 1000000.0
-        # exp 200 seconds ago; with leeway 300 would be accepted
-        payload_expired = {"exp": now - 200, "iat": now - 3600, "nbf": now - 3600}
-        token = "eyJhbGciOiJSUzI1NiJ9.eyJleHAiOjB9.sig"
-        jwks_url = "https://auth.test.com/.well-known/jwks.json"
-
-        with patch("mpt_mcp.token_validator.time.time", return_value=now):
-            with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-                with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_expired):
-                    with patch("mpt_mcp.token_validator.config") as mock_config:
-                        mock_config.jwt_exp_leeway_seconds = 300
-                        result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
-
-        # With leeway 300, exp (now-200) >= (now-300) -> accepted
-        assert result_payload == payload_expired
-        assert error is None
-
-    @pytest.mark.unit
-    @pytest.mark.asyncio
-    async def test_jwt_no_exp_accepted(self):
-        """Token without exp claim is accepted (no expiry check)."""
-        payload_no_exp = {"iat": 999000, "nbf": 999000}
-        token = "eyJhbGciOiJSUzI1NiJ9.eyJpYXQiOjk5OX0.sig"
-        jwks_url = "https://auth.test.com/.well-known/jwks.json"
-
-        with patch("mpt_mcp.token_validator._fetch_jwks_cached", new_callable=AsyncMock, return_value={"keys": []}):
-            with patch("mpt_mcp.token_validator.jose_jwt.decode", return_value=payload_no_exp):
-                result_payload, error = await _verify_jwt_and_get_payload(token, jwks_url)
-
-        assert result_payload == payload_no_exp
-        assert error is None
+        assert token_info == mock_response
+        assert error is not None
+        assert "not active" in error.lower()
+        assert "Inactive" in error
+
+
+@pytest.mark.asyncio
+async def test_validate_token_not_found():
+    token = "idt:TKN-9999-9999:SECRET"
+    api_base_url = "https://api.test.com"
+
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=Exception("404 Not Found"))
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+
+        assert is_valid is False
+        assert token_info is None
+        assert "404" in error or "not found" in error.lower()
+
+
+@pytest.mark.asyncio
+async def test_validate_token_unauthorized():
+    token = "idt:TKN-8888-8888:SECRET"
+    api_base_url = "https://api.test.com"
+
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(side_effect=Exception("401 Unauthorized"))
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+
+        assert is_valid is False
+        assert token_info is None
+        assert "401" in error or "unauthorized" in error.lower()
+
+
+@pytest.mark.asyncio
+async def test_validate_token_uses_cache():
+    token = "idt:TKN-5555-5555:SECRET"
+    api_base_url = "https://api.test.com"
+
+    mock_response = {
+        "id": "TKN-5555-5555",
+        "status": "Active",
+        "name": "Test Token",
+        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
+    }
+
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.status_code = 200
+        mock_response_obj.json = lambda: mock_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response_obj)
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        # First call - should hit API
+        is_valid1, token_info1, error1 = await validate_token(token, api_base_url, use_cache=True)
+        assert is_valid1 is True
+        assert mock_client.get.call_count == 1
+
+        # Second call - should use cache
+        is_valid2, token_info2, error2 = await validate_token(token, api_base_url, use_cache=True)
+        assert is_valid2 is True
+        assert token_info2 == token_info1
+        # Should still be 1 because cache was used
+        assert mock_client.get.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_validate_token_bypass_cache():
+    token = "idt:TKN-6666-6666:SECRET"
+    api_base_url = "https://api.test.com"
+
+    mock_response = {
+        "id": "TKN-6666-6666",
+        "status": "Active",
+        "name": "Test Token",
+        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
+    }
+
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.status_code = 200
+        mock_response_obj.json = lambda: mock_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response_obj)
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        # First call
+        await validate_token(token, api_base_url, use_cache=False)
+        assert mock_client.get.call_count == 1
+
+        # Second call with use_cache=False - should hit API again
+        await validate_token(token, api_base_url, use_cache=False)
+        assert mock_client.get.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_validate_token_with_normalized_token():
+    token = "idt:TKN-7777-7777:SECRET"
+    api_base_url = "https://api.test.com"
+
+    mock_response = {
+        "id": "TKN-7777-7777",
+        "status": "Active",
+        "name": "Test Token",
+        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
+    }
+
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_response_obj = AsyncMock()
+        mock_response_obj.status_code = 200
+        mock_response_obj.json = lambda: mock_response
+
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=mock_response_obj)
+        mock_client_class.return_value.__aenter__.return_value = mock_client
+
+        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+
+        assert is_valid is True
+        assert mock_client.get.call_count == 1
+        # API must be called with single "Bearer " prefix (middleware passes normalized token)
+        call_args = mock_client.get.call_args
+        assert call_args[1]["headers"]["Authorization"] == "Bearer idt:TKN-7777-7777:SECRET"
+
+
+@pytest.mark.asyncio
+async def test_validate_token_jwt_requires_jwks_url_or_iss():
+    import base64
+
+    payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
+    payload_b64 = base64.urlsafe_b64encode(__import__("json").dumps(payload).encode()).decode().rstrip("=")
+    token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
+    api_base_url = "https://api.test.com"
+
+    with patch("mpt_mcp.token_validator.config") as mock_config:
+        mock_config.jwt_jwks_url = ""
+
+        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+
+        assert is_valid is False
+        assert token_info is None
+        assert error is not None
+        assert "JWT verification" in error or "JWT_JWKS_URL" in error or "iss" in error
+
+
+@pytest.fixture
+def issuer(request):
+    # One issuer per test: the JWKS URL is derived from it and its keys are cached per URL
+    return f"https://{request.node.name.replace('_', '-').replace('[', '-').replace(']', '')}.auth.test.com"
+
+
+@pytest.fixture(scope="module")
+def jwks(rsa_private_key):
+    public_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(rsa_private_key.public_key()))
+    return {"keys": [{**public_jwk, "kid": "test-key", "alg": "RS256", "use": "sig"}]}
+
+
+@pytest.fixture
+def mock_auth_http(jwks):
+    def _response(url, **kwargs):
+        response = Mock(status_code=200)
+        payload = mock_auth_http_state["jwks"] if url.endswith("/.well-known/jwks.json") else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
+        response.json.return_value = payload
+        return response
+
+    mock_auth_http_state = {"jwks": jwks}
+    client = AsyncMock()
+    client.get = AsyncMock(side_effect=_response)
+    client.jwks_state = mock_auth_http_state
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_client_class.return_value.__aenter__.return_value = client
+        yield client
+
+
+@pytest.fixture(scope="module")
+def other_private_key():
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+@pytest.fixture(scope="module")
+def rsa_private_key():
+    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+
+
+@pytest.fixture
+def sign_jwt(rsa_private_key, issuer):
+    def _sign_jwt(claims, *, kid="test-key", private_key=None, algorithm="RS256"):
+        headers = {"kid": kid} if kid else None
+        full_claims = {"iss": issuer, "https://claims.softwareone.com/userId": JWT_USER_ID, **claims}
+        return jwt.encode(full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers)
+
+    return _sign_jwt
+
+
+async def test_validate_jwt_within_exp_leeway_accepted(sign_jwt, mock_auth_http):
+    now = int(time.time())
+    token = sign_jwt({"exp": now - 60, "iat": now - 3600})
+
+    is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert (is_valid, error) == (True, None)
+
+
+async def test_validate_jwt_beyond_exp_leeway_rejected(sign_jwt, mock_auth_http):
+    now = int(time.time())
+    token = sign_jwt({"exp": now - 200, "iat": now - 3600})
+
+    result = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert result == (False, None, "Token expired")
+
+
+async def test_validate_jwt_exp_leeway_uses_config(sign_jwt, mock_auth_http):
+    now = int(time.time())
+    token = sign_jwt({"exp": now - 200, "iat": now - 3600})
+
+    with patch.object(config, "jwt_exp_leeway_seconds", 300):
+        is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert (is_valid, error) == (True, None)
+
+
+async def test_validate_jwt_without_exp_accepted(sign_jwt, mock_auth_http):
+    token = sign_jwt({"iat": int(time.time()) - 60})
+
+    is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert (is_valid, error) == (True, None)
+
+
+async def test_validate_jwt_without_kid_tries_every_key(sign_jwt, jwks, other_private_key, mock_auth_http):
+    other_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(other_private_key.public_key()))
+    mock_auth_http.jwks_state["jwks"] = {"keys": [{**other_jwk, "kid": "other-key"}, *jwks["keys"]]}
+    token = sign_jwt({}, kid=None)
+
+    is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert (is_valid, error) == (True, None)
+
+
+async def test_validate_jwt_signed_by_unknown_key_rejected(sign_jwt, other_private_key, mock_auth_http):
+    token = sign_jwt({}, private_key=other_private_key)
+
+    result = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert result == (False, None, "JWT signature or claims invalid")
+
+
+@pytest.mark.parametrize(
+    "sign_kwargs",
+    [{"kid": "missing-key"}, {"private_key": "a-shared-secret-of-at-least-32-bytes", "algorithm": "HS256"}],
+    ids=["unknown-kid", "hs256"],
+)
+async def test_validate_jwt_with_untrusted_header_rejected(sign_jwt, mock_auth_http, sign_kwargs):
+    token = sign_jwt({}, **sign_kwargs)
+
+    result = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert result == (False, None, "JWT signature or claims invalid")
+
+
+async def test_validate_jwt_when_jwks_fetch_fails_rejected(sign_jwt, mock_auth_http):
+    mock_auth_http.get.side_effect = httpx.ConnectError("JWKS unreachable")
+    token = sign_jwt({})
+
+    result = await validate_token(token, API_BASE_URL, use_cache=False)
+
+    assert result == (False, None, "JWT signature or claims invalid")
