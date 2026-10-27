@@ -35,7 +35,7 @@ def _patch_server_callables():
                 obj = getattr(server, name)
             except AttributeError:
                 continue
-            if hasattr(obj, "fn") and callable(getattr(obj, "fn")):
+            if hasattr(obj, "fn") and callable(obj.fn):
                 setattr(server, name, obj.fn)
 
     asyncio.run(_patch())

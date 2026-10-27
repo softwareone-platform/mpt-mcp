@@ -1,10 +1,7 @@
-# Dockerfile for SoftwareOne Marketplace MCP Server (HTTP Streamable Transport)
-# This allows deployment to cloud platforms like Google Cloud Run
+# SoftwareOne Marketplace MCP Server
+# Stages: dev (local development, tests and checks) and prod (Cloud Run image, built by default).
 
-FROM python:3.14-slim
-
-# Install uv from official image (reliable in CI; no install script)
-COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /bin/
+FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS base
 
 # Install curl for healthcheck
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
@@ -12,33 +9,34 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl \
 
 WORKDIR /app
 
-# Install Python dependencies with uv (lockfile ensures reproducible builds)
+RUN uv venv /opt/venv
+
+ENV UV_PROJECT_ENVIRONMENT=/opt/venv
+ENV PATH=/opt/venv/bin:$PATH
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONPATH=/app
+
+FROM base AS build
+
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project
+RUN uv sync --frozen --no-cache --no-dev --no-install-project
 
-ENV PATH="/app/.venv/bin:$PATH"
+COPY . .
 
-# Copy source code
-COPY mpt_mcp/ ./mpt_mcp/
-COPY config/ ./config/
+FROM build AS dev
 
-# Copy Alembic configuration and migrations (for analytics)
-COPY alembic.ini ./
-COPY alembic/ ./alembic/
+RUN uv sync --frozen --no-cache --dev --no-install-project
 
-# Create cache directory
+CMD ["bash"]
+
+FROM build AS prod
+
 RUN mkdir -p .cache
 
 # Expose port (Cloud Run will set PORT env var)
 EXPOSE 8080
 
-# Set environment variables
-ENV PYTHONUNBUFFERED=1
-
-# Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-# Start HTTP server
 CMD ["python", "-m", "mpt_mcp.server"]
-

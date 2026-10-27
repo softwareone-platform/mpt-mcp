@@ -6,13 +6,17 @@ Supports both online (sync) and offline migrations.
 
 import os
 from logging.config import fileConfig
+from typing import TYPE_CHECKING
+
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
-from sqlalchemy.engine import Connection
 
 # Import your models metadata
 from mpt_mcp.analytics.models import metadata
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Connection
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.

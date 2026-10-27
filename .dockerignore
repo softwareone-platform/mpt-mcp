@@ -55,10 +55,15 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Docker
+# Docker and local tooling
 Dockerfile
 .dockerignore
-docker-compose.yml
+compose.yaml
+Makefile
+make/
+.pre-commit-config.yaml
+.claude/
+.github/
 .docker-data/
 
 # Deployment configs (not needed in image)
@@ -66,7 +71,8 @@ railway.toml
 fly.toml
 render.yaml
 
-# Development configs
+# Development configs and secrets
 pytest.ini
+.env
 .env.local
 .env.*.local

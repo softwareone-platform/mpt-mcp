@@ -1,0 +1,51 @@
+x-app: &app
+  build:
+    context: .
+    target: dev
+  env_file:
+    - path: .env
+      required: false
+  environment:
+    PORT: "8080"
+    # Debug logging and hot reload of the HTTP server; set DEBUG=false in .env to disable them
+    DEBUG: ${DEBUG:-true}
+  volumes:
+    - .:/app
+
+services:
+  # Development container: checks, tests, shell and the HTTP server
+  app:
+    <<: *app
+    ports:
+      - "8080:8080"
+
+  # stdio server for IDE integration (Claude Desktop, Cursor); needs MARKETPLACE_API_TOKEN in .env
+  stdio:
+    <<: *app
+    command: python -m mpt_mcp.server_stdio
+    stdin_open: true
+    tty: false
+    profiles:
+      - stdio
+
+  # PostgreSQL for analytics (local development)
+  analytics-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: mcp_analytics
+      POSTGRES_USER: mcp_user
+      POSTGRES_PASSWORD: mcp_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - analytics-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mcp_user -d mcp_analytics"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    profiles:
+      - analytics
+
+volumes:
+  analytics-data:

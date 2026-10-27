@@ -10,7 +10,7 @@ jobs:
   lint:
     name: Lint with Ruff
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -18,16 +18,16 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build test image
-      run: docker compose build ruff
+    - name: Build dev image
+      run: make build
 
-    - name: Run Ruff linter
-      run: docker compose run --rm ruff
+    - name: Run checks
+      run: make check
 
   test:
     name: Run Tests
     runs-on: ubuntu-latest
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
@@ -37,14 +37,11 @@ jobs:
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@v3
 
-    - name: Build test image
-      run: docker compose build test-cov
-
-    - name: Run Ruff linter (fail fast)
-      run: docker compose run --rm ruff
+    - name: Build dev image
+      run: make build
 
     - name: Run tests with coverage
-      run: docker compose run --rm test-cov
+      run: make test args="--cov=mpt_mcp --cov-report=term-missing --cov-report=xml"
 
     - name: Fix coverage paths for SonarCloud
       run: |
