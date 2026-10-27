@@ -7,9 +7,6 @@ import os
 import sys
 import warnings
 
-# Set before importing FastMCP so stateless HTTP is used (required for load-balanced/cloud deployment).
-os.environ["FASTMCP_STATELESS_HTTP"] = "true"
-
 import anyio
 import uvicorn
 from alembic.config import Config as AlembicConfig
@@ -37,11 +34,7 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
-# Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
-# Docs cache is populated at startup and remains in memory for all requests in that process.
-log("📡 FASTMCP_STATELESS_HTTP=true (stateless always; docs cache in-process, long-lived per instance)")
-
-mcp = FastMCP("softwareone-marketplace", stateless_http=True)
+mcp = FastMCP("softwareone-marketplace")
 register_http_tools(mcp)
 register_http_resources(mcp)
 
@@ -89,7 +82,9 @@ async def _create_app():
             log(f"⚠️  Could not register doc resources for discovery: {e}")
     else:
         log("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
-    starlette_app = mcp.http_app()
+    # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
+    # Docs cache is populated at startup and remains in memory for all requests in that process.
+    starlette_app = mcp.http_app(stateless_http=True)
     # Route POST /mcp is registered by FastMCP here and never unregistered in this process.
     # Intermittent 404s are usually: path stripped to / (we rewrite POST / → /mcp), or traffic hitting an old revision during deploy.
 

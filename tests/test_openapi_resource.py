@@ -1,8 +1,4 @@
 #!/usr/bin/env python3
-"""
-Tests for OpenAPI specification resource exposure
-"""
-
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -148,10 +144,7 @@ class TestOpenAPIResourceIntegration:
         openapi_resource = resources.get("api://openapi.json")
 
         assert openapi_resource is not None
-        # The resource should have a mime type specified
-        mime = getattr(openapi_resource, "mime_type", None) or getattr(openapi_resource, "mimeType", None)
-        if mime:
-            assert mime in ["text/plain", "application/json"]
+        assert openapi_resource.mime_type == "application/json"
 
 
 class TestEndpointRegistryOpenAPI:

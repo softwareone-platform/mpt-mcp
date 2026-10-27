@@ -1,5 +1,4 @@
 import asyncio
-import json
 import sys
 from typing import Any
 
@@ -169,25 +168,7 @@ async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False)
 
         # Parse the OpenAPI spec
         parser = OpenAPIParser()
-        tools = parser.extract_get_endpoints(spec)
-
-        # Build the registry with richer metadata
-        registry: dict[str, dict[str, Any]] = {}
-
-        for tool in tools:
-            tool_info = json.loads(tool.description)
-            path = tool_info.get("path", "")
-
-            # Create a resource identifier from the path
-            resource_id = _path_to_resource_id(path)
-
-            registry[resource_id] = {
-                "path": path,
-                "summary": tool_info.get("summary", ""),
-                "description": tool_info.get("description", ""),
-                "parameters": tool_info.get("parameters", []),
-                "response": tool_info.get("response", {}),
-            }
+        registry: dict[str, dict[str, Any]] = {_path_to_resource_id(endpoint["path"]): endpoint for endpoint in parser.extract_get_endpoints(spec)}
 
         # Cache the registry
         _endpoint_registries[api_base_url] = registry

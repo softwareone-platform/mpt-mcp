@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-import json
 import sys
 from typing import Any
 
@@ -19,8 +18,6 @@ from .mcp_tools import (
 from .openapi_parser import OpenAPIParser
 
 mcp = FastMCP("softwareone-marketplace")
-
-# FastMCP 3.0 exposes list_tools() and list_resources() natively; no compat layer needed.
 
 api_client: APIClient | None = None
 endpoints_registry: dict[str, dict[str, Any]] = {}
@@ -67,20 +64,13 @@ async def initialize_server(force_refresh: bool = False):
 
         spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh)
 
-        tools = openapi_parser.extract_get_endpoints(spec)
-
         openapi_spec = spec
 
-        for tool in tools:
-            tool_info = json.loads(tool.description)
-            path = tool_info.get("path", "")
-
-            resource_id = _path_to_resource_id(path)
-
-            endpoints_registry[resource_id] = {
-                "path": path,
-                "summary": tool_info.get("summary", ""),
-                "parameters": tool_info.get("parameters", []),
+        for endpoint in openapi_parser.extract_get_endpoints(spec):
+            endpoints_registry[_path_to_resource_id(endpoint["path"])] = {
+                "path": endpoint["path"],
+                "summary": endpoint["summary"],
+                "parameters": endpoint["parameters"],
             }
 
         log(f"✓ Discovered {len(endpoints_registry)} GET endpoints")
