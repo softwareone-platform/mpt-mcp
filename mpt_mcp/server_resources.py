@@ -1,6 +1,6 @@
 import json
-from typing import Any
 
+from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 
 from mpt_mcp import endpoint_registry, server_docs
@@ -71,7 +71,7 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
     return json.dumps(spec_with_metadata, indent=2)
 
 
-def register_http_resources(mcp: Any) -> None:
+def register_http_resources(mcp: FastMCP) -> None:
     """Register the OpenAPI spec and documentation resources of the HTTP server."""
     mcp.resource(
         "api://openapi.json",

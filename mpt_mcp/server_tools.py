@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 
 from mpt_mcp import (
@@ -79,7 +80,7 @@ async def marketplace_docs_list(
     return result
 
 
-def register_http_tools(mcp):
+def register_http_tools(mcp: FastMCP) -> None:
     """Register the Marketplace and documentation tools of the HTTP server."""
 
     @mcp.tool()

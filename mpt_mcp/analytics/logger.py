@@ -50,11 +50,11 @@ class AnalyticsLogger:
         self.engine: AsyncEngine | None = None
         self.enabled = bool(database_url)
         self._event_queue: list[dict[str, Any]] = []
-        self._flush_task: asyncio.Task | None = None
+        self._flush_task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
         self.server_version = "1.0.0"
 
-    async def initialize(self):
+    async def initialize(self) -> None:
         """Initialize database connection and start background flush task."""
         if not self.enabled:
             logger.info("📊 Analytics disabled (no database URL configured)")
@@ -78,7 +78,7 @@ class AnalyticsLogger:
             logger.exception("❌ Failed to initialize analytics")
             self.enabled = False
 
-    async def close(self):
+    async def close(self) -> None:
         """Close database connection and flush remaining events."""
         if self._flush_task:
             self._flush_task.cancel()
@@ -92,7 +92,7 @@ class AnalyticsLogger:
             await self.engine.dispose()
             logger.info("📊 Analytics logger closed")
 
-    async def _background_flush(self):
+    async def _background_flush(self) -> None:
         """Background task that periodically flushes events to database."""
         while True:
             try:
@@ -140,7 +140,7 @@ class AnalyticsLogger:
             "client_ip": event.get("client_ip"),
         }
 
-    async def flush(self):
+    async def flush(self) -> None:
         """Flush all pending events to database."""
         if not self.enabled or not self.engine:
             return
@@ -161,7 +161,7 @@ class AnalyticsLogger:
             # Don't put events back in queue to avoid infinite retry loop
             logger.debug("Sample event: %s", events_to_insert[0] if events_to_insert else "None")
 
-    async def _queue_event(self, event: dict[str, Any]):
+    async def _queue_event(self, event: dict[str, Any]) -> None:
         """Add event to queue and flush if batch size reached."""
         if not self.enabled:
             return
@@ -200,7 +200,7 @@ class AnalyticsLogger:
         error_type: str | None = None,
         error_message: str | None = None,
         server_type: str = "http",
-    ):
+    ) -> None:
         """
         Log a tool call event.
 
@@ -255,7 +255,7 @@ class AnalyticsLogger:
         select_fields: str | None = None,
         tool_name: str | None = None,
         server_type: str = "http",
-    ):
+    ) -> None:
         """
         Log an API query event.
 
@@ -319,7 +319,7 @@ class AnalyticsLogger:
         success: bool = True,
         error_message: str | None = None,
         server_type: str = "http",
-    ):
+    ) -> None:
         """
         Log a resource read event (e.g., documentation access).
 
@@ -410,7 +410,7 @@ class AnalyticsLogger:
         client_info: str | None = None,
         session_id: str | None = None,
         client_ip: str | None = None,
-    ):
+    ) -> None:
         """
         Set context variables for analytics tracking.
 
@@ -446,7 +446,7 @@ def get_analytics_logger() -> AnalyticsLogger | None:
     return _analytics_logger
 
 
-async def initialize_analytics(database_url: str | None = None, **kwargs) -> AnalyticsLogger:
+async def initialize_analytics(database_url: str | None = None, **kwargs: Any) -> AnalyticsLogger:
     """
     Initialize global analytics logger.
 

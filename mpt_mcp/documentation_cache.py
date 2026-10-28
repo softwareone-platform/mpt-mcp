@@ -105,14 +105,14 @@ class DocumentationCache:
         finally:
             self._is_refreshing = False
 
-    def _build_resource_index(self):
+    def _build_resource_index(self) -> None:
         """Build an index of resources from the content for fast lookups."""
         self._resources.clear()
 
         if not self._space_content:
             return
 
-        def index_page(page):
+        def index_page(page: Any) -> None:
             """Recursively index a page and its children."""
             if not isinstance(page, dict):
                 return
@@ -154,7 +154,7 @@ class DocumentationCache:
 
         logger.info("📇 Built resource index with %s entries", len(self._resources))
 
-    async def ensure_cached(self):
+    async def ensure_cached(self) -> None:
         """Ensure cache is populated, refresh if needed."""
         if not self.is_enabled:
             return
@@ -260,7 +260,7 @@ class DocumentationCache:
             logger.exception("❌ Failed to fetch resource %s", uri)
             return f"Error fetching content: {error!s}"
 
-    def _extract_text_from_document(self, document: dict) -> str:
+    def _extract_text_from_document(self, document: dict[str, Any]) -> str:
         """
         Extract text from GitBook document structure.
 
@@ -272,9 +272,9 @@ class DocumentationCache:
         Returns:
             Extracted text content
         """
-        text_parts = []
+        text_parts: list[str] = []
 
-        def extract_from_node(node):
+        def extract_from_node(node: Any) -> None:
             """Recursively extract text from a node."""
             if not isinstance(node, dict):
                 return
@@ -324,7 +324,9 @@ class DocumentationCache:
         """
         await self.ensure_cached()
 
-        sections = defaultdict(lambda: {"subsections": defaultdict(int), "total": 0})
+        sections: defaultdict[str, dict[str, Any]] = defaultdict(
+            lambda: {"subsections": defaultdict(int), "total": 0}
+        )
 
         for uri in self._resources:
             path = uri.replace("docs://", "")

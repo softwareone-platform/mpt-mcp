@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import logging
+from typing import Any
 
 import httpx
 import jwt
@@ -54,13 +55,13 @@ class TokenValidationCache:
         """
         self.ttl = dt.timedelta(minutes=ttl_minutes)
         # SECURITY: Keys are SHA256 hashes of token+endpoint, not raw tokens
-        self._cache: dict[str, tuple[bool, dt.datetime, dict | None]] = {}
+        self._cache: dict[str, tuple[bool, dt.datetime, dict[str, Any] | None]] = {}
         self._lock = asyncio.Lock()
         logger.info(
             "🔐 Token validation cache initialized (TTL: %sm, secure hash keys)", ttl_minutes
         )
 
-    async def get(self, token: str, api_base_url: str) -> tuple[bool, dict | None] | None:
+    async def get(self, token: str, api_base_url: str) -> tuple[bool, dict[str, Any] | None] | None:
         """
         Get cached validation result for a token.
 
@@ -89,8 +90,13 @@ class TokenValidationCache:
             return None
 
     async def set(
-        self, token: str, api_base_url: str, *, is_valid: bool, token_info: dict | None = None
-    ):
+        self,
+        token: str,
+        api_base_url: str,
+        *,
+        is_valid: bool,
+        token_info: dict[str, Any] | None = None,
+    ) -> None:
         """
         Cache validation result for a token.
 
@@ -109,7 +115,7 @@ class TokenValidationCache:
                 "💾 Cached token validation (valid=%s, expires in %ss)", is_valid, self.ttl.seconds
             )
 
-    async def invalidate(self, token: str, api_base_url: str):
+    async def invalidate(self, token: str, api_base_url: str) -> None:
         """
         Invalidate a specific token in the cache.
 
@@ -124,13 +130,13 @@ class TokenValidationCache:
                 del self._cache[cache_key]
                 logger.debug("🗑️  Invalidated token from cache")
 
-    async def clear(self):
+    async def clear(self) -> None:
         """Clear all cached validations."""
         async with self._lock:
             self._cache.clear()
             logger.info("🗑️  Cleared all token validation cache")
 
-    def get_stats(self) -> dict:
+    def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         now = dt.datetime.now()
         valid_count = sum(1 for _, expiry, _ in self._cache.values() if expiry > now)
@@ -159,12 +165,12 @@ def get_token_cache(ttl_minutes: int = 10) -> TokenValidationCache:
 
 
 # JWKS cache for JWT signature verification (url -> (jwks_dict, expiry))
-_jwks_cache: dict[str, tuple[dict, dt.datetime]] = {}
+_jwks_cache: dict[str, tuple[dict[str, Any], dt.datetime]] = {}
 _jwks_cache_ttl = dt.timedelta(minutes=60)
 _jwks_lock = asyncio.Lock()
 
 
-async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
+async def _fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
     """
     Fetch JWKS from URL with in-memory cache (TTL 1 hour).
 
@@ -199,7 +205,7 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
     return jwks_dict
 
 
-def _extract_claims_from_payload(payload: dict) -> tuple[str | None, str | None]:
+def _extract_claims_from_payload(payload: dict[str, Any]) -> tuple[str | None, str | None]:
     """Extract userId and accountId from SoftwareOne JWT payload."""
     raw_user_id = payload.get("https://claims.softwareone.com/userId")
     user_id = (
@@ -216,7 +222,7 @@ def _extract_claims_from_payload(payload: dict) -> tuple[str | None, str | None]
     return (user_id, account_id)
 
 
-def _get_signing_keys(token: str, jwks_dict: dict) -> list[jwt.PyJWK]:
+def _get_signing_keys(token: str, jwks_dict: dict[str, Any]) -> list[jwt.PyJWK]:
     """
     Select the JWKS keys that may have signed the token.
 
@@ -236,7 +242,9 @@ def _get_signing_keys(token: str, jwks_dict: dict) -> list[jwt.PyJWK]:
         raise jwt.InvalidKeyError(f"No JWKS key matches kid {kid!r}") from None
 
 
-async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict | None, str | None]:
+async def _verify_jwt_and_get_payload(
+    token: str, jwks_url: str
+) -> tuple[dict[str, Any] | None, str | None]:
     """
     Verify JWT signature using JWKS and return the payload.
 
@@ -380,7 +388,7 @@ def normalize_token(token: str) -> str:
 
 async def validate_token(
     token: str, api_base_url: str, *, use_cache: bool = True
-) -> tuple[bool, dict | None, str | None]:
+) -> tuple[bool, dict[str, Any] | None, str | None]:
     """
     Validate an API token against the Marketplace Platform.
 

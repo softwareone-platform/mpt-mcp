@@ -4,6 +4,7 @@ import os
 import pathlib
 import sys
 import warnings
+from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
 
 import uvicorn
@@ -13,11 +14,13 @@ from fastmcp.resources import FunctionResource
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
 from starlette.responses import JSONResponse
+from starlette.types import ASGIApp, Receive, Scope, Send
 
 from alembic import command
 from mpt_mcp import server_docs
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
+from mpt_mcp.documentation_cache import DocumentationCache
 from mpt_mcp.log_config import configure_logging
 from mpt_mcp.server_middleware import RequestContextMiddleware
 from mpt_mcp.server_resources import register_http_resources
@@ -45,7 +48,7 @@ register_http_tools(mcp)
 register_http_resources(mcp)
 
 
-async def _create_app():
+async def _create_app() -> ASGIApp:
     """
     Build the ASGI app (init + middleware).
 
@@ -64,7 +67,9 @@ async def _create_app():
                 name = doc.get("name") or (doc.get("metadata") or {}).get("title", uri)
                 description = doc.get("description") or f"Documentation: {name}"
 
-                def _make_reader(cache, resource_uri: str):
+                def _make_reader(
+                    cache: DocumentationCache, resource_uri: str
+                ) -> Callable[[], Awaitable[str]]:
                     async def _doc_reader() -> str:
                         page_content = await cache.get_resource(resource_uri)
                         return page_content or ""
@@ -128,10 +133,10 @@ async def _create_app():
     starlette_app.add_exception_handler(HTTPException, _http_exception_handler)
 
     class HealthCheckMiddleware:
-        def __init__(self, app):
+        def __init__(self, app: ASGIApp) -> None:
             self.app = app
 
-        async def __call__(self, scope, receive, send):
+        async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
             if scope["type"] == "http":
                 request = Request(scope, receive)
                 # Accept POST /mcp/ (trailing slash) by rewriting to /mcp so path matches FastMCP
@@ -174,7 +179,7 @@ async def _create_app():
     return final_app
 
 
-def _build_app():
+def _build_app() -> ASGIApp:
     """
     Build the app once.
 
@@ -193,7 +198,7 @@ def _build_app():
 app = _build_app()
 
 
-def run_migrations():
+def run_migrations() -> None:
     """Apply the analytics database migrations when analytics is configured."""
     if not config.analytics_database_url:
         logger.info("⏩ Skipping migrations (analytics not configured)")
@@ -216,7 +221,7 @@ def run_migrations():
         logger.info("   Server will continue, but analytics may not work correctly")
 
 
-def _run_uvicorn():
+def _run_uvicorn() -> None:
     """Run uvicorn; use import string so reload works in dev."""
     enable_reload = os.getenv("DEBUG", "false").lower() == "true"
     reload_dirs = ["mpt_mcp", "config", "alembic"] if enable_reload else None
@@ -239,7 +244,7 @@ def _run_uvicorn():
     )
 
 
-def main():
+def main() -> None:
     """Run the HTTP server: print the startup banner, apply migrations and start uvicorn."""
     try:
         logger.info("=" * 60)

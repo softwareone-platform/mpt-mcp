@@ -613,7 +613,7 @@ def execute_marketplace_resources(
         Detailed resource catalog organized by category
     """
     # Build enhanced categories with more metadata
-    categories = {}
+    categories: dict[str, list[dict[str, Any]]] = {}
     for resource_name, endpoint_info in endpoints_registry.items():
         category = resource_name.split(".")[0]
         if category not in categories:
@@ -775,7 +775,7 @@ def execute_marketplace_resource_info(
             enum_fields[param_name] = param_schema["enum"]
 
     # Find related resources (children and siblings)
-    related_resources = {"children": [], "parent": None, "siblings": []}
+    related_resources: dict[str, Any] = {"children": [], "parent": None, "siblings": []}
 
     resource_path = endpoint_info["path"]
     for other_resource, other_info in endpoints_registry.items():

@@ -12,7 +12,7 @@ _docs_cache_initialized: bool = False
 _docs_cache_init_pid: int | None = None
 
 
-async def initialize_documentation_cache():
+async def initialize_documentation_cache() -> None:
     """Create the documentation cache once per process, from GitBook when it is configured."""
     global documentation_cache, _docs_cache_initialized, _docs_cache_init_pid
     current_pid = os.getpid()
