@@ -26,10 +26,7 @@ def make_request():
 
 @pytest.fixture
 def capture_log_context():
-    async def _capture_log_context(context):
-        return (current_user_id.get(), current_session_id.get())
-
-    return _capture_log_context
+    return AsyncMock(side_effect=lambda context: (current_user_id.get(), current_session_id.get()))
 
 
 async def test_on_request_sets_log_context_during_call(make_request, capture_log_context):

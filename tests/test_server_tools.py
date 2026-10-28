@@ -472,7 +472,7 @@ def docs_cache(monkeypatch):
             "enabled": True,
         }
 
-        async def install_cache():
+        def install_cache():
             server_docs.documentation_cache = cache
 
         # Tools must read the cache that initialize_documentation_cache sets, not a stale import

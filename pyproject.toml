@@ -87,7 +87,7 @@ extend-ignore = [
   "WPS232",  # 6
   "WPS234",  # 2
   "WPS235",  # 1
-  "WPS237",  # 8
+  "WPS237",  # 7
   "WPS239",  # 1
   "WPS328",  # 1
   "WPS336",  # 5
@@ -97,7 +97,7 @@ extend-ignore = [
   "WPS410",  # 2
   "WPS420",  # 9
   "WPS421",  # 1
-  "WPS430",  # 31
+  "WPS430",  # 30
   "WPS431",  # 2
   "WPS432",  # 89
   "WPS441",  # 12
@@ -212,7 +212,7 @@ ignore = [
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 18
     "try-consider-else",  # 11
-    "unused-async",  # 13
+    "unused-async",  # 5
 ]
 external = [ "AAA", "WPS" ]
 # The ℹ️ (information source) emoji is used on purpose in log messages

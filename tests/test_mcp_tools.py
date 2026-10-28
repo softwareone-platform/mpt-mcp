@@ -1,10 +1,10 @@
 import logging
-import re
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 from httpx import HTTPStatusError, Request, Response
 
+from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
     execute_marketplace_resource_info,
@@ -547,33 +547,28 @@ async def test_creates_select_with_audit_when_no_select_provided_exact(
     assert select_value == "id,audit", f"select should be 'id,audit', but got '{select_value}'"
 
 
-@pytest.mark.asyncio
-async def test_audit_pattern_matches_all_audit_field_types():
-    pattern = re.compile(r"audit\.(created|updated|completed|processing|quoted)\.(at|by)")
-
-    test_cases = [
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
         ("audit.created.at", True),
         ("audit.updated.at", True),
         ("audit.completed.at", True),
         ("audit.processing.at", True),
         ("audit.quoted.at", True),
+        ("audit.failed.at", True),
         ("audit.created.by", True),
-        ("audit.updated.by", True),
-        ("audit.completed.by", True),
-        ("audit.processing.by", True),
         ("audit.quoted.by", True),
-        ("audit.created.by.id", True),  # Should match the prefix
+        ("audit.created.by.id", True),  # matches the prefix
         ("status", False),
         ("created.at", False),
         ("audit.status", False),
         ("audit.created", False),
-    ]
+    ],
+)
+def test_fallback_audit_regex_matches_audit_fields(field, expected):
+    result = FALLBACK_STATIC_REGEX.search(field) is not None
 
-    for field, should_match in test_cases:
-        match = pattern.search(field)
-        assert (match is not None) == should_match, (
-            f"Pattern should {'match' if should_match else 'not match'} '{field}'"
-        )
+    assert result is expected
 
 
 @pytest.mark.asyncio
@@ -991,8 +986,7 @@ async def test_select_without_openapi_spec_adds_id(api_client, endpoints_registr
     assert "status" in params["select"]
 
 
-@pytest.mark.asyncio
-async def test_marketplace_resource_info_includes_omitted_fields_note(endpoints_registry):
+def test_marketplace_resource_info_includes_omitted_fields_note(endpoints_registry):
     result = execute_marketplace_resource_info(
         resource="commerce.orders",
         endpoints_registry=endpoints_registry,
@@ -1005,8 +999,7 @@ async def test_marketplace_resource_info_includes_omitted_fields_note(endpoints_
     assert "select=+field" in result["omitted_fields_note"]
 
 
-@pytest.mark.asyncio
-async def test_marketplace_resource_info_select_param_documents_omitted_fields(endpoints_registry):
+def test_marketplace_resource_info_select_param_documents_omitted_fields(endpoints_registry):
     result = execute_marketplace_resource_info(
         resource="commerce.orders",
         endpoints_registry=endpoints_registry,
@@ -1019,8 +1012,7 @@ async def test_marketplace_resource_info_select_param_documents_omitted_fields(e
     assert "select=+field" in select_doc or "+field" in select_doc
 
 
-@pytest.mark.asyncio
-async def test_marketplace_resources_tips_mention_omitted_fields():
+def test_marketplace_resources_tips_mention_omitted_fields():
     mock_registry = {
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
@@ -1044,8 +1036,7 @@ async def test_marketplace_resources_tips_mention_omitted_fields():
     assert "select=+field" in field_selection_tip or "+field" in field_selection_tip
 
 
-@pytest.mark.asyncio
-async def test_marketplace_resource_info_handles_unknown_resource(endpoints_registry):
+def test_marketplace_resource_info_handles_unknown_resource(endpoints_registry):
     result = execute_marketplace_resource_info(
         resource="unknown.resource",
         endpoints_registry=endpoints_registry,

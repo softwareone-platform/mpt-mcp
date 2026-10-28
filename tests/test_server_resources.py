@@ -107,7 +107,7 @@ def docs_cache(monkeypatch):
         cache = Mock(is_enabled=True)
         cache.get_resource = AsyncMock(side_effect=content_by_uri.get)
 
-        async def install_cache():
+        def install_cache():
             server_docs.documentation_cache = cache
 
         # The resource must read the cache that initialize_documentation_cache sets, not a stale
