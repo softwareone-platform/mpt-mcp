@@ -786,7 +786,9 @@ def execute_marketplace_resource_info(
             enum_fields[param_name] = param_schema["enum"]
 
     # Find related resources (children and siblings)
-    related_resources: dict[str, Any] = {"children": [], "parent": None, "siblings": []}
+    children: list[dict[str, Any]] = []
+    parent: dict[str, Any] | None = None
+    siblings: list[dict[str, Any]] = []
 
     resource_path = endpoint_info["path"]
     for other_resource, other_info in endpoints_registry.items():
@@ -797,7 +799,7 @@ def execute_marketplace_resource_info(
 
         # Child resources: start with current path and go deeper
         if other_path.startswith(f"{resource_path}/") and other_resource.startswith(f"{resource}."):
-            related_resources["children"].append({
+            children.append({
                 "resource": other_resource,
                 "summary": other_info["summary"],
             })
@@ -806,11 +808,9 @@ def execute_marketplace_resource_info(
         is_parent = resource_path.startswith(f"{other_path}/") and resource.startswith(
             f"{other_resource}."
         )
-        if is_parent and (
-            not related_resources["parent"]
-            or len(other_path) > len(related_resources["parent"]["path"])
-        ):
-            related_resources["parent"] = {
+        is_closer_parent = not parent or len(other_path) > len(parent["path"])
+        if is_parent and is_closer_parent:
+            parent = {
                 "resource": other_resource,
                 "summary": other_info["summary"],
                 "path": other_path,
@@ -830,18 +830,14 @@ def execute_marketplace_resource_info(
             and len(resource_parts) == len(other_parts)
             and other_resource != resource
         ):
-            related_resources["siblings"].append({
+            siblings.append({
                 "resource": other_resource,
                 "summary": other_info["summary"],
             })
 
-    # Limit siblings to top 5 most relevant
-    if len(related_resources["siblings"]) > 5:
-        related_resources["siblings"] = related_resources["siblings"][:5]
-
-    # Limit children to top 10 most common
-    if len(related_resources["children"]) > 10:
-        related_resources["children"] = related_resources["children"][:10]
+    # Limit siblings to top 5 most relevant and children to top 10 most common
+    siblings = siblings[:5]
+    children = children[:10]
 
     # Build query examples
     examples = [f"marketplace_query(resource='{resource}', limit=10)"]
@@ -904,18 +900,15 @@ def execute_marketplace_resource_info(
         result["path_params_required"] = f"This resource requires path parameters: {param_list}"
 
     # Add related resources if found
-    if (
-        related_resources["parent"]
-        or related_resources["children"]
-        or related_resources["siblings"]
-    ):
-        result["related_resources"] = {}
-        if related_resources["parent"]:
-            result["related_resources"]["parent"] = related_resources["parent"]
-        if related_resources["children"]:
-            result["related_resources"]["children"] = related_resources["children"]
-        if related_resources["siblings"]:
-            result["related_resources"]["similar"] = related_resources["siblings"]
+    related_resources: dict[str, Any] = {}
+    if parent:
+        related_resources["parent"] = parent
+    if children:
+        related_resources["children"] = children
+    if siblings:
+        related_resources["similar"] = siblings
+    if related_resources:
+        result["related_resources"] = related_resources
 
     return result
 

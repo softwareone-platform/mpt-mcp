@@ -35,6 +35,22 @@ def mock_gitbook_client():
     return client
 
 
+@pytest.fixture
+def cache(mock_gitbook_client):
+    return DocumentationCache(gitbook_client=mock_gitbook_client)
+
+
+@pytest.fixture
+def cache_with_pages(mock_gitbook_client):
+    async def _cache_with_pages(pages, **cache_args):
+        mock_gitbook_client.fetch_space_content.return_value = {"pages": pages}
+        cache = DocumentationCache(gitbook_client=mock_gitbook_client, **cache_args)
+        await cache.refresh()
+        return cache
+
+    return _cache_with_pages
+
+
 def test_cache_initialization_with_client(mock_gitbook_client):
     result = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=24)
 
@@ -54,8 +70,7 @@ def test_needs_refresh_when_empty(mock_gitbook_client):
     assert result.needs_refresh is True
 
 
-async def test_refresh_success(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+async def test_refresh_success(cache):
 
     success = await cache.refresh()
 
@@ -64,8 +79,7 @@ async def test_refresh_success(mock_gitbook_client):
     assert cache_info["last_refresh"] is not None
 
 
-async def test_refresh_builds_resource_index(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+async def test_refresh_builds_resource_index(cache):
 
     await cache.refresh()
 
@@ -77,41 +91,35 @@ async def test_refresh_builds_resource_index(mock_gitbook_client):
     ) == ("Getting Started", "text/markdown")
 
 
-async def test_refresh_indexes_nested_pages():
+async def test_refresh_indexes_nested_pages(cache_with_pages):
     # Mock client with nested page structure
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Getting Started",
-                    "path": "getting-started",
-                    "pages": [
-                        {
-                            "id": "page1-1",
-                            "title": "Installation",
-                            "path": "getting-started/installation",
-                        },
-                        {
-                            "id": "page1-2",
-                            "title": "Configuration",
-                            "path": "getting-started/configuration",
-                        },
-                    ],
-                },
-                {
-                    "id": "page2",
-                    "title": "API Reference",
-                    "path": "api-reference",
-                    "pages": [{"id": "page2-1", "title": "Orders", "path": "api-reference/orders"}],
-                },
-            ]
-        }
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Getting Started",
+                "path": "getting-started",
+                "pages": [
+                    {
+                        "id": "page1-1",
+                        "title": "Installation",
+                        "path": "getting-started/installation",
+                    },
+                    {
+                        "id": "page1-2",
+                        "title": "Configuration",
+                        "path": "getting-started/configuration",
+                    },
+                ],
+            },
+            {
+                "id": "page2",
+                "title": "API Reference",
+                "path": "api-reference",
+                "pages": [{"id": "page2-1", "title": "Orders", "path": "api-reference/orders"}],
+            },
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     result = {resource["uri"] for resource in await cache.list_resources()}
 
@@ -132,8 +140,7 @@ async def test_refresh_disabled_cache():
     assert success is False
 
 
-async def test_list_resources(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+async def test_list_resources(cache):
     await cache.refresh()
 
     resources = await cache.list_resources()
@@ -142,28 +149,22 @@ async def test_list_resources(mock_gitbook_client):
     assert any(resource["uri"] == "docs://getting-started" for resource in resources)
 
 
-async def test_list_resources_with_section_filter():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Orders API",
-                    "path": "developer-resources/rest-api/orders",
-                },
-                {
-                    "id": "page2",
-                    "title": "Billing API",
-                    "path": "developer-resources/rest-api/billing",
-                },
-                {"id": "page3", "title": "FAQ", "path": "help-and-support/faqs"},
-            ]
-        }
+async def test_list_resources_with_section_filter(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Orders API",
+                "path": "developer-resources/rest-api/orders",
+            },
+            {
+                "id": "page2",
+                "title": "Billing API",
+                "path": "developer-resources/rest-api/billing",
+            },
+            {"id": "page3", "title": "FAQ", "path": "help-and-support/faqs"},
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     # Filter by developer-resources section
     resources = await cache.list_resources(section="developer-resources")
@@ -172,32 +173,26 @@ async def test_list_resources_with_section_filter():
     assert all("developer-resources" in resource["uri"] for resource in resources)
 
 
-async def test_list_resources_with_subsection_filter():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Orders API",
-                    "path": "developer-resources/rest-api/orders",
-                },
-                {
-                    "id": "page2",
-                    "title": "Billing API",
-                    "path": "developer-resources/rest-api/billing",
-                },
-                {
-                    "id": "page3",
-                    "title": "Design System",
-                    "path": "developer-resources/design-system/colors",
-                },
-            ]
-        }
+async def test_list_resources_with_subsection_filter(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Orders API",
+                "path": "developer-resources/rest-api/orders",
+            },
+            {
+                "id": "page2",
+                "title": "Billing API",
+                "path": "developer-resources/rest-api/billing",
+            },
+            {
+                "id": "page3",
+                "title": "Design System",
+                "path": "developer-resources/design-system/colors",
+            },
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     # Filter by rest-api subsection
     resources = await cache.list_resources(subsection="rest-api")
@@ -206,24 +201,18 @@ async def test_list_resources_with_subsection_filter():
     assert all("rest-api" in resource["uri"] for resource in resources)
 
 
-async def test_list_resources_with_search():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Billing Overview",
-                    "path": "modules/billing/overview",
-                },
-                {"id": "page2", "title": "Invoices", "path": "modules/billing/invoices"},
-                {"id": "page3", "title": "Orders", "path": "modules/commerce/orders"},
-            ]
-        }
+async def test_list_resources_with_search(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Billing Overview",
+                "path": "modules/billing/overview",
+            },
+            {"id": "page2", "title": "Invoices", "path": "modules/billing/invoices"},
+            {"id": "page3", "title": "Orders", "path": "modules/commerce/orders"},
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     # Search for "billing"
     resources = await cache.list_resources(search="billing")
@@ -233,19 +222,13 @@ async def test_list_resources_with_search():
     assert all("billing" in text for text in searched_texts)
 
 
-async def test_list_resources_with_limit():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {"id": f"page{index}", "title": f"Page {index}", "path": f"section/page-{index}"}
-                for index in range(10)
-            ]
-        }
+async def test_list_resources_with_limit(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {"id": f"page{index}", "title": f"Page {index}", "path": f"section/page-{index}"}
+            for index in range(10)
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     # Limit to 5 results
     resources = await cache.list_resources(limit=5)
@@ -253,32 +236,26 @@ async def test_list_resources_with_limit():
     assert len(resources) == 5
 
 
-async def test_list_resources_combined_filters():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Billing API",
-                    "path": "developer-resources/rest-api/billing",
-                },
-                {
-                    "id": "page2",
-                    "title": "Orders API",
-                    "path": "developer-resources/rest-api/orders",
-                },
-                {
-                    "id": "page3",
-                    "title": "Billing FAQ",
-                    "path": "help-and-support/faqs/billing",
-                },
-            ]
-        }
+async def test_list_resources_combined_filters(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Billing API",
+                "path": "developer-resources/rest-api/billing",
+            },
+            {
+                "id": "page2",
+                "title": "Orders API",
+                "path": "developer-resources/rest-api/orders",
+            },
+            {
+                "id": "page3",
+                "title": "Billing FAQ",
+                "path": "help-and-support/faqs/billing",
+            },
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     # Filter by section AND search for "billing"
     resources = await cache.list_resources(section="developer-resources", search="billing")
@@ -287,70 +264,47 @@ async def test_list_resources_combined_filters():
     assert resources[0]["name"] == "Billing API"
 
 
-async def test_list_resources_with_public_url():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Contact Support",
-                    "path": "help-and-support/contact-support",
-                },
-                {"id": "page2", "title": "Billing", "path": "developer-resources/billing"},
-            ]
-        }
-    )
-    cache = DocumentationCache(
-        gitbook_client=client,
+async def test_list_resources_with_public_url(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Contact Support",
+                "path": "help-and-support/contact-support",
+            },
+            {"id": "page2", "title": "Billing", "path": "developer-resources/billing"},
+        ],
         public_url="https://docs.example.com",
     )
-    await cache.refresh()
 
     resources = await cache.list_resources()
 
-    assert len(resources) == 2
-    for resource in resources:
-        assert "metadata" in resource
-        assert "browser_url" in resource["metadata"], (
-            f"Expected metadata.browser_url for {resource['uri']}"
-        )
-    uris_to_browser_url = {
-        resource["uri"]: resource["metadata"]["browser_url"] for resource in resources
+    browser_urls = {resource["uri"]: resource["metadata"]["browser_url"] for resource in resources}
+    assert browser_urls == {
+        "docs://help-and-support/contact-support": (
+            "https://docs.example.com/help-and-support/contact-support"
+        ),
+        "docs://developer-resources/billing": "https://docs.example.com/developer-resources/billing",
     }
-    assert (
-        uris_to_browser_url.get("docs://help-and-support/contact-support")
-        == "https://docs.example.com/help-and-support/contact-support"
-    )
-    assert (
-        uris_to_browser_url.get("docs://developer-resources/billing")
-        == "https://docs.example.com/developer-resources/billing"
-    )
 
 
-async def test_get_documentation_index():
-    client = Mock(spec=GitBookClient)
-    client.fetch_space_content = AsyncMock(
-        return_value={
-            "pages": [
-                {
-                    "id": "page1",
-                    "title": "Orders API",
-                    "path": "developer-resources/rest-api/orders",
-                },
-                {
-                    "id": "page2",
-                    "title": "Billing API",
-                    "path": "developer-resources/rest-api/billing",
-                },
-                {"id": "page3", "title": "FAQ", "path": "help-and-support/faqs/general"},
-                {"id": "page4", "title": "Contact", "path": "help-and-support/contact-support"},
-            ]
-        }
+async def test_get_documentation_index(cache_with_pages):
+    cache = await cache_with_pages(
+        [
+            {
+                "id": "page1",
+                "title": "Orders API",
+                "path": "developer-resources/rest-api/orders",
+            },
+            {
+                "id": "page2",
+                "title": "Billing API",
+                "path": "developer-resources/rest-api/billing",
+            },
+            {"id": "page3", "title": "FAQ", "path": "help-and-support/faqs/general"},
+            {"id": "page4", "title": "Contact", "path": "help-and-support/contact-support"},
+        ],
     )
-
-    cache = DocumentationCache(gitbook_client=client)
-    await cache.refresh()
 
     index = await cache.get_documentation_index()
 
@@ -374,8 +328,7 @@ async def test_get_documentation_index():
     assert len(help_section["subsections"]) == 2
 
 
-async def test_get_resource_success(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+async def test_get_resource_success(cache):
     await cache.refresh()
 
     page_content = await cache.get_resource("docs://getting-started")
@@ -384,8 +337,7 @@ async def test_get_resource_success(mock_gitbook_client):
     assert "Getting Started" in page_content
 
 
-async def test_get_resource_not_found(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+async def test_get_resource_not_found(cache):
     await cache.refresh()
 
     page_content = await cache.get_resource("docs://non-existent")
@@ -393,8 +345,7 @@ async def test_get_resource_not_found(mock_gitbook_client):
     assert page_content is None
 
 
-async def test_ensure_cached_refreshes_if_needed(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+async def test_ensure_cached_refreshes_if_needed(cache, mock_gitbook_client):
 
     await cache.ensure_cached()  # act
 
@@ -402,8 +353,7 @@ async def test_ensure_cached_refreshes_if_needed(mock_gitbook_client):
     mock_gitbook_client.fetch_space_content.assert_awaited_once()
 
 
-def test_get_cache_info(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
+def test_get_cache_info(cache):
 
     result = cache.get_cache_info()
 
@@ -437,7 +387,7 @@ async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeyp
     assert result is True
 
 
-async def test_get_resource_without_markdown(mock_gitbook_client):
+async def test_get_resource_without_markdown(cache, mock_gitbook_client):
     document = {
         "nodes": [
             {
@@ -459,7 +409,6 @@ async def test_get_resource_without_markdown(mock_gitbook_client):
     }
 
     mock_gitbook_client.fetch_page_by_id.return_value = {"id": "page1", "document": document}
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)
     await cache.refresh()
 
     result = await cache.get_resource("docs://getting-started")

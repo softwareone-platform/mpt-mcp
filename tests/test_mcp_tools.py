@@ -16,6 +16,23 @@ PRODUCTS_PAGE_SIZE = 10
 
 QUERY_LIMIT = 50
 
+AUDIT_RQL = 'gt(audit.created.at,"2026-01-22T00:00:00Z")'
+
+DATE_RANGE_RQL = (
+    'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),lt(audit.created.at,"2026-01-22T23:59:59Z"))'
+)
+
+QUERY_DEFAULTS = {
+    "resource": "commerce.orders",
+    "rql": "",
+    "limit": 10,
+    "offset": None,
+    "page": None,
+    "select": None,
+    "order": None,
+    "path_params": None,
+}
+
 
 @pytest.fixture
 def api_client():
@@ -64,620 +81,6 @@ def orders_with_audit_response():
     }
 
 
-async def test_adds_audit_filtering_by_created_at(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'gt(audit.created.at,"2026-01-22T00:00:00Z")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    # Verify API was called with select=audit
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
-
-
-async def test_adds_audit_filtering_by_updated_at(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'lt(audit.updated.at,"2026-01-22T23:59:59Z")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
-
-
-async def test_adds_audit_filtering_by_completed_at(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'ge(audit.completed.at,"2026-01-22T00:00:00Z")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
-
-
-async def test_adds_audit_filtering_by_processing_at(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'eq(audit.processing.at,"2026-01-22T10:00:00Z")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
-
-
-async def test_adds_audit_filtering_by_quoted_at(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'lte(audit.quoted.at,"2026-01-22T23:59:59Z")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
-
-
-async def test_adds_audit_filtering_by_failed_at(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'ge(audit.failed.at,"2026-01-22T00:00:00Z")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), (
-        "select parameter should include 'audit' for audit.failed.at"
-    )
-
-
-async def test_adds_audit_filtering_by_created_by(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = 'eq(audit.created.by.id,"USR-123")'
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
-
-
-async def test_adds_audit_ordering_by_audit_field(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=None,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order="-audit.created.at",
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), (
-        "select parameter should include 'audit' when ordering by audit field"
-    )
-
-
-async def test_adds_audit_ordering_asc_by_audit_field(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=None,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order="+audit.updated.at",
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), (
-        "select parameter should include 'audit' when ordering by audit field"
-    )
-
-
-async def test_skips_audit_when_already_in_select(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select="audit,+id,+name",
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    # Count occurrences of 'audit' - should be exactly 1
-    audit_count = select_value.count("audit")
-    assert audit_count == 1, (
-        f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
-    )
-
-
-async def test_skips_audit_with_plus_prefix(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select="+audit,+id,+name",
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    audit_count = select_value.count("audit")
-    assert audit_count == 1, (
-        f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
-    )
-
-
-async def test_skips_audit_with_dot_notation(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select="+audit.created.at,+id,+name",
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    # Should not have standalone 'audit' added, but audit.created.at should be there
-    assert "audit.created.at" in select_value, "audit.created.at should be in select"
-    # Should not have standalone 'audit' added when audit.field is already present
-    select_parts = [part.strip() for part in select_value.split(",")]
-    standalone_audit = [part for part in select_parts if part in {"audit", "+audit"}]
-    assert len(standalone_audit) == 0, (
-        "standalone 'audit' should not be added when audit.field is already present"
-    )
-
-
-async def test_complex_rql_with_audit_fields(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = (
-        'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),'
-        'lt(audit.created.at,"2026-01-22T23:59:59Z"))'
-    )
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order="-audit.created.at",
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "audit" in query_params.get("select", ""), (
-        "select parameter should include 'audit' for complex RQL with audit fields"
-    )
-
-
-async def test_skips_audit_without_audit_fields(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='eq(status,"Completed")',
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order="-status",
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    assert "audit" not in select_value, (
-        "select parameter should NOT include 'audit' when no audit fields are used"
-    )
-
-
-async def test_appends_audit_to_existing_select(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select="+id,+name,+status",
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    assert "audit" in select_value, "select should include 'audit'"
-    assert "id" in select_value, "select should include id (always added by sanitization)"
-    assert "name" in select_value, "select should still include original fields"
-    assert "status" in select_value, "select should still include original fields"
-
-
-async def test_creates_audit_select_without_select(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    assert "audit" in select_value, "select should include 'audit'"
-    assert "id" in select_value, "select should include id (always added by sanitization)"
-
-
-async def test_creates_exact_audit_select(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    query_params = api_client.get.call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-    assert select_value == "id,audit", f"select should be 'id,audit', but got '{select_value}'"
-
-
-@pytest.mark.parametrize(
-    ("field", "expected"),
-    [
-        ("audit.created.at", True),
-        ("audit.updated.at", True),
-        ("audit.completed.at", True),
-        ("audit.processing.at", True),
-        ("audit.quoted.at", True),
-        ("audit.failed.at", True),
-        ("audit.created.by", True),
-        ("audit.quoted.by", True),
-        ("audit.created.by.id", True),  # matches the prefix
-        ("status", False),
-        ("created.at", False),
-        ("audit.status", False),
-        ("audit.created", False),
-    ],
-)
-def test_fallback_audit_regex_matches_fields(field, expected):
-    result = FALLBACK_STATIC_REGEX.search(field) is not None
-
-    assert result is expected
-
-
-async def test_real_world_date_range_query(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    rql = (
-        'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),'
-        'lt(audit.created.at,"2026-01-22T23:59:59Z"))'
-    )
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=rql,
-        limit=100,
-        offset=None,
-        page=None,
-        select="+id,+product.id,+product.name",
-        order="-audit.created.at",
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-
-    # Should include audit
-    assert "audit" in select_value, "select should include 'audit' for date range queries"
-    # id is always added by sanitization (may appear as 'id' in prefix)
-    assert "id" in select_value
-    assert "+product.id" in select_value or "product.id" in select_value
-    assert "+product.name" in select_value or "product.name" in select_value
-    # Should have correct order
-    assert query_params.get("order") == "-audit.created.at"
-
-
-async def test_real_world_recent_orders_query(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-    api_client.get.return_value = orders_with_audit_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql=None,
-        limit=QUERY_LIMIT,
-        offset=None,
-        page=None,
-        select="+id,+status,+product.name",
-        order="-audit.created.at",
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    select_value = query_params.get("select", "")
-
-    # Should include audit for ordering
-    assert "audit" in select_value, "select should include 'audit' when ordering by audit field"
-    # id and status are always included by sanitization (canonical prefix)
-    assert "id" in select_value
-    assert "status" in select_value
-    assert "+product.name" in select_value or "product.name" in select_value
-
-
-async def test_retries_without_audit_on_bad_request(
-    api_client, orders_with_audit_response, endpoints_registry
-):
-
-    # First call fails with 400, second succeeds
-    error_response = Response(
-        HTTPStatus.BAD_REQUEST,
-        json={"errors": {"select": ["Invalid field"]}},
-        request=Request("GET", "https://api.test.com/test"),
-    )
-    http_error = HTTPStatusError(
-        "400 Bad Request", request=error_response.request, response=error_response
-    )
-
-    success_response = Mock()
-    success_response.json.return_value = orders_with_audit_response
-    success_response.raise_for_status = Mock()
-
-    api_client.get = AsyncMock(side_effect=[http_error, success_response])
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql='gt(audit.created.at,"2026-01-22T00:00:00Z")',
-        limit=10,
-        offset=None,
-        page=None,
-        select="+id,+name",
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        analytics_logger=None,
-        config=None,
-    )
-
-    # Verify API was called twice (first with audit, then retry without)
-    assert api_client.get.call_count == 2, "API should be called twice (initial + retry)"
-
-    # First call should have audit
-    first_call_params = api_client.get.call_args_list[0].kwargs.get("query_params", {})
-    assert "audit" in first_call_params.get("select", ""), "First call should include 'audit'"
-
-    # Second call (retry) should not have audit, but should have original fields
-    second_call_params = api_client.get.call_args_list[1].kwargs.get("query_params", {})
-    assert "audit" not in second_call_params.get("select", ""), "Retry should not include 'audit'"
-    assert "+id" in second_call_params.get("select", ""), "Retry should preserve original fields"
-    assert "+name" in second_call_params.get("select", ""), "Retry should preserve original fields"
-
-
 @pytest.fixture
 def products_page_response():
     return {
@@ -687,184 +90,6 @@ def products_page_response():
         ],
         "$meta": {"pagination": {"total": 100, "limit": 10, "offset": 0}},
     }
-
-
-async def test_applies_default_limit_when_none(
-    api_client, products_page_response, endpoints_registry
-):
-    api_client.get.return_value = products_page_response
-
-    result = await execute_marketplace_query(
-        resource="catalog.products",
-        rql="",
-        limit=None,  # No limit specified
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-    )
-
-    # Verify API was called with limit=10
-    call_args = api_client.get.call_args
-    assert call_args is not None, "API client should have been called"
-
-    # Check that limit=10 was passed in query_params
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "limit" in query_params, "Limit parameter should be present"
-    assert query_params["limit"] == 10, f"Expected limit=10, got limit={query_params.get('limit')}"
-
-    # Verify result
-    assert "data" in result
-    assert "$meta" in result
-
-
-async def test_respects_explicit_limit(api_client, products_page_response, endpoints_registry):
-    api_client.get.return_value = products_page_response
-
-    # Test with limit=50
-    result = await execute_marketplace_query(
-        resource="catalog.products",
-        rql="",
-        limit=QUERY_LIMIT,  # Explicit limit
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-    )
-
-    # Verify API was called with limit=50 (not default 10)
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert query_params["limit"] == QUERY_LIMIT
-
-    # Verify result
-    assert "data" in result
-
-
-async def test_respects_limit_zero(api_client, products_page_response, endpoints_registry):
-    api_client.get.return_value = products_page_response
-
-    result = await execute_marketplace_query(
-        resource="catalog.products",
-        rql="",
-        limit=0,  # Explicit limit=0
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-    )
-
-    # Verify API was called with limit=0 (not default 10)
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert query_params["limit"] == 0, f"Expected limit=0, got limit={query_params.get('limit')}"
-    assert "data" in result
-
-
-async def test_default_limit_with_rql(api_client, products_page_response, endpoints_registry):
-    api_client.get.return_value = products_page_response
-
-    result = await execute_marketplace_query(
-        resource="catalog.products",
-        rql="eq(status,Published)",  # RQL query
-        limit=None,  # No limit specified
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-    )
-
-    # Verify API was called with both RQL and limit=10
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert query_params["rql"] == "eq(status,Published)", "RQL should be preserved"
-    assert query_params["limit"] == 10, "Default limit should be applied"
-    assert "data" in result
-
-
-async def test_default_limit_with_other_params(
-    api_client, products_page_response, endpoints_registry
-):
-    api_client.get.return_value = products_page_response
-
-    result = await execute_marketplace_query(
-        resource="catalog.products",
-        rql="",
-        limit=None,  # No limit specified
-        offset=None,
-        page=None,
-        select="+id,+name",  # Select parameter
-        order="-created",  # Order parameter
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-    )
-
-    # Verify API was called with all parameters including default limit
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert {"id", "name"} <= set(query_params["select"].split(","))
-    assert query_params["order"] == "-created", "Order should be preserved"
-    assert query_params["limit"] == 10, "Default limit should be applied"
-    assert "data" in result
-
-
-async def test_default_limit_logs_message(
-    api_client, products_page_response, endpoints_registry, caplog
-):
-    api_client.get.return_value = products_page_response
-
-    with caplog.at_level(logging.INFO, logger="mpt_mcp.mcp_tools"):
-        await execute_marketplace_query(
-            resource="catalog.products",
-            rql="",
-            limit=None,
-            offset=None,
-            page=None,
-            select=None,
-            order=None,
-            path_params=None,
-            api_client=api_client,
-            endpoints_registry=endpoints_registry,
-        )
-
-    assert "default limit=10" in caplog.text.lower()
-
-
-async def test_catalog_products_default_select(
-    api_client, products_page_response, endpoints_registry
-):
-    api_client.get.return_value = products_page_response
-
-    result = await execute_marketplace_query(
-        resource="catalog.products",
-        rql="",
-        limit=10,
-        offset=None,
-        page=None,
-        select=None,
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-    )
-
-    query_params = api_client.get.call_args.kwargs.get("query_params", {})
-    sel = query_params.get("select") or ""
-    assert {"id", "name", "+shortDescription"} <= set(sel.split(","))
-    assert "data" in result
 
 
 @pytest.fixture
@@ -905,6 +130,221 @@ def openapi_spec():
 
 
 @pytest.fixture
+def send_query(api_client, endpoints_registry, orders_with_audit_response):
+    async def _send_query(response=None, **query_args):
+        api_client.get.return_value = response or orders_with_audit_response
+        await execute_marketplace_query(
+            **{**QUERY_DEFAULTS, **query_args},
+            api_client=api_client,
+            endpoints_registry=endpoints_registry,
+        )
+        return api_client.get.call_args.kwargs["query_params"]
+
+    return _send_query
+
+
+@pytest.fixture
+def send_select(send_query):
+    async def _send_select(**query_args):
+        query_params = await send_query(**query_args)
+        select = query_params.get("select", "")
+        return [part.lstrip("+") for part in select.split(",")] if select else []
+
+    return _send_select
+
+
+@pytest.mark.parametrize(
+    ("rql", "order"),
+    [
+        ('gt(audit.created.at,"2026-01-22T00:00:00Z")', None),
+        ('lt(audit.updated.at,"2026-01-22T23:59:59Z")', None),
+        ('ge(audit.completed.at,"2026-01-22T00:00:00Z")', None),
+        ('eq(audit.processing.at,"2026-01-22T10:00:00Z")', None),
+        ('lte(audit.quoted.at,"2026-01-22T23:59:59Z")', None),
+        ('ge(audit.failed.at,"2026-01-22T00:00:00Z")', None),
+        ('eq(audit.created.by.id,"USR-123")', None),
+        ("", "-audit.created.at"),
+        ("", "+audit.updated.at"),
+        (DATE_RANGE_RQL, "-audit.created.at"),
+    ],
+)
+async def test_adds_audit_to_select_for_audit_fields(send_select, rql, order):
+    result = await send_select(rql=rql, order=order)
+
+    assert "audit" in result
+
+
+@pytest.mark.parametrize("select", ["audit,+id,+name", "+audit,+id,+name"])
+async def test_keeps_single_audit_in_select(send_select, select):
+    result = await send_select(rql=AUDIT_RQL, select=select)
+
+    assert result.count("audit") == 1
+
+
+async def test_skips_audit_with_dot_notation(send_select):
+    result = await send_select(rql=AUDIT_RQL, select="+audit.created.at,+id,+name")
+
+    assert "audit.created.at" in result
+    assert "audit" not in result
+
+
+async def test_skips_audit_without_audit_fields(send_select):
+    result = await send_select(rql='eq(status,"Completed")', order="-status")
+
+    assert "audit" not in result
+
+
+async def test_appends_audit_to_existing_select(send_select):
+    result = await send_select(rql=AUDIT_RQL, select="+id,+name,+status")
+
+    assert {"audit", "id", "name", "status"} <= set(result)
+
+
+async def test_creates_audit_select_without_select(send_query):
+    result = await send_query(rql=AUDIT_RQL)
+
+    assert result["select"] == "id,audit"
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("audit.created.at", True),
+        ("audit.updated.at", True),
+        ("audit.completed.at", True),
+        ("audit.processing.at", True),
+        ("audit.quoted.at", True),
+        ("audit.failed.at", True),
+        ("audit.created.by", True),
+        ("audit.quoted.by", True),
+        ("audit.created.by.id", True),  # matches the prefix
+        ("status", False),
+        ("created.at", False),
+        ("audit.status", False),
+        ("audit.created", False),
+    ],
+)
+def test_fallback_audit_regex_matches_fields(field, expected):
+    result = FALLBACK_STATIC_REGEX.search(field) is not None
+
+    assert result is expected
+
+
+async def test_real_world_date_range_query(send_query):
+    result = await send_query(
+        rql=DATE_RANGE_RQL,
+        limit=100,
+        select="+id,+product.id,+product.name",
+        order="-audit.created.at",
+    )
+
+    select_fields = {part.lstrip("+") for part in result["select"].split(",")}
+    assert {"audit", "id", "product.id", "product.name"} <= select_fields
+    assert result["order"] == "-audit.created.at"
+
+
+async def test_real_world_recent_orders_query(send_select):
+    result = await send_select(
+        limit=QUERY_LIMIT, select="+id,+status,+product.name", order="-audit.created.at"
+    )
+
+    assert {"audit", "id", "status", "product.name"} <= set(result)
+
+
+async def test_retries_without_audit_on_bad_request(
+    api_client, orders_with_audit_response, endpoints_registry
+):
+    error_response = Response(
+        HTTPStatus.BAD_REQUEST,
+        json={"errors": {"select": ["Invalid field"]}},
+        request=Request("GET", "https://api.test.com/test"),
+    )
+    http_error = HTTPStatusError(
+        "400 Bad Request", request=error_response.request, response=error_response
+    )
+    api_client.get = AsyncMock(side_effect=[http_error, orders_with_audit_response])
+
+    await execute_marketplace_query(  # act
+        **{**QUERY_DEFAULTS, "rql": AUDIT_RQL, "select": "+id,+name"},
+        api_client=api_client,
+        endpoints_registry=endpoints_registry,
+    )
+
+    sent_params = [call.kwargs["query_params"] for call in api_client.get.call_args_list]
+    sent_selects = [query_params["select"] for query_params in sent_params]
+    assert "audit" in sent_selects[0]
+    assert "audit" not in sent_selects[1]
+    assert {"+id", "+name"} <= set(sent_selects[1].split(","))
+
+
+async def test_returns_api_response(api_client, products_page_response, endpoints_registry):
+    api_client.get.return_value = products_page_response
+
+    result = await execute_marketplace_query(
+        **{**QUERY_DEFAULTS, "resource": "catalog.products"},
+        api_client=api_client,
+        endpoints_registry=endpoints_registry,
+    )
+
+    assert result["data"] == products_page_response["data"]
+
+
+@pytest.mark.parametrize(
+    ("limit", "expected"),
+    [
+        (None, 10),
+        (QUERY_LIMIT, QUERY_LIMIT),
+        (0, 0),
+    ],
+)
+async def test_sends_limit(send_query, products_page_response, limit, expected):
+    result = await send_query(
+        response=products_page_response, resource="catalog.products", limit=limit
+    )
+
+    assert result["limit"] == expected
+
+
+async def test_default_limit_with_rql(send_query, products_page_response):
+    result = await send_query(
+        response=products_page_response,
+        resource="catalog.products",
+        rql="eq(status,Published)",
+        limit=None,
+    )
+
+    assert (result["rql"], result["limit"]) == ("eq(status,Published)", 10)
+
+
+async def test_default_limit_with_other_params(send_query, products_page_response):
+    result = await send_query(
+        response=products_page_response,
+        resource="catalog.products",
+        limit=None,
+        select="+id,+name",
+        order="-created",
+    )
+
+    assert {"id", "name"} <= set(result["select"].split(","))
+    assert (result["order"], result["limit"]) == ("-created", 10)
+
+
+async def test_default_limit_logs_message(send_query, products_page_response, caplog):
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.mcp_tools"):
+        await send_query(  # act
+            response=products_page_response, resource="catalog.products", limit=None
+        )
+
+    assert "default limit=10" in caplog.text.lower()
+
+
+async def test_catalog_products_default_select(send_query, products_page_response):
+    result = await send_query(response=products_page_response, resource="catalog.products")
+
+    assert {"id", "name", "+shortDescription"} <= set(result["select"].split(","))
+
+
+@pytest.fixture
 def orders_response():
     return {
         "data": [{"id": "ord-1", "status": "Created", "audit": {}}],
@@ -912,57 +352,19 @@ def orders_response():
     }
 
 
-async def test_sanitizes_select_drops_invalid_adds_id(
-    api_client, endpoints_registry, openapi_spec, orders_response
-):
-    api_client.get.return_value = orders_response
-
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql="",
-        limit=10,
-        offset=None,
-        page=None,
-        select="audit,status,orderNumber",  # orderNumber not in schema
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        openapi_spec=openapi_spec,
+async def test_sanitizes_select_drops_invalid_adds_id(send_select, openapi_spec, orders_response):
+    result = await send_select(
+        response=orders_response, select="audit,status,orderNumber", openapi_spec=openapi_spec
     )
 
-    call_args = api_client.get.call_args
-    query_params = call_args.kwargs.get("query_params", {})
-    assert "select" in query_params
-    # orderNumber must be dropped; id must be present
-    assert "orderNumber" not in query_params["select"]
-    assert "id" in query_params["select"]
-    assert "audit" in query_params["select"]
-    assert "status" in query_params["select"]
+    assert {"id", "audit", "status"} <= set(result)
+    assert "orderNumber" not in result
 
 
-async def test_select_without_openapi_spec_adds_id(api_client, endpoints_registry, orders_response):
-    api_client.get.return_value = orders_response
+async def test_select_without_openapi_spec_adds_id(send_select, orders_response):
+    result = await send_select(response=orders_response, select="audit,status")
 
-    await execute_marketplace_query(
-        resource="commerce.orders",
-        rql="",
-        limit=10,
-        offset=None,
-        page=None,
-        select="audit,status",
-        order=None,
-        path_params=None,
-        api_client=api_client,
-        endpoints_registry=endpoints_registry,
-        openapi_spec=None,
-    )
-
-    query_params = api_client.get.call_args.kwargs.get("query_params", {})
-    assert "select" in query_params
-    assert "id" in query_params["select"]
-    assert "audit" in query_params["select"]
-    assert "status" in query_params["select"]
+    assert {"id", "audit", "status"} <= set(result)
 
 
 def test_resource_info_notes_omitted_fields(endpoints_registry):

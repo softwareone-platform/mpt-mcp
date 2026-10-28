@@ -435,8 +435,9 @@ async def validate_token(
             is_valid, token_info = cached_result
 
             if is_valid and token_info:
-                account_name = token_info.get("account", {}).get("name", "Unknown")
-                account_id = token_info.get("account", {}).get("id", "Unknown")
+                account = token_info.get("account", {})
+                account_name = account.get("name", "Unknown")
+                account_id = account.get("id", "Unknown")
                 logger.info(
                     "🔐 Token validation (CACHED): ✅ Valid - %s (%s)", account_name, account_id
                 )
@@ -650,10 +651,11 @@ async def validate_token(
                     token_info = response.json()
 
                     # Extract account information for logging
-                    account_id = token_info.get("account", {}).get("id", "Unknown")
-                    account_name = token_info.get("account", {}).get("name", "Unknown")
+                    account = token_info.get("account", {})
+                    account_id = account.get("id", "Unknown")
+                    account_name = account.get("name", "Unknown")
                     token_name = token_info.get("name", "Unnamed Token")
-                    account_type = token_info.get("account", {}).get("type", "Unknown")
+                    account_type = account.get("type", "Unknown")
                     token_status = token_info.get("status", "Unknown")
 
                     # Check if token is active

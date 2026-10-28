@@ -62,61 +62,28 @@ def test_template_query_format(category, template):
     assert result.endswith(")")
 
 
-def test_orders_category_content():
-    templates = get_query_templates()
+@pytest.mark.parametrize(
+    ("category", "description", "min_templates", "expected_names"),
+    [
+        ("orders", "Common order queries", 5, {"Recent orders", "Orders by status"}),
+        (
+            "products",
+            "Common product queries",
+            5,
+            {"Published products", "Search products by name"},
+        ),
+        ("agreements", "Common agreement queries", 3, {"Active agreements"}),
+        ("subscriptions", "Common subscription queries", 3, {"Active subscriptions"}),
+        ("accounts", "Common account queries", 3, {"Active buyers"}),
+    ],
+)
+def test_category_content(category, description, min_templates, expected_names):
+    result = get_query_templates()[category]
 
-    result = templates["orders"]
-
-    assert result["description"] == "Common order queries"
-    assert len(result["templates"]) >= 5, "Orders should have at least 5 templates"
     template_names = [template["name"] for template in result["templates"]]
-    assert "Recent orders" in template_names
-    assert "Orders by status" in template_names
-
-
-def test_products_category_content():
-    templates = get_query_templates()
-
-    result = templates["products"]
-
-    assert result["description"] == "Common product queries"
-    assert len(result["templates"]) >= 5, "Products should have at least 5 templates"
-    template_names = [template["name"] for template in result["templates"]]
-    assert "Published products" in template_names
-    assert "Search products by name" in template_names
-
-
-def test_agreements_category_content():
-    templates = get_query_templates()
-
-    result = templates["agreements"]
-
-    assert result["description"] == "Common agreement queries"
-    assert len(result["templates"]) >= 3, "Agreements should have at least 3 templates"
-    template_names = [template["name"] for template in result["templates"]]
-    assert "Active agreements" in template_names
-
-
-def test_subscriptions_category_content():
-    templates = get_query_templates()
-
-    result = templates["subscriptions"]
-
-    assert result["description"] == "Common subscription queries"
-    assert len(result["templates"]) >= 3, "Subscriptions should have at least 3 templates"
-    template_names = [template["name"] for template in result["templates"]]
-    assert "Active subscriptions" in template_names
-
-
-def test_accounts_category_content():
-    templates = get_query_templates()
-
-    result = templates["accounts"]
-
-    assert result["description"] == "Common account queries"
-    assert len(result["templates"]) >= 3, "Accounts should have at least 3 templates"
-    template_names = [template["name"] for template in result["templates"]]
-    assert "Active buyers" in template_names
+    assert result["description"] == description
+    assert len(template_names) >= min_templates
+    assert expected_names <= set(template_names)
 
 
 def test_tips_section_exists():
