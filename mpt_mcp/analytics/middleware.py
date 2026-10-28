@@ -8,6 +8,8 @@ from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 from mpt_mcp.analytics.logger import get_analytics_logger
 from mpt_mcp.call_context import get_call_context
 
+CLIENT_NAME_MAX_LENGTH = 50
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -128,7 +130,7 @@ class AnalyticsMiddleware(Middleware):
             return "Claude Desktop"
 
         if user_agent:
-            return user_agent.split("/")[0][:50]
+            return user_agent.split("/")[0][:CLIENT_NAME_MAX_LENGTH]
 
         return None
 

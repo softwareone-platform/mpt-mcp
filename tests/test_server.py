@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 import pytest
 from starlette.testclient import TestClient
 
@@ -99,7 +101,7 @@ def test_unknown_path_returns_mcp_hint(http_client, method, path):
         method, path, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
     )
 
-    assert result.status_code == 404
+    assert result.status_code == HTTPStatus.NOT_FOUND
     assert "POST /mcp" in result.json()["hint"]
 
 
@@ -109,4 +111,4 @@ def test_post_is_rewritten_to_mcp_endpoint(http_client, path):
         path, json=INITIALIZE_REQUEST, headers={"Accept": "application/json, text/event-stream"}
     )
 
-    assert result.status_code != 404
+    assert result.status_code != HTTPStatus.NOT_FOUND

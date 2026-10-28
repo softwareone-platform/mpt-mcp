@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 import time
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import httpx
@@ -18,6 +19,10 @@ logger = logging.getLogger(__name__)
 MEDIA_TYPE_JSON = "application/json"
 # SoftwareOne API response key for metadata (pagination, omitted fields, etc.)
 KEY_META = "$meta"
+
+API_ERROR_TEXT_MAX_LENGTH = 500
+
+RQL_LOG_LENGTH = 80
 
 
 def obfuscate_token_values(data: Any) -> Any:
@@ -167,7 +172,8 @@ def _sanitize_select(
             select_part if select_part.startswith(("+", "-")) else f"+{select_part}"
             for select_part in kept
         ]
-        return "-*," + ",".join(kept) if kept else "-*"
+        selected = ",".join(kept)
+        return f"-*,{selected}" if kept else "-*"
     return ",".join(kept)
 
 
@@ -218,7 +224,7 @@ async def execute_marketplace_query(
     logger.info(
         "marketplace_query resource=%s rql=%s limit=%s",
         resource,
-        (rql or "")[:80],
+        (rql or "")[:RQL_LOG_LENGTH],
         limit,
     )
     start_time = time.time()
@@ -291,13 +297,12 @@ async def execute_marketplace_query(
             f"'{missing_param}': '{example_values.get(missing_param, 'value')}'"
             for missing_param in remaining_params
         ]
-        hint = (
-            "You must provide path_params dictionary. For example: "
-            f"path_params={{{', '.join(hint_parts)}}}"
-        )
+        hint_dict = ", ".join(hint_parts)
+        hint = f"You must provide path_params dictionary. For example: path_params={{{hint_dict}}}"
 
+        required_params = ", ".join(remaining_params)
         return {
-            "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
+            "error": f"This resource requires path parameters: {required_params}",
             "resource": resource,
             "path_template": endpoint_info["path"],
             "example": (
@@ -410,7 +415,7 @@ async def execute_marketplace_query(
                 api_resource=resource,
                 api_path=api_path,
                 api_method="GET",
-                api_status_code=200,
+                api_status_code=HTTPStatus.OK,
                 api_response_time_ms=int((time.time() - start_time) * 1000),
                 result_count=result_count,
                 rql_filter=rql,
@@ -452,13 +457,13 @@ async def execute_marketplace_query(
                 error_response["api_error_details"] = error_body
 
                 # If we auto-added audit and got a 400, retry without it
-                if response_code == 400 and auto_added_audit:
+                if response_code == HTTPStatus.BAD_REQUEST and auto_added_audit:
                     logger.info(
                         "   🔄 400 error after auto-adding 'audit' - retrying without it..."
                     )
                     should_retry_without_audit = True
                 # Check for audit field filtering errors and provide helpful hint
-                elif response_code == 400 and error_body.get("errors"):
+                elif response_code == HTTPStatus.BAD_REQUEST and error_body.get("errors"):
                     errors = error_body.get("errors", {})
                     # Check if any error mentions "Unknown expression group" for audit fields
                     for field, error_list in errors.items():
@@ -479,9 +484,9 @@ async def execute_marketplace_query(
                             break
             except Exception:
                 # If not JSON, include raw text
-                error_response["api_error_text"] = error.response.text[:500]  # Limit to 500 chars
+                error_response["api_error_text"] = error.response.text[:API_ERROR_TEXT_MAX_LENGTH]
                 # If we auto-added audit and got a 400, still try retry
-                if response_code == 400 and auto_added_audit:
+                if response_code == HTTPStatus.BAD_REQUEST and auto_added_audit:
                     logger.info(
                         "   🔄 400 error after auto-adding 'audit' - retrying without it..."
                     )
@@ -529,7 +534,7 @@ async def execute_marketplace_query(
                         api_resource=resource,
                         api_path=api_path,
                         api_method="GET",
-                        api_status_code=200,
+                        api_status_code=HTTPStatus.OK,
                         api_response_time_ms=int((time.time() - start_time) * 1000),
                         result_count=result_count,
                         rql_filter=rql,
@@ -563,7 +568,7 @@ async def execute_marketplace_query(
                 api_resource=resource,
                 api_path=api_path,
                 api_method="GET",
-                api_status_code=response_code or 500,
+                api_status_code=response_code or HTTPStatus.INTERNAL_SERVER_ERROR,
                 api_response_time_ms=int((time.time() - start_time) * 1000),
                 rql_filter=rql,
                 limit_value=limit,
@@ -785,15 +790,15 @@ def execute_marketplace_resource_info(
         other_path = other_info["path"]
 
         # Child resources: start with current path and go deeper
-        if other_path.startswith(resource_path + "/") and other_resource.startswith(resource + "."):
+        if other_path.startswith(f"{resource_path}/") and other_resource.startswith(f"{resource}."):
             related_resources["children"].append({
                 "resource": other_resource,
                 "summary": other_info["summary"],
             })
 
         # Parent resource: current path extends parent; keep only the immediate parent
-        is_parent = resource_path.startswith(other_path + "/") and resource.startswith(
-            other_resource + "."
+        is_parent = resource_path.startswith(f"{other_path}/") and resource.startswith(
+            f"{other_resource}."
         )
         if is_parent and (
             not related_resources["parent"]
@@ -881,10 +886,10 @@ def execute_marketplace_resource_info(
     # Add enum fields if any found
     if enum_fields:
         result["enum_fields"] = enum_fields
-        result["filtering_tips"] = (
-            f"Filter by {', '.join(enum_fields.keys())} using RQL: "
-            f"eq({next(iter(enum_fields.keys()))},<value>)"
-        )
+        enum_names = list(enum_fields.keys())
+        enum_list = ", ".join(enum_names)
+        first_enum = enum_names[0]
+        result["filtering_tips"] = f"Filter by {enum_list} using RQL: eq({first_enum},<value>)"
 
     # Add path parameters info if any found
     if path_params_info:

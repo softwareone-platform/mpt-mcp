@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+LOGGED_PROPERTIES_LIMIT = 12
+
 # In-memory cache: key (api_base_url or spec URL) -> { "events", "regex", "by_resource" }
 _audit_cache: dict[str, dict[str, Any]] = {}
 
@@ -170,7 +172,11 @@ def get_audit_data_from_spec(
         prop_names = list(properties.keys())
         audit_like = [name for name in prop_names if "audit" in name.lower()]
         if not audit_like:
-            logger.debug("audit_fields: %s properties (no *audit*): %s", path, prop_names[:12])
+            logger.debug(
+                "audit_fields: %s properties (no *audit*): %s",
+                path,
+                prop_names[:LOGGED_PROPERTIES_LIMIT],
+            )
             continue
         logger.debug("audit_fields: %s has audit-like props: %s", path, audit_like)
         events, _ = _collect_audit_events_and_paths_from_props(spec, properties)

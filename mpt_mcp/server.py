@@ -6,6 +6,7 @@ import sys
 import warnings
 from collections.abc import Awaitable, Callable
 from concurrent.futures import ThreadPoolExecutor
+from http import HTTPStatus
 
 import uvicorn
 from alembic.config import Config as AlembicConfig
@@ -27,6 +28,8 @@ from mpt_mcp.server_resources import register_http_resources
 from mpt_mcp.server_tools import register_http_tools
 
 logger = logging.getLogger(__name__)
+
+USER_AGENT_LOG_LENGTH = 80
 
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="websockets")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*websockets.*deprecated.*")
@@ -105,13 +108,13 @@ async def _create_app() -> ASGIApp:
 
     # Custom 404 response so clients see a clear hint when path is wrong (e.g. 404 on POST /mcp)
     def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
-        if exc.status_code == 404:
+        if exc.status_code == HTTPStatus.NOT_FOUND:
             # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips
             # path)
             has_mcp_session_id = bool(
                 request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id")
             )
-            ua = (request.headers.get("user-agent") or "")[:80]
+            ua = (request.headers.get("user-agent") or "")[:USER_AGENT_LOG_LENGTH]
             logger.warning(
                 "⚠️ 404 %s path=%r mcp_session_id=%s ua=%r",
                 request.method,
@@ -126,7 +129,7 @@ async def _create_app() -> ASGIApp:
                     "MCP_SERVER_URL ends "
                     "with /mcp and the MCP server is running. See README Troubleshooting.",
                 },
-                status_code=404,
+                status_code=HTTPStatus.NOT_FOUND,
             )
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 

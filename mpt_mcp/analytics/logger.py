@@ -3,6 +3,7 @@ import contextlib
 import datetime as dt
 import logging
 from contextvars import ContextVar
+from http import HTTPStatus
 from typing import Any
 
 from sqlalchemy import insert, text
@@ -297,7 +298,7 @@ class AnalyticsLogger:
 
         # Console logging for visibility
         token_id = event.get("token_id", "unknown")
-        if api_status_code >= 200 and api_status_code < 300:
+        if HTTPStatus.OK <= api_status_code < HTTPStatus.MULTIPLE_CHOICES:
             logger.info(
                 "📊 API: %s | Token: %s | %s | %.0fms",
                 api_resource,

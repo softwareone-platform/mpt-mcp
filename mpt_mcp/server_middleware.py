@@ -10,11 +10,13 @@ from mpt_mcp.log_config import current_session_id, current_user_id
 
 logger = logging.getLogger(__name__)
 
+ACTIVITY_LOG_COOLDOWN_SECONDS = 30
+
 
 class RequestContextMiddleware(Middleware):
     """Tag the logs of each MCP request with the caller's user and session ID."""
 
-    activity_log_cooldown = dt.timedelta(seconds=30)
+    activity_log_cooldown = dt.timedelta(seconds=ACTIVITY_LOG_COOLDOWN_SECONDS)
 
     def __init__(self) -> None:
         self._last_activity_log: dict[str, dt.datetime] = {}

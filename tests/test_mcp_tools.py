@@ -1,4 +1,5 @@
 import logging
+from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -10,6 +11,10 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resource_info,
     execute_marketplace_resources,
 )
+
+PRODUCTS_PAGE_SIZE = 10
+
+QUERY_LIMIT = 50
 
 
 @pytest.fixture
@@ -600,7 +605,7 @@ async def test_real_world_recent_orders_query(
     await execute_marketplace_query(
         resource="commerce.orders",
         rql=None,
-        limit=50,
+        limit=QUERY_LIMIT,
         offset=None,
         page=None,
         select="+id,+status,+product.name",
@@ -630,7 +635,7 @@ async def test_retries_without_audit_on_bad_request(
 
     # First call fails with 400, second succeeds
     error_response = Response(
-        400,
+        HTTPStatus.BAD_REQUEST,
         json={"errors": {"select": ["Invalid field"]}},
         request=Request("GET", "https://api.test.com/test"),
     )
@@ -676,7 +681,10 @@ async def test_retries_without_audit_on_bad_request(
 @pytest.fixture
 def products_page_response():
     return {
-        "data": [{"id": f"prod-{index}", "name": f"Product {index}"} for index in range(1, 11)],
+        "data": [
+            {"id": f"prod-{index}", "name": f"Product {index}"}
+            for index in range(1, PRODUCTS_PAGE_SIZE + 1)
+        ],
         "$meta": {"pagination": {"total": 100, "limit": 10, "offset": 0}},
     }
 
@@ -720,7 +728,7 @@ async def test_respects_explicit_limit(api_client, products_page_response, endpo
     result = await execute_marketplace_query(
         resource="catalog.products",
         rql="",
-        limit=50,  # Explicit limit
+        limit=QUERY_LIMIT,  # Explicit limit
         offset=None,
         page=None,
         select=None,
@@ -733,7 +741,7 @@ async def test_respects_explicit_limit(api_client, products_page_response, endpo
     # Verify API was called with limit=50 (not default 10)
     call_args = api_client.get.call_args
     query_params = call_args.kwargs.get("query_params", {})
-    assert query_params["limit"] == 50, f"Expected limit=50, got limit={query_params.get('limit')}"
+    assert query_params["limit"] == QUERY_LIMIT
 
     # Verify result
     assert "data" in result

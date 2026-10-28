@@ -8,6 +8,8 @@ from starlette.requests import Request
 
 from mpt_mcp.analytics.middleware import AnalyticsMiddleware
 
+RESPONSE_TIME_MS = 250
+
 
 @pytest.fixture
 def analytics():
@@ -61,7 +63,10 @@ async def test_on_call_tool_logs_success(middleware, analytics, tool_context):
     await middleware.on_call_tool(tool_context, call_next)  # act
 
     analytics.log_tool_call.assert_awaited_once_with(
-        tool_name="marketplace_query", response_time_ms=250, success=True, error_message=None
+        tool_name="marketplace_query",
+        response_time_ms=RESPONSE_TIME_MS,
+        success=True,
+        error_message=None,
     )
 
 
@@ -74,7 +79,7 @@ async def test_on_call_tool_logs_error_payload(middleware, analytics, tool_conte
 
     analytics.log_tool_call.assert_awaited_once_with(
         tool_name="marketplace_query",
-        response_time_ms=250,
+        response_time_ms=RESPONSE_TIME_MS,
         success=False,
         error_message="Missing X-MPT-Authorization header",
     )
@@ -88,7 +93,7 @@ async def test_on_call_tool_logs_and_reraises_exception(middleware, analytics, t
 
     analytics.log_tool_call.assert_awaited_once_with(
         tool_name="marketplace_query",
-        response_time_ms=250,
+        response_time_ms=RESPONSE_TIME_MS,
         success=False,
         error_type="exception",
         error_message="boom",
@@ -122,7 +127,7 @@ async def test_on_read_resource_logs_outcome(
 
     analytics.log_resource_read.assert_awaited_once_with(
         resource_uri="api://openapi.json",
-        response_time_ms=250,
+        response_time_ms=RESPONSE_TIME_MS,
         success=success,
         error_message=error_message,
     )
@@ -135,7 +140,10 @@ async def test_on_read_resource_reraises_exception(middleware, analytics, resour
         await middleware.on_read_resource(resource_context, call_next)
 
     analytics.log_resource_read.assert_awaited_once_with(
-        resource_uri="api://openapi.json", response_time_ms=250, success=False, error_message="boom"
+        resource_uri="api://openapi.json",
+        response_time_ms=RESPONSE_TIME_MS,
+        success=False,
+        error_message="boom",
     )
 
 

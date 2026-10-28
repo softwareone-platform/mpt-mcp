@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -339,7 +340,7 @@ async def test_api_error_includes_status_code(call_context, http_tools):
         # Should preserve API error details
         assert "error" in result
         assert "status_code" in result
-        assert result["status_code"] == 400
+        assert result["status_code"] == HTTPStatus.BAD_REQUEST
         assert "api_error_details" in result
         assert "Invalid RQL" in result["api_error_details"]["message"]
 

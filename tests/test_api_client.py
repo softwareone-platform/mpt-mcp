@@ -1,9 +1,14 @@
+from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
 
 from mpt_mcp.api_client import APIClient
+
+PAGE_SIZE = 5
+
+TIMEOUT = 30.0
 
 
 def test_api_client_strips_public_path():
@@ -237,7 +242,7 @@ def test_real_world_token_example():
 
 @pytest.fixture
 def api_client():
-    return APIClient(base_url="https://api.test.com", token="test_token", timeout=30.0)
+    return APIClient(base_url="https://api.test.com", token="test_token", timeout=TIMEOUT)
 
 
 @pytest.fixture
@@ -393,14 +398,20 @@ async def test_rql_pagination_offset(api_client):
         # Mock responses for two pages
         page1_response = Mock()
         page1_response.json.return_value = {
-            "data": [{"id": f"prod-{index}", "name": f"Product {index}"} for index in range(1, 6)],
+            "data": [
+                {"id": f"prod-{index}", "name": f"Product {index}"}
+                for index in range(1, PAGE_SIZE + 1)
+            ],
             "$meta": {"pagination": {"limit": 5, "offset": 0, "total": 100}},
         }
         page1_response.raise_for_status = Mock()
 
         page2_response = Mock()
         page2_response.json.return_value = {
-            "data": [{"id": f"prod-{index}", "name": f"Product {index}"} for index in range(6, 11)],
+            "data": [
+                {"id": f"prod-{index}", "name": f"Product {index}"}
+                for index in range(PAGE_SIZE + 1, 2 * PAGE_SIZE + 1)
+            ],
             "$meta": {"pagination": {"limit": 5, "offset": 5, "total": 100}},
         }
         page2_response.raise_for_status = Mock()
@@ -443,7 +454,7 @@ async def test_unauthorized_error():
         with pytest.raises(httpx.HTTPStatusError) as exc_info:
             await client.get("/products")
 
-        assert exc_info.value.response.status_code == 401
+        assert exc_info.value.response.status_code == HTTPStatus.UNAUTHORIZED
 
 
 async def test_forbidden_error():
@@ -465,7 +476,7 @@ async def test_forbidden_error():
         with pytest.raises(httpx.HTTPStatusError) as exc_info:
             await client.get("/products")
 
-        assert exc_info.value.response.status_code == 403
+        assert exc_info.value.response.status_code == HTTPStatus.FORBIDDEN
 
 
 async def test_not_found_error():
@@ -487,7 +498,7 @@ async def test_not_found_error():
         with pytest.raises(httpx.HTTPStatusError) as exc_info:
             await client.get("/products/invalid-id")
 
-        assert exc_info.value.response.status_code == 404
+        assert exc_info.value.response.status_code == HTTPStatus.NOT_FOUND
 
 
 async def test_rate_limit_error():
@@ -509,7 +520,7 @@ async def test_rate_limit_error():
         with pytest.raises(httpx.HTTPStatusError) as exc_info:
             await client.get("/products")
 
-        assert exc_info.value.response.status_code == 429
+        assert exc_info.value.response.status_code == HTTPStatus.TOO_MANY_REQUESTS
 
 
 async def test_server_error():
@@ -531,7 +542,7 @@ async def test_server_error():
         with pytest.raises(httpx.HTTPStatusError) as exc_info:
             await client.get("/products")
 
-        assert exc_info.value.response.status_code == 500
+        assert exc_info.value.response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
 
 
 async def test_logs_omitted_fields_in_response(api_client):

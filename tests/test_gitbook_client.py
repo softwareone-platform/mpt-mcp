@@ -1,3 +1,4 @@
+from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -25,7 +26,7 @@ def test_client_initialization():
 
 
 async def test_fetch_space_content_sends_auth_headers(client):
-    response = Mock(status_code=200)
+    response = Mock(status_code=HTTPStatus.OK)
     response.json.return_value = {"pages": []}
     with patch("httpx.AsyncClient") as mock_client:
         get = AsyncMock(return_value=response)

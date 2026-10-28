@@ -7,6 +7,8 @@ import httpx
 logger = logging.getLogger(__name__)
 
 # Default max concurrent requests to GitBook API (avoids 429 rate limits)
+DEFAULT_CONNECT_TIMEOUT = 30.0
+
 DEFAULT_MAX_CONCURRENT_REQUESTS = 2
 # Default request timeout in seconds
 DEFAULT_REQUEST_TIMEOUT = 30.0
@@ -66,7 +68,7 @@ class GitBookClient:
         async with self._semaphore:
             for attempt in range(MAX_RETRIES):
                 try:
-                    timeout_config = httpx.Timeout(self.timeout, connect=30.0)
+                    timeout_config = httpx.Timeout(self.timeout, connect=DEFAULT_CONNECT_TIMEOUT)
                     async with asyncio.timeout(self.timeout):
                         async with httpx.AsyncClient(
                             follow_redirects=True, http2=True, timeout=timeout_config

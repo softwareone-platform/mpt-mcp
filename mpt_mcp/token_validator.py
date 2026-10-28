@@ -4,6 +4,7 @@ import datetime as dt
 import hashlib
 import json
 import logging
+from http import HTTPStatus
 from typing import Any
 
 import httpx
@@ -12,6 +13,10 @@ import jwt
 from mpt_mcp.config import config
 
 ACTIVE_STATUS = "Active"
+
+DEFAULT_JWT_EXP_LEEWAY_SECONDS = 120
+
+HTTP_TIMEOUT = 30.0
 # Algorithms we accept for JWT signature verification (never trust token's alg header alone)
 JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
 
@@ -186,7 +191,7 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
 
     try:
         # 30s connect and default for JWKS fetch
-        timeout_config = httpx.Timeout(30.0, connect=30.0)
+        timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
         async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as client:
             response = await client.get(jwks_url)
             response.raise_for_status()
@@ -259,7 +264,7 @@ async def _verify_jwt_and_get_payload(
     if not jwks_dict:
         return (None, None)
 
-    leeway = getattr(config, "jwt_exp_leeway_seconds", 120) or 0
+    leeway = getattr(config, "jwt_exp_leeway_seconds", DEFAULT_JWT_EXP_LEEWAY_SECONDS) or 0
 
     try:
         last_error: jwt.PyJWTError = jwt.InvalidKeyError("JWKS has no signing keys")
@@ -477,7 +482,7 @@ async def validate_token(
                 "🔐 Validating JWT token (user: %s) against %s (API call)...", user_id, api_base_url
             )
 
-            timeout_config = httpx.Timeout(30.0, connect=30.0)
+            timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
             async with httpx.AsyncClient(
                 follow_redirects=True, http2=True, timeout=timeout_config
             ) as client:
@@ -486,7 +491,7 @@ async def validate_token(
                     headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
                 )
 
-                if response.status_code == 200:
+                if response.status_code == HTTPStatus.OK:
                     user_info = response.json()
 
                     # Extract user information
@@ -576,7 +581,7 @@ async def validate_token(
 
                     return (True, token_info, None)
 
-                if response.status_code == 401:
+                if response.status_code == HTTPStatus.UNAUTHORIZED:
                     error = "JWT token authentication failed (401 Unauthorized)"
                     logger.warning("❌ %s", error)
 
@@ -585,7 +590,7 @@ async def validate_token(
 
                     return (False, None, error)
 
-                if response.status_code == 404:
+                if response.status_code == HTTPStatus.NOT_FOUND:
                     error = f"User {user_id} not found (404)"
                     logger.warning("❌ %s", error)
 
@@ -625,7 +630,7 @@ async def validate_token(
         try:
             logger.info("🔐 Validating token %s against %s (API call)...", token_id, api_base_url)
 
-            timeout_config = httpx.Timeout(30.0, connect=30.0)
+            timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
             async with httpx.AsyncClient(
                 follow_redirects=True, http2=True, timeout=timeout_config
             ) as client:
@@ -634,7 +639,7 @@ async def validate_token(
                     headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
                 )
 
-                if response.status_code == 200:
+                if response.status_code == HTTPStatus.OK:
                     token_info = response.json()
 
                     # Extract account information for logging
@@ -670,7 +675,7 @@ async def validate_token(
 
                     return (True, token_info, None)
 
-                if response.status_code == 401:
+                if response.status_code == HTTPStatus.UNAUTHORIZED:
                     error = "Token authentication failed (401 Unauthorized)"
                     logger.warning("❌ %s", error)
 
@@ -679,7 +684,7 @@ async def validate_token(
 
                     return (False, None, error)
 
-                if response.status_code == 404:
+                if response.status_code == HTTPStatus.NOT_FOUND:
                     error = f"Token {token_id} not found (404)"
                     logger.warning("❌ %s", error)
 

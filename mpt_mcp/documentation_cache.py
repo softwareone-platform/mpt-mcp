@@ -370,6 +370,6 @@ class DocumentationCache:
             "last_refresh": self._last_refresh.isoformat() if self._last_refresh else None,
             "needs_refresh": self.needs_refresh,
             "resource_count": len(self._resources),
-            "refresh_interval_hours": self.refresh_interval.total_seconds() / 3600,
+            "refresh_interval_hours": self.refresh_interval / dt.timedelta(hours=1),
             "is_refreshing": self._is_refreshing,
         }

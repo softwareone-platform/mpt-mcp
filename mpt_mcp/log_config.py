@@ -8,6 +8,8 @@ APP_LOGGERS = ("__main__", "mpt_mcp")
 
 LOG_FORMAT = "%(levelname)s [%(name)s] %(request_context)s%(message)s"
 
+SESSION_ID_LOG_LENGTH = 8
+
 # Caller of the current MCP request: set by RequestContextMiddleware, read by RequestContextFilter
 current_session_id: ContextVar[str | None] = ContextVar("current_session_id", default=None)
 current_user_id: ContextVar[str | None] = ContextVar("current_user_id", default=None)
@@ -21,13 +23,15 @@ class RequestContextFilter(logging.Filter):
         context_parts = []
         session_id = current_session_id.get()
         if session_id:
-            context_parts.append(f"sess:{session_id[:8]}")
+            short_session_id = session_id[:SESSION_ID_LOG_LENGTH]
+            context_parts.append(f"sess:{short_session_id}")
 
         user_id = current_user_id.get()
         if user_id:
             context_parts.append(f"user:{user_id}")
 
-        record.request_context = f"[{'|'.join(context_parts)}] " if context_parts else ""
+        request_context = "|".join(context_parts)
+        record.request_context = f"[{request_context}] " if context_parts else ""
         return True
 
 

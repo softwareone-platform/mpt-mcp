@@ -31,6 +31,8 @@ DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
 AUTH_HEADER_HINT = "Provide X-MPT-Authorization header with your API token"
 OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
+MANY_DOCS_RESULTS = 50
+
 
 async def marketplace_docs_list(
     section: str | None = None,
@@ -74,7 +76,7 @@ async def marketplace_docs_list(
         result["tip"] = (
             f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
         )
-    elif len(resources) > 50:
+    elif len(resources) > MANY_DOCS_RESULTS:
         result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
 
     return result

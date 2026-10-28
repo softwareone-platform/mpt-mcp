@@ -9,6 +9,10 @@ logger = logging.getLogger(__name__)
 
 BEARER_PREFIX = "Bearer "
 
+DEFAULT_CONNECT_TIMEOUT = 30.0
+
+LOG_SEPARATOR_WIDTH = 80
+
 
 class APIClient:
     """Client for making authenticated requests to the SoftwareOne Marketplace API."""
@@ -134,12 +138,13 @@ class APIClient:
                 query_parts.append(additional_query)
 
             # Construct full URL with all parameters
-            url = f"{url}?{'&'.join(query_parts)}"
+            query_string = "&".join(query_parts)
+            url = f"{url}?{query_string}"
             # Don't pass params to httpx - we've built the full URL
             query_params = None
 
         # Log the API request with user identification
-        logger.info("=" * 80)
+        logger.info("=" * LOG_SEPARATOR_WIDTH)
         logger.info("🔍 Marketplace API Request")
         if self.user_id:
             logger.info("   👤 User: %s", self.user_id)
@@ -151,7 +156,7 @@ class APIClient:
 
         # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at
         # least 30s
-        timeout_config = httpx.Timeout(self.timeout, connect=30.0)
+        timeout_config = httpx.Timeout(self.timeout, connect=DEFAULT_CONNECT_TIMEOUT)
         async with httpx.AsyncClient(
             follow_redirects=True, http2=True, timeout=timeout_config
         ) as client:
@@ -208,7 +213,7 @@ class APIClient:
             elif isinstance(response_data, list):
                 logger.info("   Items returned: %s", len(response_data))
 
-            logger.info("=" * 80)
+            logger.info("=" * LOG_SEPARATOR_WIDTH)
 
             return response_data
 

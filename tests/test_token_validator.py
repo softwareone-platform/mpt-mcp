@@ -1,6 +1,7 @@
 import base64
 import json
 import time
+from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
@@ -18,11 +19,17 @@ from mpt_mcp.token_validator import (
 )
 
 API_BASE_URL = "https://api.test.com"
+EXPIRED_SECONDS_AGO = 200  # beyond the default 120 s leeway
+ISSUED_SECONDS_AGO = 3600
 JWT_USER_ID = "USR-1234-5678"
+RSA_KEY_SIZE = 2048
+RSA_PUBLIC_EXPONENT = 65537
+TOKEN_CACHE_TTL_MINUTES = 30
+WIDE_LEEWAY_SECONDS = 300
 
 
 def test_cache_initialization():
-    cache = TokenValidationCache(ttl_minutes=30)
+    cache = TokenValidationCache(ttl_minutes=TOKEN_CACHE_TTL_MINUTES)
 
     result = cache.get_stats()
 
@@ -375,7 +382,7 @@ def jwks(rsa_private_key):
 @pytest.fixture
 def mock_auth_http(jwks):
     def _response(url, **kwargs):
-        response = Mock(status_code=200)
+        response = Mock(status_code=HTTPStatus.OK)
         payload = (
             mock_auth_http_state["jwks"]
             if url.endswith("/.well-known/jwks.json")
@@ -395,12 +402,12 @@ def mock_auth_http(jwks):
 
 @pytest.fixture(scope="module")
 def other_private_key():
-    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return rsa.generate_private_key(public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE)
 
 
 @pytest.fixture(scope="module")
 def rsa_private_key():
-    return rsa.generate_private_key(public_exponent=65537, key_size=2048)
+    return rsa.generate_private_key(public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE)
 
 
 @pytest.fixture
@@ -421,7 +428,7 @@ def sign_jwt(rsa_private_key, issuer):
 
 async def test_validate_jwt_within_exp_leeway_accepted(sign_jwt, mock_auth_http):
     now = int(time.time())
-    token = sign_jwt({"exp": now - 60, "iat": now - 3600})
+    token = sign_jwt({"exp": now - 60, "iat": now - ISSUED_SECONDS_AGO})
 
     is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)
 
@@ -430,7 +437,7 @@ async def test_validate_jwt_within_exp_leeway_accepted(sign_jwt, mock_auth_http)
 
 async def test_validate_jwt_beyond_exp_leeway_rejected(sign_jwt, mock_auth_http):
     now = int(time.time())
-    token = sign_jwt({"exp": now - 200, "iat": now - 3600})
+    token = sign_jwt({"exp": now - EXPIRED_SECONDS_AGO, "iat": now - ISSUED_SECONDS_AGO})
 
     result = await validate_token(token, API_BASE_URL, use_cache=False)
 
@@ -439,9 +446,9 @@ async def test_validate_jwt_beyond_exp_leeway_rejected(sign_jwt, mock_auth_http)
 
 async def test_validate_jwt_exp_leeway_uses_config(sign_jwt, mock_auth_http):
     now = int(time.time())
-    token = sign_jwt({"exp": now - 200, "iat": now - 3600})
+    token = sign_jwt({"exp": now - EXPIRED_SECONDS_AGO, "iat": now - ISSUED_SECONDS_AGO})
 
-    with patch.object(config, "jwt_exp_leeway_seconds", 300):
+    with patch.object(config, "jwt_exp_leeway_seconds", WIDE_LEEWAY_SECONDS):
         is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)
 
     assert (is_valid, error) == (True, None)

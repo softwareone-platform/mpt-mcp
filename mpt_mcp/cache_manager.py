@@ -10,6 +10,8 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
+DEFAULT_CONNECT_TIMEOUT = 30.0
+
 DEFAULT_FETCH_TIMEOUT = 30.0
 
 
@@ -170,7 +172,7 @@ class CacheManager:
             "valid_entries": valid_count,
             "expired_entries": expired_count,
             "total_size_bytes": total_size,
-            "ttl_hours": self.ttl.total_seconds() / 3600,
+            "ttl_hours": self.ttl / dt.timedelta(hours=1),
         }
 
 
@@ -204,7 +206,7 @@ async def fetch_with_cache(
     # Fetch from network (connect and default DEFAULT_FETCH_TIMEOUT, connect at least 30s)
     logger.info("📡 Fetching from: %s", url)
     try:
-        timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=30.0)
+        timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=DEFAULT_CONNECT_TIMEOUT)
         async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
             async with httpx.AsyncClient(
                 follow_redirects=True, http2=True, timeout=timeout_config
