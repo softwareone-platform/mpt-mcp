@@ -5,6 +5,8 @@ from fastmcp.dependencies import Depends
 
 from mpt_mcp import (
     audit_fields as audit_fields_module,
+)
+from mpt_mcp import (
     endpoint_registry,
     server_docs,
 )

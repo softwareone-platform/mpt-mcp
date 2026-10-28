@@ -1,12 +1,11 @@
 import pytest
 from starlette.testclient import TestClient
 
-from mpt_mcp import server
+from mpt_mcp.server import app, mcp
 
 
 @pytest.mark.asyncio
 async def test_production_tools_only():
-    from mpt_mcp.server import mcp
 
     tools_dict = {t.name: t for t in (await mcp.list_tools())}
     tool_names = list(tools_dict.keys())
@@ -33,7 +32,6 @@ async def test_production_tools_only():
 
 @pytest.mark.asyncio
 async def test_tool_functions_exist():
-    from mpt_mcp.server import mcp
 
     tools_dict = {t.name: t for t in (await mcp.list_tools())}
     tool_names = list(tools_dict.keys())
@@ -52,7 +50,6 @@ async def test_tool_functions_exist():
 
 @pytest.mark.asyncio
 async def test_debug_tools_not_in_production():
-    from mpt_mcp.server import mcp
 
     tools_dict = {t.name: t for t in (await mcp.list_tools())}
     tool_names = list(tools_dict.keys())
@@ -80,7 +77,7 @@ INITIALIZE_REQUEST = {
 
 @pytest.fixture
 def http_client():
-    with TestClient(server.app) as client:
+    with TestClient(app) as client:
         yield client
 
 

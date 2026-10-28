@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import base64
 import json
 import time
 from unittest.mock import AsyncMock, Mock, patch
@@ -348,7 +349,6 @@ async def test_validate_token_with_normalized_token():
 
 @pytest.mark.asyncio
 async def test_validate_token_jwt_requires_jwks_url_or_iss():
-    import base64
 
     payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
     payload_b64 = (

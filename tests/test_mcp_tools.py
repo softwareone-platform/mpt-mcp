@@ -3,6 +3,7 @@ import re
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from httpx import HTTPStatusError, Request, Response
 
 from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
@@ -645,9 +646,6 @@ async def test_real_world_recent_orders_query(
 async def test_retries_without_audit_on_400_error(
     api_client, orders_with_audit_response, endpoints_registry
 ):
-    from unittest.mock import AsyncMock
-
-    from httpx import HTTPStatusError, Request, Response
 
     # First call fails with 400, second succeeds
     error_response = Response(

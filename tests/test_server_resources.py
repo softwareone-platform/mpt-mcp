@@ -1,16 +1,16 @@
+import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from mpt_mcp import server_docs, server_resources
+from mpt_mcp import server_docs
 from mpt_mcp.call_context import CallContext
+from mpt_mcp.server import mcp
+from mpt_mcp.server_resources import get_openapi_spec, register_http_resources
 
 
 @pytest.mark.asyncio
 async def test_get_openapi_spec_resource_success():
-    import json
-
-    from mpt_mcp.server_resources import get_openapi_spec
 
     mock_spec = {
         "openapi": "3.0.0",
@@ -43,9 +43,6 @@ async def test_get_openapi_spec_resource_success():
 
 @pytest.mark.asyncio
 async def test_get_openapi_spec_resource_no_token():
-    import json
-
-    from mpt_mcp.server_resources import get_openapi_spec
 
     call_context = CallContext(endpoint="https://api.test.com", token=None)
     result = await get_openapi_spec(call_context=call_context)
@@ -56,9 +53,6 @@ async def test_get_openapi_spec_resource_no_token():
 
 @pytest.mark.asyncio
 async def test_get_openapi_spec_resource_fetch_error():
-    import json
-
-    from mpt_mcp.server_resources import get_openapi_spec
 
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
     with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
@@ -75,7 +69,6 @@ async def test_get_openapi_spec_resource_fetch_error():
 
 @pytest.mark.asyncio
 async def test_openapi_resource_listed_in_resources():
-    from mpt_mcp.server import mcp
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}
     resource_uris = [str(uri) for uri in resources.keys()]
@@ -85,7 +78,6 @@ async def test_openapi_resource_listed_in_resources():
 
 @pytest.mark.asyncio
 async def test_openapi_resource_has_correct_metadata():
-    from mpt_mcp.server import mcp
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}
     openapi_resource = resources.get("api://openapi.json")
@@ -101,7 +93,6 @@ async def test_openapi_resource_has_correct_metadata():
 
 @pytest.mark.asyncio
 async def test_openapi_resource_mime_type():
-    from mpt_mcp.server import mcp
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}
     openapi_resource = resources.get("api://openapi.json")
@@ -131,10 +122,10 @@ def docs_cache(monkeypatch):
 
 @pytest.fixture
 def http_resources():
-    mcp = Mock()
-    server_resources.register_http_resources(mcp)
-    uris = [call.args[0] for call in mcp.resource.call_args_list]
-    handlers = [call.args[0] for call in mcp.resource.return_value.call_args_list]
+    fake_mcp = Mock()
+    register_http_resources(fake_mcp)
+    uris = [call.args[0] for call in fake_mcp.resource.call_args_list]
+    handlers = [call.args[0] for call in fake_mcp.resource.return_value.call_args_list]
     return dict(zip(uris, handlers, strict=True))
 
 

@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import datetime as dt
 import logging
-from datetime import datetime, timedelta
+from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
-    from .gitbook_client import GitBookClient
+    from mpt_mcp.gitbook_client import GitBookClient
 
 logger = logging.getLogger(__name__)
 
@@ -28,11 +29,11 @@ class DocumentationCache:
             public_url: Public URL where documentation is published (for browser links)
         """
         self.gitbook_client = gitbook_client
-        self.refresh_interval = timedelta(hours=refresh_interval_hours)
+        self.refresh_interval = dt.timedelta(hours=refresh_interval_hours)
         self.public_url = public_url.rstrip("/") if public_url else ""
 
         self._content: dict[str, Any] | None = None
-        self._last_refresh: datetime | None = None
+        self._last_refresh: dt.datetime | None = None
         self._is_refreshing = False
 
         self._resources: dict[str, dict[str, Any]] = {}
@@ -58,7 +59,7 @@ class DocumentationCache:
         if self._content is None or self._last_refresh is None:
             return True
 
-        return datetime.now() - self._last_refresh > self.refresh_interval
+        return dt.datetime.now() - self._last_refresh > self.refresh_interval
 
     async def refresh(self, force: bool = False) -> bool:
         """
@@ -89,7 +90,7 @@ class DocumentationCache:
             content = await self.gitbook_client.fetch_space_content()
 
             self._content = content
-            self._last_refresh = datetime.now()
+            self._last_refresh = dt.datetime.now()
 
             self._build_resource_index()
 
@@ -318,8 +319,6 @@ class DocumentationCache:
             Dictionary containing sections, subsections, and page counts
         """
         await self.ensure_cached()
-
-        from collections import defaultdict
 
         sections = defaultdict(lambda: {"subsections": defaultdict(int), "total": 0})
 

@@ -1,5 +1,5 @@
+import datetime as dt
 import logging
-from datetime import datetime, timedelta
 from typing import Any
 
 from fastmcp.server.dependencies import get_http_request
@@ -14,10 +14,10 @@ logger = logging.getLogger(__name__)
 class RequestContextMiddleware(Middleware):
     """Tag the logs of each MCP request with the caller's user and session ID."""
 
-    activity_log_cooldown = timedelta(seconds=30)
+    activity_log_cooldown = dt.timedelta(seconds=30)
 
     def __init__(self) -> None:
-        self._last_activity_log: dict[str, datetime] = {}
+        self._last_activity_log: dict[str, dt.datetime] = {}
 
     async def on_request(
         self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]
@@ -41,8 +41,8 @@ class RequestContextMiddleware(Middleware):
     def _log_activity(self, call_context: CallContext) -> None:
         caller = call_context.user_id or "anonymous"
         log_key = f"{caller}@{call_context.endpoint}"
-        now = datetime.now()
-        if now - self._last_activity_log.get(log_key, datetime.min) < self.activity_log_cooldown:
+        now = dt.datetime.now()
+        if now - self._last_activity_log.get(log_key, dt.datetime.min) < self.activity_log_cooldown:
             return
 
         endpoint_display = call_context.endpoint

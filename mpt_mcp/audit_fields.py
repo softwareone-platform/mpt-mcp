@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -204,8 +205,6 @@ def update_cache(
 
     Call this when the spec is loaded (endpoint_registry or server_stdio init).
     """
-    import os
-
     if os.getenv("DEBUG", "").lower() == "true":
         logger.setLevel(logging.DEBUG)
     data = get_audit_data_from_spec(spec, path_to_resource_id)

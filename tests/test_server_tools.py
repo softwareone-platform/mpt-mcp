@@ -13,9 +13,8 @@ def call_context():
 
 
 @pytest.mark.asyncio
-async def test_unknown_resource_suggests_similar(call_context):
-    from mpt_mcp.server import marketplace_query
-
+async def test_unknown_resource_suggests_similar(call_context, http_tools):
+    marketplace_query = http_tools["marketplace_query"]
     # Mock the endpoint registry with some sample resources
     mock_registry = {
         "catalog.products": {
@@ -62,9 +61,8 @@ async def test_unknown_resource_suggests_similar(call_context):
 
 
 @pytest.mark.asyncio
-async def test_unknown_resource_shows_categories(call_context):
-    from mpt_mcp.server import marketplace_query
-
+async def test_unknown_resource_shows_categories(call_context, http_tools):
+    marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -97,9 +95,8 @@ async def test_unknown_resource_shows_categories(call_context):
 
 
 @pytest.mark.asyncio
-async def test_missing_path_params_shows_example(call_context):
-    from mpt_mcp.server import marketplace_query
-
+async def test_missing_path_params_shows_example(call_context, http_tools):
+    marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
         "catalog.products.by_id": {
             "path": "/public/v1/catalog/products/{id}",
@@ -132,9 +129,8 @@ async def test_missing_path_params_shows_example(call_context):
 
 
 @pytest.mark.asyncio
-async def test_path_params_error_includes_realistic_values(call_context):
-    from mpt_mcp.server import marketplace_query
-
+async def test_path_params_error_includes_realistic_values(call_context, http_tools):
+    marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
         "commerce.orders.by_id": {
             "path": "/public/v1/commerce/orders/{orderId}",
@@ -161,9 +157,8 @@ async def test_path_params_error_includes_realistic_values(call_context):
 
 
 @pytest.mark.asyncio
-async def test_resource_info_shows_children(call_context):
-    from mpt_mcp.server import marketplace_resource_info
-
+async def test_resource_info_shows_children(call_context, http_tools):
+    marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -203,9 +198,8 @@ async def test_resource_info_shows_children(call_context):
 
 
 @pytest.mark.asyncio
-async def test_resource_info_shows_parent(call_context):
-    from mpt_mcp.server import marketplace_resource_info
-
+async def test_resource_info_shows_parent(call_context, http_tools):
+    marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -241,9 +235,8 @@ async def test_resource_info_shows_parent(call_context):
 
 
 @pytest.mark.asyncio
-async def test_resource_info_shows_multiple_examples(call_context):
-    from mpt_mcp.server import marketplace_resource_info
-
+async def test_resource_info_shows_multiple_examples(call_context, http_tools):
+    marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
@@ -281,9 +274,8 @@ async def test_resource_info_shows_multiple_examples(call_context):
 
 
 @pytest.mark.asyncio
-async def test_resource_info_shows_filtering_tips(call_context):
-    from mpt_mcp.server import marketplace_resource_info
-
+async def test_resource_info_shows_filtering_tips(call_context, http_tools):
+    marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
@@ -313,9 +305,8 @@ async def test_resource_info_shows_filtering_tips(call_context):
 
 
 @pytest.mark.asyncio
-async def test_api_error_includes_status_code(call_context):
-    from mpt_mcp.server import marketplace_query
-
+async def test_api_error_includes_status_code(call_context, http_tools):
+    marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -361,9 +352,8 @@ async def test_api_error_includes_status_code(call_context):
 
 
 @pytest.mark.asyncio
-async def test_api_error_includes_request_url(call_context):
-    from mpt_mcp.server import marketplace_query
-
+async def test_api_error_includes_request_url(call_context, http_tools):
+    marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -427,9 +417,7 @@ async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
 
     with patch("mpt_mcp.server_docs.documentation_cache", mock_cache):
         with patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()):
-            from mpt_mcp.server_tools import marketplace_docs_list
-
-            result = await marketplace_docs_list(search="contact support")
+            result = await server_tools.marketplace_docs_list(search="contact support")
 
     assert result["total"] == 1
     assert len(result["resources"]) == 1
@@ -458,9 +446,7 @@ async def test_marketplace_docs_list_no_browser_url_when_metadata_missing():
 
     with patch("mpt_mcp.server_docs.documentation_cache", mock_cache):
         with patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()):
-            from mpt_mcp.server_tools import marketplace_docs_list
-
-            result = await marketplace_docs_list(search="some")
+            result = await server_tools.marketplace_docs_list(search="some")
 
     assert result["total"] == 1
     assert "browser_url" not in result["resources"][0]
@@ -497,9 +483,11 @@ def docs_cache(monkeypatch):
 
 @pytest.fixture
 def http_tools():
-    mcp = Mock()
-    server_tools.register_http_tools(mcp)
-    return {call.args[0].__name__: call.args[0] for call in mcp.tool.return_value.call_args_list}
+    fake_mcp = Mock()
+    server_tools.register_http_tools(fake_mcp)
+    return {
+        call.args[0].__name__: call.args[0] for call in fake_mcp.tool.return_value.call_args_list
+    }
 
 
 async def test_marketplace_docs_index_returns_cache_index(docs_cache, http_tools):

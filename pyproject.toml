@@ -63,8 +63,8 @@ extend-ignore = [
   "WPS226",
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "WPS110",  # 66
-  "WPS111",  # 111
+  "WPS110",  # 65
+  "WPS111",  # 107
   "WPS114",  # 9
   "WPS118",  # 55
   "WPS121",  # 10
@@ -72,7 +72,7 @@ extend-ignore = [
   "WPS201",  # 1
   "WPS202",  # 4
   "WPS204",  # 24
-  "WPS210",  # 45
+  "WPS210",  # 50
   "WPS211",  # 8
   "WPS212",  # 3
   "WPS213",  # 9
@@ -81,16 +81,14 @@ extend-ignore = [
   "WPS218",  # 2
   "WPS219",  # 3
   "WPS220",  # 61
-  "WPS221",  # 45
+  "WPS221",  # 41
   "WPS229",  # 36
-  "WPS231",  # 32
-  "WPS232",  # 7
+  "WPS231",  # 30
+  "WPS232",  # 6
   "WPS234",  # 2
   "WPS235",  # 1
   "WPS237",  # 25
   "WPS239",  # 1
-  "WPS300",  # 7
-  "WPS301",  # 1
   "WPS328",  # 1
   "WPS336",  # 7
   "WPS338",  # 6
@@ -98,13 +96,12 @@ extend-ignore = [
   "WPS407",  # 6
   "WPS410",  # 2
   "WPS420",  # 11
-  "WPS421",  # 2
-  "WPS430",  # 32
+  "WPS421",  # 1
+  "WPS430",  # 31
   "WPS431",  # 2
   "WPS432",  # 89
-  "WPS441",  # 17
+  "WPS441",  # 14
   "WPS453",  # 2
-  "WPS458",  # 12
   "WPS473",  # 3
   "WPS476",  # 4
   "WPS501",  # 1
@@ -210,7 +207,6 @@ ignore = [
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
     "ambiguous-unicode-character-string",  # 2
-    "banned-import-from",  # 6
     "boolean-default-value-positional-argument",  # 11
     "boolean-positional-value-in-call",  # 8
     "boolean-type-hint-positional-argument",  # 12
@@ -218,7 +214,7 @@ ignore = [
     "call-datetime-now-without-tzinfo",  # 13
     "collapsible-if",  # 4
     "commented-out-code",  # 2
-    "complex-structure",  # 24
+    "complex-structure",  # 22
     "datetime-min-max",  # 1
     "datetime-timezone-utc",  # 4
     "error-instead-of-exception",  # 16
@@ -232,7 +228,6 @@ ignore = [
     "if-else-block-instead-of-if-exp",  # 2
     "if-exp-instead-of-or-operator",  # 2
     "implicit-optional",  # 3
-    "import-outside-top-level",  # 37
     "in-dict-keys",  # 1
     "line-too-long",  # 114
     "literal-membership",  # 4
@@ -241,7 +236,6 @@ ignore = [
     "manual-list-comprehension",  # 2
     "multiple-starts-ends-with",  # 2
     "multiple-with-statements",  # 12
-    "private-member-access",  # 1
     "redefined-loop-name",  # 1
     "repeated-equality-comparison",  # 2
     "shebang-not-executable",  # 2
@@ -254,7 +248,6 @@ ignore = [
     "unnecessary-iterable-allocation-for-first-element",  # 2
     "unnecessary-placeholder",  # 1
     "unsorted-dunder-all",  # 1
-    "unsorted-imports",  # 1
     "unspecified-encoding",  # 6
     "unused-async",  # 13
     "unused-unpacked-variable",  # 4

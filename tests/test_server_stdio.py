@@ -1,7 +1,6 @@
 import pytest
 from fastmcp import Client
 
-from mpt_mcp import server_stdio
 from mpt_mcp.config import config
 from mpt_mcp.server import mcp as http_mcp
 from mpt_mcp.server_stdio import DEBUG_TAG, mcp
@@ -24,12 +23,6 @@ def restore_debug_tools():
     yield
     # Back to the visibility the server sets from DEBUG at import time
     (mcp.enable if config.debug else mcp.disable)(tags={DEBUG_TAG})
-
-
-def test_stdio_server_exposes_mcp_instance():
-    result = server_stdio.mcp
-
-    assert result is mcp
 
 
 async def test_production_tools_exist():

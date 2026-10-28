@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
 import asyncio
-import concurrent.futures
 import logging
 import os
 import pathlib
 import sys
 import warnings
+from concurrent.futures import ThreadPoolExecutor
 
 import uvicorn
 from alembic.config import Config as AlembicConfig
@@ -21,7 +21,6 @@ from mpt_mcp import server_docs
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
 from mpt_mcp.log_config import configure_logging
-from mpt_mcp.server_docs import initialize_documentation_cache
 from mpt_mcp.server_middleware import RequestContextMiddleware
 from mpt_mcp.server_resources import register_http_resources
 from mpt_mcp.server_tools import register_http_tools
@@ -49,7 +48,7 @@ register_http_resources(mcp)
 
 async def _create_app():
     """Build the ASGI app (init + middleware). Used so uvicorn can load via 'mpt_mcp.server:app' for reload."""
-    await initialize_documentation_cache()
+    await server_docs.initialize_documentation_cache()
     doc_cache = server_docs.documentation_cache
     doc_resource_count = 0
     if doc_cache and doc_cache.is_enabled:
@@ -164,7 +163,7 @@ def _build_app():
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(_create_app())
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(asyncio.run, _create_app())
         return future.result()
 

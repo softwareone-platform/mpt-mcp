@@ -161,7 +161,6 @@ def test_normalize_endpoint_url(endpoint, expected):
 
 @pytest.mark.asyncio
 async def test_missing_authorization_header():
-    from mpt_mcp.call_context import CallContext
 
     with pytest.raises(ValueError) as exc_info:
         await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
@@ -172,7 +171,6 @@ async def test_missing_authorization_header():
 
 @pytest.mark.asyncio
 async def test_missing_auth_error_message_is_clear():
-    from mpt_mcp.call_context import CallContext
 
     with pytest.raises(ValueError) as exc_info:
         await CallContext(endpoint="https://api.test.com", token=None).create_api_client()

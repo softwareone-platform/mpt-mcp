@@ -1,8 +1,8 @@
 import asyncio
+import datetime as dt
 import hashlib
 import json
 import logging
-from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -32,9 +32,9 @@ class CacheManager:
         """
         self.cache_dir = Path(cache_dir)
         self.cache_dir.mkdir(exist_ok=True)
-        self.ttl = timedelta(hours=ttl_hours)
+        self.ttl = dt.timedelta(hours=ttl_hours)
 
-    def _get_cache_path(self, key: str) -> Path:
+    def get_cache_path(self, key: str) -> Path:
         """Get cache file path for a given key."""
         # Hash the key to create a safe filename
         key_hash = hashlib.md5(key.encode()).hexdigest()
@@ -56,10 +56,10 @@ class CacheManager:
             with open(meta_path) as f:
                 metadata = json.load(f)
 
-            cached_at = datetime.fromisoformat(metadata.get("cached_at"))
+            cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
             expires_at = cached_at + self.ttl
 
-            return datetime.now() < expires_at
+            return dt.datetime.now() < expires_at
         except KeyError, ValueError:
             return False
 
@@ -73,7 +73,7 @@ class CacheManager:
         Returns:
             Cached data or None if not available/expired
         """
-        cache_path = self._get_cache_path(key)
+        cache_path = self.get_cache_path(key)
 
         if not cache_path.exists():
             return None
@@ -95,7 +95,7 @@ class CacheManager:
             key: Cache key (usually the URL)
             data: Data to cache
         """
-        cache_path = self._get_cache_path(key)
+        cache_path = self.get_cache_path(key)
         meta_path = self._get_metadata_path(key)
 
         # Write data
@@ -104,7 +104,7 @@ class CacheManager:
 
         # Write metadata
         metadata = {
-            "cached_at": datetime.now().isoformat(),
+            "cached_at": dt.datetime.now().isoformat(),
             "key": key,
             "size": len(json.dumps(data)),
         }
@@ -118,7 +118,7 @@ class CacheManager:
         Args:
             key: Cache key to invalidate
         """
-        cache_path = self._get_cache_path(key)
+        cache_path = self.get_cache_path(key)
         meta_path = self._get_metadata_path(key)
 
         if cache_path.exists():
@@ -150,10 +150,10 @@ class CacheManager:
                     with open(meta_file) as f:
                         metadata = json.load(f)
 
-                    cached_at = datetime.fromisoformat(metadata.get("cached_at"))
+                    cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
                     expires_at = cached_at + self.ttl
 
-                    if datetime.now() < expires_at:
+                    if dt.datetime.now() < expires_at:
                         valid_count += 1
                     else:
                         expired_count += 1
@@ -228,7 +228,7 @@ async def fetch_with_cache(
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
         logger.warning(f"⚠ Network fetch failed: {e}")
 
-        cache_path = cache_manager._get_cache_path(url)
+        cache_path = cache_manager.get_cache_path(url)
         if cache_path.exists():
             logger.warning("⚠ Using expired cache as fallback")
             return await asyncio.to_thread(_read_json_path, cache_path)

@@ -1,14 +1,14 @@
 import asyncio
 import base64
+import datetime as dt
 import hashlib
 import json
 import logging
-from datetime import datetime, timedelta
 
 import httpx
 import jwt
 
-from .config import config
+from mpt_mcp.config import config
 
 # Algorithms we accept for JWT signature verification (never trust token's alg header alone)
 JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
@@ -51,9 +51,9 @@ class TokenValidationCache:
         Args:
             ttl_minutes: Time-to-live for cache entries in minutes (default: 10)
         """
-        self.ttl = timedelta(minutes=ttl_minutes)
+        self.ttl = dt.timedelta(minutes=ttl_minutes)
         # SECURITY: Keys are SHA256 hashes of token+endpoint, not raw tokens
-        self._cache: dict[str, tuple[bool, datetime, dict | None]] = {}
+        self._cache: dict[str, tuple[bool, dt.datetime, dict | None]] = {}
         self._lock = asyncio.Lock()
         logger.info(
             f"🔐 Token validation cache initialized (TTL: {ttl_minutes}m, secure hash keys)"
@@ -76,9 +76,9 @@ class TokenValidationCache:
             if cache_key in self._cache:
                 is_valid, expiry, token_info = self._cache[cache_key]
 
-                if datetime.now() < expiry:
+                if dt.datetime.now() < expiry:
                     logger.debug(
-                        f"✅ Token validation cache hit (expires in {(expiry - datetime.now()).seconds}s)"
+                        f"✅ Token validation cache hit (expires in {(expiry - dt.datetime.now()).seconds}s)"
                     )
                     return (is_valid, token_info)
                 else:
@@ -102,7 +102,7 @@ class TokenValidationCache:
         cache_key = _hash_token(token, api_base_url)
 
         async with self._lock:
-            expiry = datetime.now() + self.ttl
+            expiry = dt.datetime.now() + self.ttl
             self._cache[cache_key] = (is_valid, expiry, token_info)
             logger.debug(
                 f"💾 Cached token validation (valid={is_valid}, expires in {self.ttl.seconds}s)"
@@ -131,7 +131,7 @@ class TokenValidationCache:
 
     def get_stats(self) -> dict:
         """Get cache statistics."""
-        now = datetime.now()
+        now = dt.datetime.now()
         valid_count = sum(1 for _, expiry, _ in self._cache.values() if expiry > now)
         expired_count = len(self._cache) - valid_count
 
@@ -158,8 +158,8 @@ def get_token_cache(ttl_minutes: int = 10) -> TokenValidationCache:
 
 
 # JWKS cache for JWT signature verification (url -> (jwks_dict, expiry))
-_jwks_cache: dict[str, tuple[dict, datetime]] = {}
-_jwks_cache_ttl = timedelta(minutes=60)
+_jwks_cache: dict[str, tuple[dict, dt.datetime]] = {}
+_jwks_cache_ttl = dt.timedelta(minutes=60)
 _jwks_lock = asyncio.Lock()
 
 
@@ -173,7 +173,7 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
     async with _jwks_lock:
         if jwks_url in _jwks_cache:
             jwks_dict, expiry = _jwks_cache[jwks_url]
-            if datetime.now() < expiry:
+            if dt.datetime.now() < expiry:
                 return jwks_dict
             del _jwks_cache[jwks_url]
 
@@ -193,7 +193,7 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
         return None
 
     async with _jwks_lock:
-        _jwks_cache[jwks_url] = (jwks_dict, datetime.now() + _jwks_cache_ttl)
+        _jwks_cache[jwks_url] = (jwks_dict, dt.datetime.now() + _jwks_cache_ttl)
 
     return jwks_dict
 

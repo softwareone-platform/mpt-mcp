@@ -433,7 +433,6 @@ async def test_rql_pagination_offset(api_client):
 
 @pytest.mark.asyncio
 async def test_401_unauthorized_error():
-    from mpt_mcp.api_client import APIClient
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -457,7 +456,6 @@ async def test_401_unauthorized_error():
 
 @pytest.mark.asyncio
 async def test_403_forbidden_error():
-    from mpt_mcp.api_client import APIClient
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -481,7 +479,6 @@ async def test_403_forbidden_error():
 
 @pytest.mark.asyncio
 async def test_404_not_found_error():
-    from mpt_mcp.api_client import APIClient
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -505,7 +502,6 @@ async def test_404_not_found_error():
 
 @pytest.mark.asyncio
 async def test_429_rate_limit_error():
-    from mpt_mcp.api_client import APIClient
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -529,7 +525,6 @@ async def test_429_rate_limit_error():
 
 @pytest.mark.asyncio
 async def test_500_server_error():
-    from mpt_mcp.api_client import APIClient
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()

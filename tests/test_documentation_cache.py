@@ -1,9 +1,8 @@
-from datetime import datetime, timedelta
+import datetime as dt
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from mpt_mcp import documentation_cache
 from mpt_mcp.documentation_cache import DocumentationCache
 from mpt_mcp.gitbook_client import GitBookClient
 
@@ -40,7 +39,7 @@ def test_cache_initialization_with_client(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=24)  # act
 
     assert cache.is_enabled is True
-    assert cache.refresh_interval == timedelta(hours=24)
+    assert cache.refresh_interval == dt.timedelta(hours=24)
 
 
 def test_cache_initialization_without_client():
@@ -435,9 +434,10 @@ async def test_needs_refresh_false_right_after_refresh(mock_gitbook_client):
 async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeypatch):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=1)
     await cache.refresh()
-    two_hours_later = datetime.now() + timedelta(hours=2)
+    two_hours_later = dt.datetime.now() + dt.timedelta(hours=2)
     monkeypatch.setattr(
-        documentation_cache, "datetime", Mock(now=Mock(return_value=two_hours_later))
+        "mpt_mcp.documentation_cache.dt",
+        Mock(datetime=Mock(now=Mock(return_value=two_hours_later))),
     )
 
     result = cache.needs_refresh

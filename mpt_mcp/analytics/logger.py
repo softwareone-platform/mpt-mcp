@@ -1,8 +1,8 @@
 import asyncio
 import contextlib
+import datetime as dt
 import logging
 from contextvars import ContextVar
-from datetime import datetime, timezone
 from typing import Any
 
 from sqlalchemy import insert, text
@@ -109,7 +109,7 @@ class AnalyticsLogger:
         timestamp = event.get("timestamp")
         normalized = {
             # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware datetimes)
-            "timestamp": timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+            "timestamp": timestamp.astimezone(dt.timezone.utc).replace(tzinfo=None)
             if timestamp
             else None,
             "response_time_ms": event.get("response_time_ms"),
@@ -218,7 +218,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": dt.datetime.now(dt.timezone.utc),
             "event_type": "tool_call" if success else "error",
             "server_type": server_type,
             "tool_name": tool_name,
@@ -277,7 +277,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": dt.datetime.now(dt.timezone.utc),
             "event_type": "api_query",
             "server_type": server_type,
             "tool_name": tool_name,
@@ -337,7 +337,7 @@ class AnalyticsLogger:
 
         event = {
             **self._get_context(),
-            "timestamp": datetime.now(timezone.utc),
+            "timestamp": dt.datetime.now(dt.timezone.utc),
             "event_type": "resource_read" if success else "error",
             "server_type": server_type,
             "resource_uri": resource_uri,
