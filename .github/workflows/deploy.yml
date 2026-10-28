@@ -1,3 +1,6 @@
+# TBD: decide the release and deploy flow. Today release/* and test/* tags both deploy to the
+# production service (mcp.platform.softwareone.com), secrets are passed with --set-env-vars instead of Secret Manager,
+# and HTTP_HOST/HTTP_DEFAULT_BASE_URL are not read by the server (config reads SSE_*).
 name: Deploy to Google Cloud Run
 
 on:
