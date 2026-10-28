@@ -125,7 +125,7 @@ async def test_missing_path_params_shows_example(call_context, http_tools):
         assert "hint" in result
 
 
-async def test_path_params_error_includes_realistic_values(call_context, http_tools):
+async def test_path_params_error_has_realistic_values(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
         "commerce.orders.by_id": {
@@ -188,7 +188,9 @@ async def test_resource_info_shows_children(call_context, http_tools):
         # Should include child resources
         assert "related_resources" in result
         assert "children" in result["related_resources"]
-        child_resources = [r["resource"] for r in result["related_resources"]["children"]]
+        child_resources = [
+            resource["resource"] for resource in result["related_resources"]["children"]
+        ]
         assert "catalog.products.by_id" in child_resources
 
 
@@ -385,7 +387,7 @@ async def test_api_error_includes_request_url(call_context, http_tools):
         assert "api.test.com" in result["request_url"]
 
 
-async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
+async def test_docs_list_exposes_browser_url_and_note():
     mock_resources = [
         {
             "uri": "docs://help-and-support/contact-support",
@@ -420,7 +422,7 @@ async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
     assert "do not show internal uri or id" in result["usage"]
 
 
-async def test_marketplace_docs_list_no_browser_url_when_metadata_missing():
+async def test_docs_list_without_browser_url_metadata():
     mock_resources = [
         {
             "uri": "docs://some/page",
@@ -482,7 +484,7 @@ def http_tools():
     }
 
 
-async def test_marketplace_docs_index_returns_cache_index(docs_cache, http_tools):
+async def test_docs_index_returns_cache_index(docs_cache, http_tools):
     index = {
         "total_pages": 1,
         "sections": [{"name": "readme", "total_pages": 1, "subsections": []}],
@@ -494,7 +496,7 @@ async def test_marketplace_docs_index_returns_cache_index(docs_cache, http_tools
     assert result == index
 
 
-async def test_marketplace_docs_list_includes_browser_url_and_usage(docs_cache):
+async def test_docs_list_includes_browser_url_and_usage(docs_cache):
     docs_cache(
         resources=[
             {
@@ -522,7 +524,7 @@ async def test_marketplace_docs_list_tip_when_limited(docs_cache):
     assert "tip" in result
 
 
-async def test_marketplace_docs_list_uses_live_docs_cache(docs_cache):
+async def test_docs_list_uses_live_docs_cache(docs_cache):
     docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
 
     result = await server_tools.marketplace_docs_list(limit=5)
@@ -530,7 +532,7 @@ async def test_marketplace_docs_list_uses_live_docs_cache(docs_cache):
     assert (result["total"], result["resources"][0]["uri"]) == (1, "docs://readme")
 
 
-async def test_marketplace_docs_read_returns_text_and_count(docs_cache, http_tools):
+async def test_docs_read_returns_text_and_count(docs_cache, http_tools):
     docs_cache(
         content_by_uri={"docs://help-and-support/contact-support": "# Contact\n\nHello from docs."}
     )
@@ -542,7 +544,7 @@ async def test_marketplace_docs_read_returns_text_and_count(docs_cache, http_too
     assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
 
 
-async def test_marketplace_docs_read_not_found_returns_count_zero(docs_cache, http_tools):
+async def test_docs_read_not_found_returns_zero_count(docs_cache, http_tools):
     docs_cache()
 
     result = await http_tools["marketplace_docs_read"](uri="docs://missing/page")
@@ -550,7 +552,7 @@ async def test_marketplace_docs_read_not_found_returns_count_zero(docs_cache, ht
     assert (result["count"], "not found" in result["text"].lower()) == (0, True)
 
 
-async def test_marketplace_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
+async def test_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
     cache = docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
     monkeypatch.setattr(server_docs, "documentation_cache", cache)
 

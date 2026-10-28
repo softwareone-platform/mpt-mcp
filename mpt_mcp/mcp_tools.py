@@ -36,16 +36,16 @@ def obfuscate_token_values(data: Any) -> Any:
     """
     if isinstance(data, dict):
         sanitized = {}
-        for key, value in data.items():
+        for key, field_value in data.items():
             # Obfuscate 'token' property values
-            if key.lower() == "token" and isinstance(value, str) and value.strip():
+            if key.lower() == "token" and isinstance(field_value, str) and field_value.strip():
                 sanitized[key] = "[REDACTED]"
             else:
                 # Recursively sanitize nested structures
-                sanitized[key] = obfuscate_token_values(value)
+                sanitized[key] = obfuscate_token_values(field_value)
         return sanitized
     if isinstance(data, list):
-        return [obfuscate_token_values(item) for item in data]
+        return [obfuscate_token_values(element) for element in data]
     return data
 
 
@@ -72,8 +72,8 @@ def _get_allowed_select_fields(
         return set()
     get_op = paths[path]["get"]
     responses = get_op.get("responses") or {}
-    content = (responses.get("200") or {}).get("content") or {}
-    json_content = content.get(MEDIA_TYPE_JSON) or {}
+    response_content = (responses.get("200") or {}).get("content") or {}
+    json_content = response_content.get(MEDIA_TYPE_JSON) or {}
     schema = json_content.get("schema")
     if not schema or not isinstance(schema, dict):
         return set()
@@ -113,7 +113,7 @@ def _sanitize_select(
     if not select or not select.strip():
         return select
 
-    parts = [p.strip() for p in select.split(",") if p.strip()]
+    parts = [select_part.strip() for select_part in select.split(",") if select_part.strip()]
     if not parts:
         return select
 
@@ -129,17 +129,17 @@ def _sanitize_select(
 
     kept: list[str] = []
     dropped: list[str] = []
-    for p in parts:
-        top = top_level_field(p)
+    for select_part in parts:
+        top = top_level_field(select_part)
         if allowed_fields and top not in allowed_fields:
-            dropped.append(p)
+            dropped.append(select_part)
             continue
-        kept.append(p)
+        kept.append(select_part)
     if dropped:
         logger.info("   💡 Select sanitized: dropped fields not in schema: %s", ", ".join(dropped))
 
     # Always include id; when they exist in schema, also include status and name (in that order)
-    tops = {top_level_field(p) for p in kept}
+    tops = {top_level_field(select_part) for select_part in kept}
     to_add: list[str] = []
     for field in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA:
         if field in tops:
@@ -150,14 +150,23 @@ def _sanitize_select(
     if to_add:
         logger.info("   💡 Select: added %s (always included when in schema)", ", ".join(to_add))
     # Canonical order: id, status, name first (when present), then the rest
-    prefix = [f for f in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA if f in tops]
-    rest = [p for p in kept if top_level_field(p) not in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA]
+    prefix = [
+        always_field for always_field in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA if always_field in tops
+    ]
+    rest = [
+        select_part
+        for select_part in kept
+        if top_level_field(select_part) not in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA
+    ]
     kept = prefix + rest
 
     # Re-add -* at the start if it was present (and convert bare fields to +field when -* is used)
     if has_exclude_all:
         # When using -*, fields should use + prefix to explicitly include them
-        kept = [p if p.startswith(("+", "-")) else f"+{p}" for p in kept]
+        kept = [
+            select_part if select_part.startswith(("+", "-")) else f"+{select_part}"
+            for select_part in kept
+        ]
         return "-*," + ",".join(kept) if kept else "-*"
     return ",".join(kept)
 
@@ -213,7 +222,7 @@ async def execute_marketplace_query(
         limit,
     )
     start_time = time.time()
-    params = {
+    query_params = {
         "resource": resource,
         "rql": rql,
         "limit": limit,
@@ -229,15 +238,17 @@ async def execute_marketplace_query(
         # Find similar resources to suggest
         resource_lower = resource.lower()
         similar_resources = [
-            r
-            for r in endpoints_registry
-            if resource_lower in r.lower() or r.lower() in resource_lower
+            resource
+            for resource in endpoints_registry
+            if resource_lower in resource.lower() or resource.lower() in resource_lower
         ]
 
         error_response = {
             "error": f"Unknown resource: '{resource}'",
             "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list({r.split(".")[0] for r in endpoints_registry}),
+            "available_categories": list({
+                resource.split(".")[0] for resource in endpoints_registry
+            }),
         }
 
         if similar_resources[:5]:  # Show up to 5 suggestions
@@ -270,10 +281,16 @@ async def execute_marketplace_query(
             "assetId": "AST-1234-5678",
         }
 
-        example_dict = {p: example_values.get(p, f"<{p}_value>") for p in remaining_params}
+        example_dict = {
+            missing_param: example_values.get(missing_param, f"<{missing_param}_value>")
+            for missing_param in remaining_params
+        }
 
         # Build hint string
-        hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
+        hint_parts = [
+            f"'{missing_param}': '{example_values.get(missing_param, 'value')}'"
+            for missing_param in remaining_params
+        ]
         hint = (
             "You must provide path_params dictionary. For example: "
             f"path_params={{{', '.join(hint_parts)}}}"
@@ -313,7 +330,7 @@ async def execute_marketplace_query(
     has_audit_in_select = False
     if select:
         # Parse select string (e.g., "+id,+name,audit" or "+audit.created.at")
-        select_parts = [s.strip() for s in select.split(",")]
+        select_parts = [select_part.strip() for select_part in select.split(",")]
         has_audit_in_select = any(
             part in {"audit", "+audit"} or part.startswith(("audit.", "+audit."))
             for part in select_parts
@@ -349,30 +366,30 @@ async def execute_marketplace_query(
         limit = 100
 
     # Build query parameters
-    params = {}
+    query_params = {}
     if rql:
         # Sanitize RQL: remove spaces after commas in function calls (e.g. "and(..., ilike(..." ->
         # "and(...,ilike(...")
         # This prevents 400 errors from the API which is strict about RQL syntax
         rql = re.sub(r",\s+", ",", rql)
-        params["rql"] = rql
+        query_params["rql"] = rql
     if limit is not None:
-        params["limit"] = limit
+        query_params["limit"] = limit
     if offset is not None:
-        params["offset"] = offset
+        query_params["offset"] = offset
     if page is not None:
-        params["page"] = page
+        query_params["page"] = page
     if select:
-        params["select"] = select
+        query_params["select"] = select
     if order:
-        params["order"] = order
+        query_params["order"] = order
 
     logger.info("📊 Query: %s", resource)
     logger.info("   Path: %s", api_path)
-    logger.info("   Params: %s", params)
+    logger.info("   Params: %s", query_params)
 
     try:
-        result = await api_client.get(api_path, params=params)
+        result = await api_client.get(api_path, query_params=query_params)
         result_count = None
         if KEY_META in result:
             result_count = result[KEY_META].get("pagination", {}).get("total")
@@ -417,21 +434,21 @@ async def execute_marketplace_query(
         )
 
         return result
-    except Exception as e:
-        logger.warning("   ❌ Error: %s", e)
+    except Exception as error:
+        logger.warning("   ❌ Error: %s", error)
 
-        error_response = {"error": str(e), "resource": resource, "path": api_path}
+        error_response = {"error": str(error), "resource": resource, "path": api_path}
         response_code = None
         should_retry_without_audit = False
 
         # If it's an HTTP error, try to include response body
-        if isinstance(e, httpx.HTTPStatusError):
-            error_response["status_code"] = e.response.status_code
-            error_response["request_url"] = str(e.request.url)
-            response_code = e.response.status_code
+        if isinstance(error, httpx.HTTPStatusError):
+            error_response["status_code"] = error.response.status_code
+            error_response["request_url"] = str(error.request.url)
+            response_code = error.response.status_code
             try:
                 # Try to parse error response body
-                error_body = e.response.json()
+                error_body = error.response.json()
                 error_response["api_error_details"] = error_body
 
                 # If we auto-added audit and got a 400, retry without it
@@ -462,7 +479,7 @@ async def execute_marketplace_query(
                             break
             except Exception:
                 # If not JSON, include raw text
-                error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
+                error_response["api_error_text"] = error.response.text[:500]  # Limit to 500 chars
                 # If we auto-added audit and got a 400, still try retry
                 if response_code == 400 and auto_added_audit:
                     logger.info(
@@ -491,7 +508,7 @@ async def execute_marketplace_query(
                 retry_params["order"] = order
 
             try:
-                result = await api_client.get(api_path, params=retry_params)
+                result = await api_client.get(api_path, query_params=retry_params)
                 result_count = None
                 if KEY_META in result:
                     result_count = result[KEY_META].get("pagination", {}).get("total")
@@ -614,17 +631,17 @@ def execute_marketplace_resources(
             resource_entry["description"] = endpoint_info["description"]
 
         # Extract common filterable fields from parameters
-        parameters = endpoint_info.get("parameters", [])
+        param_specs = endpoint_info.get("parameters", [])
         filterable_fields = []
         enum_fields = {}
 
-        for param in parameters:
-            param_name = param.get("name", "")
-            if param.get("in") == "query" and param_name:
+        for param_spec in param_specs:
+            param_name = param_spec.get("name", "")
+            if param_spec.get("in") == "query" and param_name:
                 filterable_fields.append(param_name)
 
                 # Check for enum values
-                param_schema = param.get("schema", {})
+                param_schema = param_spec.get("schema", {})
                 if "enum" in param_schema:
                     enum_fields[param_name] = param_schema["enum"]
 
@@ -740,17 +757,17 @@ def execute_marketplace_resource_info(
     enum_fields = {}
     path_params_info = {}
 
-    for param in endpoint_info.get("parameters", []):
-        param_name = param.get("name")
-        param_in = param.get("in")
-        param_schema = param.get("schema", {})
+    for param_spec in endpoint_info.get("parameters", []):
+        param_name = param_spec.get("name")
+        param_in = param_spec.get("in")
+        param_schema = param_spec.get("schema", {})
 
         # Track path parameters
         if param_in == "path":
             path_params_info[param_name] = {
                 "type": param_schema.get("type", "string"),
-                "description": param.get("description", f"Path parameter: {param_name}"),
-                "required": param.get("required", True),
+                "description": param_spec.get("description", f"Path parameter: {param_name}"),
+                "required": param_spec.get("required", True),
             }
 
         # Extract enum values for query parameters
@@ -829,7 +846,7 @@ def execute_marketplace_resource_info(
 
     # Add example with path params if needed
     if path_params_info:
-        example_params = {k: f"<{k}_value>" for k in path_params_info}
+        example_params = {param_name: f"<{param_name}_value>" for param_name in path_params_info}
         examples.append(
             f"marketplace_query(resource='{resource}', path_params={example_params}, "
             "select='+id,+name')"
@@ -872,7 +889,7 @@ def execute_marketplace_resource_info(
     # Add path parameters info if any found
     if path_params_info:
         result["path_parameters"] = path_params_info
-        param_list = ", ".join([f"{k}=<value>" for k in path_params_info])
+        param_list = ", ".join([f"{param_name}=<value>" for param_name in path_params_info])
         result["path_params_required"] = f"This resource requires path parameters: {param_list}"
 
     # Add related resources if found
@@ -917,7 +934,9 @@ def execute_marketplace_resource_schema(
         return {
             "error": f"Unknown resource: {resource}",
             "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list({r.split(".")[0] for r in endpoints_registry}),
+            "available_categories": list({
+                resource.split(".")[0] for resource in endpoints_registry
+            }),
         }
 
     endpoint_info = endpoints_registry[resource]
@@ -944,11 +963,11 @@ def execute_marketplace_resource_schema(
     }
 
     if "200" in responses:
-        response_200 = responses["200"]
-        content = response_200.get("content", {})
+        ok_response = responses["200"]
+        response_content = ok_response.get("content", {})
 
-        if MEDIA_TYPE_JSON in content:
-            json_content = content[MEDIA_TYPE_JSON]
+        if MEDIA_TYPE_JSON in response_content:
+            json_content = response_content[MEDIA_TYPE_JSON]
             if "schema" in json_content:
                 schema = json_content["schema"]
 
@@ -1000,16 +1019,18 @@ def execute_marketplace_resource_schema(
 
                     # Add filtering hints
                     schema_info["filtering_hints"] = {
-                        "simple_filters": [f"eq({f},value)" for f in list(fields.keys())[:5]],
+                        "simple_filters": [
+                            f"eq({filter_field},value)" for filter_field in list(fields.keys())[:5]
+                        ],
                         "search_fields": [
-                            f"ilike({f},*keyword*)"
-                            for f, info in list(fields.items())[:3]
-                            if info.get("type") == "string"
+                            f"ilike({filter_field},*keyword*)"
+                            for filter_field, filter_info in list(fields.items())[:3]
+                            if filter_info.get("type") == "string"
                         ],
                         "enum_filters": [
-                            f"eq({f},{info['enum'][0]})"
-                            for f, info in fields.items()
-                            if "enum" in info
+                            f"eq({filter_field},{filter_info['enum'][0]})"
+                            for filter_field, filter_info in fields.items()
+                            if "enum" in filter_info
                         ][:3],
                     }
 

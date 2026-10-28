@@ -93,8 +93,8 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
         logger.info("✓ Loaded OpenAPI spec from %s", api_base_url)
         return spec
 
-    except (httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning("⚠️  Failed to fetch from %s: %s", openapi_url, e)
+    except (httpx.HTTPError, httpx.TimeoutException) as error:
+        logger.warning("⚠️  Failed to fetch from %s: %s", openapi_url, error)
 
         # If it's a 404, try the default fallback
         fallback_url = "https://api.platform.softwareone.com/public/v1/openapi.json"

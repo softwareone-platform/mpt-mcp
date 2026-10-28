@@ -53,8 +53,8 @@ async def initialize_documentation_cache():
             else:
                 logger.warning("⚠️  GitBook credentials invalid, documentation cache disabled")
                 documentation_cache = DocumentationCache(gitbook_client=None)
-        except Exception as e:
-            logger.warning("⚠️  Failed to initialize documentation cache: %s", e)
+        except Exception as error:
+            logger.warning("⚠️  Failed to initialize documentation cache: %s", error)
             documentation_cache = DocumentationCache(gitbook_client=None)
     else:
         has_key = bool(config.gitbook_api_key)

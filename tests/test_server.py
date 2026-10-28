@@ -6,7 +6,7 @@ from mpt_mcp.server import app, mcp
 
 async def test_production_tools_only():
 
-    tools_dict = {t.name: t for t in (await mcp.list_tools())}
+    tools_dict = {tool.name: tool for tool in (await mcp.list_tools())}
     tool_names = list(tools_dict.keys())
 
     # These production tools SHOULD exist
@@ -31,7 +31,7 @@ async def test_production_tools_only():
 
 async def test_tool_functions_exist():
 
-    tools_dict = {t.name: t for t in (await mcp.list_tools())}
+    tools_dict = {tool.name: tool for tool in (await mcp.list_tools())}
     tool_names = list(tools_dict.keys())
 
     # Production tools
@@ -48,7 +48,7 @@ async def test_tool_functions_exist():
 
 async def test_debug_tools_not_in_production():
 
-    tools_dict = {t.name: t for t in (await mcp.list_tools())}
+    tools_dict = {tool.name: tool for tool in (await mcp.list_tools())}
     tool_names = list(tools_dict.keys())
 
     # Debug tools that should NOT be in production
@@ -94,7 +94,7 @@ def test_get_health_returns_status(http_client, path):
 
 
 @pytest.mark.parametrize(("method", "path"), [("GET", "/nonexistent"), ("POST", "/wrong")])
-def test_unknown_path_returns_404_with_mcp_hint(http_client, method, path):
+def test_unknown_path_returns_mcp_hint(http_client, method, path):
     result = http_client.request(
         method, path, json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"}
     )

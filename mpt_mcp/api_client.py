@@ -94,14 +94,14 @@ class APIClient:
     async def get(
         self,
         endpoint: str,
-        params: dict[str, Any] | None = None,
+        query_params: dict[str, Any] | None = None,
     ) -> Any:
         """
         Make a GET request to the API.
 
         Args:
             endpoint: API endpoint path (e.g., "/products" or "/products/{id}")
-            params: Query parameters dictionary. Special handling for 'rql' key:
+            query_params: Query parameters dictionary. Special handling for 'rql' key:
                    - If 'rql' key exists, its value becomes the raw query string directly after '?'
                    - Example: {"rql": "eq(status,Failed)"} → /endpoint?eq(status,Failed)
                    - NOT sent as ?rql=... (it's not a query parameter, it IS the query string)
@@ -120,23 +120,23 @@ class APIClient:
         # Special handling for RQL - it IS the query string, not a query parameter
         # Example: {"rql": "eq(status,Failed)"} becomes "/endpoint?eq(status,Failed)"
         # NOT "/endpoint?rql=eq(status,Failed)"
-        original_params = params.copy() if params else {}
+        original_params = query_params.copy() if query_params else {}
 
         # Build the full URL with all parameters
-        if params and "rql" in params:
-            rql_query = params.pop("rql")
+        if query_params and "rql" in query_params:
+            rql_query = query_params.pop("rql")
             # Start with RQL as the base query string
             query_parts = [rql_query]
 
             # Add remaining params as key=value pairs
-            if params:
-                additional_query = urlencode(params, doseq=True)
+            if query_params:
+                additional_query = urlencode(query_params, doseq=True)
                 query_parts.append(additional_query)
 
             # Construct full URL with all parameters
             url = f"{url}?{'&'.join(query_parts)}"
             # Don't pass params to httpx - we've built the full URL
-            params = None
+            query_params = None
 
         # Log the API request with user identification
         logger.info("=" * 80)
@@ -159,15 +159,15 @@ class APIClient:
                 with anyio.fail_after(self.timeout):
                     response = await client.get(
                         url,
-                        params=params,  # Will be None if RQL was used
+                        params=query_params,  # Will be None if RQL was used
                         headers=headers,
                     )
                     response.raise_for_status()
                     response_data = response.json()
-            except TimeoutError as e:
+            except TimeoutError as error:
                 raise httpx.TimeoutException(
                     f"Request timed out after {self.timeout} seconds"
-                ) from e
+                ) from error
 
             # Log the API response
             logger.info("✅ Response: %s", response.status_code)

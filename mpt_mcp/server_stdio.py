@@ -51,8 +51,8 @@ async def initialize_server(*, force_refresh: bool = False):
     errors = config.validate()
     if errors:
         logger.error("❌ Configuration errors:")
-        for error in errors:
-            logger.info("  - %s", error)
+        for config_error in errors:
+            logger.info("  - %s", config_error)
         raise ValueError("Invalid configuration")
 
     api_client = APIClient(
@@ -92,8 +92,8 @@ async def initialize_server(*, force_refresh: bool = False):
 
         _initialized = True
 
-    except Exception as e:
-        logger.warning("⚠ Failed to load OpenAPI spec: %s", e)
+    except Exception as error:
+        logger.warning("⚠ Failed to load OpenAPI spec: %s", error)
         endpoints_registry = {}
         _initialized = False
 
@@ -280,10 +280,10 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
             "message": f"Cache refreshed successfully. Loaded {len(endpoints_registry)} endpoints.",
             "endpoints_count": len(endpoints_registry),
         }
-    except Exception as e:
+    except Exception as error:
         return {
             "success": False,
-            "error": str(e),
+            "error": str(error),
             "message": "Failed to refresh cache. Check network connection.",
         }
 

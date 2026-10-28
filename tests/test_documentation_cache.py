@@ -59,9 +59,9 @@ async def test_refresh_success(mock_gitbook_client):
 
     success = await cache.refresh()
 
-    info = cache.get_cache_info()
-    assert (success, info["has_content"], info["resource_count"]) == (True, True, 2)
-    assert info["last_refresh"] is not None
+    cache_info = cache.get_cache_info()
+    assert (success, cache_info["has_content"], cache_info["resource_count"]) == (True, True, 2)
+    assert cache_info["last_refresh"] is not None
 
 
 async def test_refresh_builds_resource_index(mock_gitbook_client):
@@ -77,7 +77,7 @@ async def test_refresh_builds_resource_index(mock_gitbook_client):
     ) == ("Getting Started", "text/markdown")
 
 
-async def test_refresh_builds_resource_index_with_nested_pages():
+async def test_refresh_indexes_nested_pages():
     # Mock client with nested page structure
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -139,7 +139,7 @@ async def test_list_resources(mock_gitbook_client):
     resources = await cache.list_resources()
 
     assert len(resources) == 2
-    assert any(r["uri"] == "docs://getting-started" for r in resources)
+    assert any(resource["uri"] == "docs://getting-started" for resource in resources)
 
 
 async def test_list_resources_with_section_filter():
@@ -169,7 +169,7 @@ async def test_list_resources_with_section_filter():
     resources = await cache.list_resources(section="developer-resources")
 
     assert len(resources) == 2
-    assert all("developer-resources" in r["uri"] for r in resources)
+    assert all("developer-resources" in resource["uri"] for resource in resources)
 
 
 async def test_list_resources_with_subsection_filter():
@@ -203,7 +203,7 @@ async def test_list_resources_with_subsection_filter():
     resources = await cache.list_resources(subsection="rest-api")
 
     assert len(resources) == 2
-    assert all("rest-api" in r["uri"] for r in resources)
+    assert all("rest-api" in resource["uri"] for resource in resources)
 
 
 async def test_list_resources_with_search():
@@ -229,7 +229,10 @@ async def test_list_resources_with_search():
     resources = await cache.list_resources(search="billing")
 
     assert len(resources) == 2
-    assert all("billing" in r["name"].lower() or "billing" in r["uri"].lower() for r in resources)
+    assert all(
+        "billing" in resource["name"].lower() or "billing" in resource["uri"].lower()
+        for resource in resources
+    )
 
 
 async def test_list_resources_with_limit():
@@ -237,8 +240,8 @@ async def test_list_resources_with_limit():
     client.fetch_space_content = AsyncMock(
         return_value={
             "pages": [
-                {"id": f"page{i}", "title": f"Page {i}", "path": f"section/page-{i}"}
-                for i in range(10)
+                {"id": f"page{index}", "title": f"Page {index}", "path": f"section/page-{index}"}
+                for index in range(10)
             ]
         }
     )
@@ -286,7 +289,7 @@ async def test_list_resources_combined_filters():
     assert resources[0]["name"] == "Billing API"
 
 
-async def test_list_resources_includes_browser_url_when_public_url_set():
+async def test_list_resources_with_public_url():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
         return_value={
@@ -309,10 +312,14 @@ async def test_list_resources_includes_browser_url_when_public_url_set():
     resources = await cache.list_resources()
 
     assert len(resources) == 2
-    for r in resources:
-        assert "metadata" in r
-        assert "browser_url" in r["metadata"], f"Expected metadata.browser_url for {r['uri']}"
-    uris_to_browser_url = {r["uri"]: r["metadata"]["browser_url"] for r in resources}
+    for resource in resources:
+        assert "metadata" in resource
+        assert "browser_url" in resource["metadata"], (
+            f"Expected metadata.browser_url for {resource['uri']}"
+        )
+    uris_to_browser_url = {
+        resource["uri"]: resource["metadata"]["browser_url"] for resource in resources
+    }
     assert (
         uris_to_browser_url.get("docs://help-and-support/contact-support")
         == "https://docs.example.com/help-and-support/contact-support"
@@ -353,14 +360,18 @@ async def test_get_documentation_index():
     assert len(index["sections"]) == 2
 
     # Check developer-resources section
-    dev_section = next(s for s in index["sections"] if s["name"] == "developer-resources")
+    dev_section = next(
+        section for section in index["sections"] if section["name"] == "developer-resources"
+    )
     assert dev_section["total_pages"] == 2
     assert len(dev_section["subsections"]) == 1
     assert dev_section["subsections"][0]["name"] == "rest-api"
     assert dev_section["subsections"][0]["pages"] == 2
 
     # Check help-and-support section
-    help_section = next(s for s in index["sections"] if s["name"] == "help-and-support")
+    help_section = next(
+        section for section in index["sections"] if section["name"] == "help-and-support"
+    )
     assert help_section["total_pages"] == 2
     assert len(help_section["subsections"]) == 2
 
@@ -369,19 +380,19 @@ async def test_get_resource_success(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
     await cache.refresh()
 
-    content = await cache.get_resource("docs://getting-started")
+    page_content = await cache.get_resource("docs://getting-started")
 
-    assert content is not None
-    assert "Getting Started" in content
+    assert page_content is not None
+    assert "Getting Started" in page_content
 
 
 async def test_get_resource_not_found(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
     await cache.refresh()
 
-    content = await cache.get_resource("docs://non-existent")
+    page_content = await cache.get_resource("docs://non-existent")
 
-    assert content is None
+    assert page_content is None
 
 
 async def test_ensure_cached_refreshes_if_needed(mock_gitbook_client):
@@ -428,7 +439,7 @@ async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeyp
     assert result is True
 
 
-async def test_get_resource_extracts_text_when_page_has_no_markdown(mock_gitbook_client):
+async def test_get_resource_without_markdown(mock_gitbook_client):
     document = {
         "nodes": [
             {

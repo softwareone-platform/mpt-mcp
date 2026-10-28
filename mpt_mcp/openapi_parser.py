@@ -12,8 +12,12 @@ class OpenAPIParser:
             include_patterns: Comma-separated path patterns to include (empty = include all)
             exclude_patterns: Comma-separated path patterns to exclude
         """
-        self.include_patterns = [p.strip() for p in include_patterns.split(",") if p.strip()]
-        self.exclude_patterns = [p.strip() for p in exclude_patterns.split(",") if p.strip()]
+        self.include_patterns = [
+            pattern.strip() for pattern in include_patterns.split(",") if pattern.strip()
+        ]
+        self.exclude_patterns = [
+            pattern.strip() for pattern in exclude_patterns.split(",") if pattern.strip()
+        ]
 
     def _should_include_path(self, path: str) -> bool:
         """
@@ -123,12 +127,12 @@ class OpenAPIParser:
         response_info = {}
 
         if "200" in responses:
-            response_200 = responses["200"]
-            response_info["description"] = response_200.get("description", "")
+            ok_response = responses["200"]
+            response_info["description"] = ok_response.get("description", "")
 
-            content = response_200.get("content", {})
-            if "application/json" in content:
-                json_content = content["application/json"]
+            response_content = ok_response.get("content", {})
+            if "application/json" in response_content:
+                json_content = response_content["application/json"]
                 if "schema" in json_content:
                     response_info["schema"] = self._simplify_schema(json_content["schema"])
 

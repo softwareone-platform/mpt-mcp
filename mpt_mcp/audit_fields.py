@@ -25,8 +25,8 @@ def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
         return {}
     parts = ref.replace("#/", "").split("/")
     out = spec
-    for p in parts:
-        out = out.get(p, {}) if isinstance(out, dict) else {}
+    for part in parts:
+        out = out.get(part, {}) if isinstance(out, dict) else {}
     return out if isinstance(out, dict) else {}
 
 
@@ -57,10 +57,10 @@ def _get_item_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, 
     (3) object with a 'data' property that is an array (marketplace API list responses).
     """
     if schema.get("type") == "array" and "items" in schema:
-        items = schema["items"]
-        if isinstance(items, dict) and "$ref" in items:
-            return _resolve_ref(spec, items["$ref"])
-        return items if isinstance(items, dict) else {}
+        item_schema = schema["items"]
+        if isinstance(item_schema, dict) and "$ref" in item_schema:
+            return _resolve_ref(spec, item_schema["$ref"])
+        return item_schema if isinstance(item_schema, dict) else {}
     if "$ref" in schema:
         resolved = _resolve_ref(spec, schema["$ref"])
         return _get_item_schema(spec, resolved)
@@ -74,10 +74,10 @@ def _get_item_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, 
                 if isinstance(prop, dict) and "$ref" in prop:
                     prop = _resolve_ref(spec, prop["$ref"])
                 if isinstance(prop, dict) and prop.get("type") == "array" and "items" in prop:
-                    items = prop["items"]
-                    if isinstance(items, dict) and "$ref" in items:
-                        return _resolve_ref(spec, items["$ref"])
-                    return items if isinstance(items, dict) else {}
+                    item_schema = prop["items"]
+                    if isinstance(item_schema, dict) and "$ref" in item_schema:
+                        return _resolve_ref(spec, item_schema["$ref"])
+                    return item_schema if isinstance(item_schema, dict) else {}
     return schema
 
 
@@ -96,10 +96,12 @@ def _collect_audit_events_and_paths_from_props(
     for prop_name, prop_schema in (properties or {}).items():
         if "audit" not in prop_name.lower():
             continue
-        obj = _resolve_schema(spec, prop_schema) if isinstance(prop_schema, dict) else prop_schema
-        if not isinstance(obj, dict):
+        audit_schema = (
+            _resolve_schema(spec, prop_schema) if isinstance(prop_schema, dict) else prop_schema
+        )
+        if not isinstance(audit_schema, dict):
             continue
-        nested = obj.get("properties") or {}
+        nested = audit_schema.get("properties") or {}
         for event_name, event_schema in nested.items():
             if not isinstance(event_schema, dict):
                 continue
@@ -145,15 +147,15 @@ def get_audit_data_from_spec(
     all_events: set[str] = set()
     by_resource: dict[str, list[str]] = {}
     paths = spec.get("paths") or {}
-    get_paths = [p for p, pi in paths.items() if "get" in pi]
+    get_paths = [path for path, path_item in paths.items() if "get" in path_item]
     logger.debug("audit_fields: scanning %d GET paths for audit schemas", len(get_paths))
     for path, path_item in paths.items():
         if "get" not in path_item:
             continue
         get_op = path_item["get"]
         responses = get_op.get("responses") or {}
-        content = (responses.get("200") or {}).get("content") or {}
-        json_content = content.get("application/json") or {}
+        response_content = (responses.get("200") or {}).get("content") or {}
+        json_content = response_content.get("application/json") or {}
         schema = json_content.get("schema")
         if not schema:
             logger.debug("audit_fields: %s has no 200 application/json schema", path)
@@ -166,7 +168,7 @@ def get_audit_data_from_spec(
             logger.debug("audit_fields: %s item schema has no properties", path)
             continue
         prop_names = list(properties.keys())
-        audit_like = [n for n in prop_names if "audit" in n.lower()]
+        audit_like = [name for name in prop_names if "audit" in name.lower()]
         if not audit_like:
             logger.debug("audit_fields: %s properties (no *audit*): %s", path, prop_names[:12])
             continue
@@ -199,7 +201,7 @@ def build_audit_regex(events: set[str]) -> re.Pattern[str]:
     r"""Build regex audit\.(event1|event2|...).(at|by) from event names."""
     if not events:
         return FALLBACK_STATIC_REGEX
-    part = "|".join(re.escape(e) for e in sorted(events))
+    part = "|".join(re.escape(error) for error in sorted(events))
     return re.compile(rf"audit\.({part})\.(at|by)")
 
 

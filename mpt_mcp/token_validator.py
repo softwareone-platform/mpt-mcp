@@ -185,8 +185,8 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
             response = await client.get(jwks_url)
             response.raise_for_status()
             jwks_dict = response.json()
-    except Exception as e:
-        logger.warning("Failed to fetch JWKS from %s: %s", jwks_url, e)
+    except Exception as error:
+        logger.warning("Failed to fetch JWKS from %s: %s", jwks_url, error)
         return None
 
     if not isinstance(jwks_dict, dict) or "keys" not in jwks_dict:
@@ -264,16 +264,16 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
                     leeway=leeway,
                     options={"verify_aud": False, "verify_iss": False},
                 )
-            except jwt.InvalidSignatureError as e:
-                last_error = e
+            except jwt.InvalidSignatureError as error:
+                last_error = error
                 continue
             return (payload, None)
         raise last_error
-    except jwt.ExpiredSignatureError as e:
-        logger.debug("JWT verification failed (expired, leeway=%ss): %s", leeway, e)
+    except jwt.ExpiredSignatureError as error:
+        logger.debug("JWT verification failed (expired, leeway=%ss): %s", leeway, error)
         return (None, "Token expired")
-    except jwt.PyJWTError as e:
-        logger.debug("JWT verification failed: %s", e)
+    except jwt.PyJWTError as error:
+        logger.debug("JWT verification failed: %s", error)
         return (None, "JWT signature or claims invalid")
 
 
@@ -354,8 +354,8 @@ def parse_token_id(token: str) -> str | None:
         if len(parts) >= 2 and parts[1].startswith("TKN-"):
             return parts[1]
         return None
-    except Exception as e:
-        logger.warning("Failed to parse token ID: %s", e)
+    except Exception as error:
+        logger.warning("Failed to parse token ID: %s", error)
         return None
 
 
@@ -372,10 +372,10 @@ def normalize_token(token: str) -> str:
     """
     if not token or not isinstance(token, str):
         return ""
-    s = token.strip()
-    if s.upper().startswith("BEARER "):
-        s = s[7:].strip()
-    return s
+    normalized = token.strip()
+    if normalized.upper().startswith("BEARER "):
+        normalized = normalized[7:].strip()
+    return normalized
 
 
 async def validate_token(
@@ -598,14 +598,14 @@ async def validate_token(
             # Don't cache timeouts (transient issue)
             return (False, None, error)
 
-        except httpx.HTTPError as e:
-            error = f"JWT token validation failed: {e!s}"
+        except httpx.HTTPError as http_error:
+            error = f"JWT token validation failed: {http_error!s}"
             logger.exception("❌ %s", error)
             # Don't cache HTTP errors (might be transient)
             return (False, None, error)
 
-        except Exception as e:
-            error = f"Unexpected error during JWT token validation: {e!s}"
+        except Exception as unexpected_error:
+            error = f"Unexpected error during JWT token validation: {unexpected_error!s}"
             logger.exception("❌ %s", error)
             # Don't cache unexpected errors
             return (False, None, error)
@@ -692,14 +692,14 @@ async def validate_token(
             # Don't cache timeouts (transient issue)
             return (False, None, error)
 
-        except httpx.HTTPError as e:
-            error = f"Token validation failed: {e!s}"
+        except httpx.HTTPError as http_error:
+            error = f"Token validation failed: {http_error!s}"
             logger.exception("❌ %s", error)
             # Don't cache HTTP errors (might be transient)
             return (False, None, error)
 
-        except Exception as e:
-            error = f"Unexpected error during token validation: {e!s}"
+        except Exception as unexpected_error:
+            error = f"Unexpected error during token validation: {unexpected_error!s}"
             logger.exception("❌ %s", error)
             # Don't cache unexpected errors
             return (False, None, error)

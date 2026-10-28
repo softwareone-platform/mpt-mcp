@@ -66,7 +66,7 @@ async def test_get_openapi_spec_resource_fetch_error():
 
 async def test_openapi_resource_listed_in_resources():
 
-    resources = {str(r.uri): r for r in (await mcp.list_resources())}
+    resources = {str(resource.uri): resource for resource in (await mcp.list_resources())}
     resource_uris = [str(uri) for uri in resources]
 
     assert "api://openapi.json" in resource_uris
@@ -74,7 +74,7 @@ async def test_openapi_resource_listed_in_resources():
 
 async def test_openapi_resource_has_correct_metadata():
 
-    resources = {str(r.uri): r for r in (await mcp.list_resources())}
+    resources = {str(resource.uri): resource for resource in (await mcp.list_resources())}
     openapi_resource = resources.get("api://openapi.json")
 
     assert openapi_resource is not None
@@ -88,7 +88,7 @@ async def test_openapi_resource_has_correct_metadata():
 
 async def test_openapi_resource_mime_type():
 
-    resources = {str(r.uri): r for r in (await mcp.list_resources())}
+    resources = {str(resource.uri): resource for resource in (await mcp.list_resources())}
     openapi_resource = resources.get("api://openapi.json")
 
     assert openapi_resource is not None
@@ -132,7 +132,7 @@ async def test_docs_resource_reads_from_live_docs_cache(docs_cache, http_resourc
     assert result == "# Home\n\nHello"
 
 
-async def test_docs_resource_returns_not_found_when_missing(docs_cache, http_resources):
+async def test_docs_resource_not_found_when_missing(docs_cache, http_resources):
     docs_cache({})
 
     result = await http_resources["docs://{path}"]("readme")

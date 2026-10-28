@@ -10,7 +10,9 @@ from mpt_mcp.server_middleware import RequestContextMiddleware
 @pytest.fixture
 def make_request():
     def _make_request(headers, query_string=b""):
-        raw_headers = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
+        raw_headers = [
+            (name.lower().encode(), header_value.encode()) for name, header_value in headers.items()
+        ]
         scope = {
             "type": "http",
             "method": "POST",
@@ -51,7 +53,7 @@ async def test_on_request_resets_log_context_after_call(make_request, capture_lo
     assert (current_user_id.get(), current_session_id.get()) == (None, None)
 
 
-async def test_on_request_without_http_request_passes_through():
+async def test_on_request_without_http_request():
     call_next = AsyncMock(return_value="result")
 
     with patch(

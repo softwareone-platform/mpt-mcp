@@ -339,7 +339,7 @@ async def test_validate_token_with_normalized_token():
         assert call_args[1]["headers"]["Authorization"] == "Bearer idt:TKN-7777-7777:SECRET"
 
 
-async def test_validate_token_jwt_requires_jwks_url_or_iss():
+async def test_validate_jwt_requires_jwks_url_or_iss():
 
     payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
     payload_b64 = (
@@ -467,9 +467,7 @@ async def test_validate_jwt_without_kid_tries_every_key(
     assert (is_valid, error) == (True, None)
 
 
-async def test_validate_jwt_signed_by_unknown_key_rejected(
-    sign_jwt, other_private_key, mock_auth_http
-):
+async def test_validate_jwt_rejects_unknown_key(sign_jwt, other_private_key, mock_auth_http):
     token = sign_jwt({}, private_key=other_private_key)
 
     result = await validate_token(token, API_BASE_URL, use_cache=False)
@@ -485,7 +483,7 @@ async def test_validate_jwt_signed_by_unknown_key_rejected(
     ],
     ids=["unknown-kid", "hs256"],
 )
-async def test_validate_jwt_with_untrusted_header_rejected(sign_jwt, mock_auth_http, sign_kwargs):
+async def test_validate_jwt_rejects_untrusted_header(sign_jwt, mock_auth_http, sign_kwargs):
     token = sign_jwt({}, **sign_kwargs)
 
     result = await validate_token(token, API_BASE_URL, use_cache=False)
@@ -493,7 +491,7 @@ async def test_validate_jwt_with_untrusted_header_rejected(sign_jwt, mock_auth_h
     assert result == (False, None, "JWT signature or claims invalid")
 
 
-async def test_validate_jwt_when_jwks_fetch_fails_rejected(sign_jwt, mock_auth_http):
+async def test_validate_jwt_rejects_on_jwks_failure(sign_jwt, mock_auth_http):
     mock_auth_http.get.side_effect = httpx.ConnectError("JWKS unreachable")
     token = sign_jwt({})
 

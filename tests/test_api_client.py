@@ -87,7 +87,7 @@ def test_token_with_bearer_stays_unchanged():
     assert result.token == "Bearer my-token-value"
 
 
-def test_lowercase_bearer_gets_bearer_prefix_added():
+def test_lowercase_bearer_gets_prefix():
     result = APIClient(base_url="https://api.example.com", token="bearer my-token")
 
     assert result.token == "Bearer bearer my-token"
@@ -151,7 +151,7 @@ def test_extract_user_id_from_token_with_bearer():
         ("idt:TKN-1111-2222:token", "TKN-1111-2222"),
     ],
 )
-def test_extract_user_id_with_different_tkn_format(token, expected_user_id):
+def test_extract_user_id_from_tkn_formats(token, expected_user_id):
     result = APIClient(base_url="https://api.example.com", token=token)
 
     assert result.user_id == expected_user_id
@@ -200,7 +200,7 @@ def test_user_id_from_token(token, expected_user_id):
     assert result == expected_user_id
 
 
-def test_idt_token_without_bearer_gets_prefix_and_user_id():
+def test_idt_token_without_bearer_gets_prefix():
     token = "idt:TKN-1234-5678:secret"
 
     result = APIClient(base_url="https://api.example.com", token=token)
@@ -212,7 +212,7 @@ def test_idt_token_without_bearer_gets_prefix_and_user_id():
     assert result.user_id == "TKN-1234-5678"
 
 
-def test_idt_token_with_bearer_keeps_prefix_and_extracts_user_id():
+def test_idt_token_with_bearer_keeps_prefix():
     token = "Bearer idt:TKN-1234-5678:secret"
 
     result = APIClient(base_url="https://api.example.com", token=token)
@@ -265,7 +265,7 @@ async def test_simple_pagination(api_client, mock_product_response):
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         endpoint = "/public/v1/catalog/products"
-        result = await api_client.get(endpoint, params={"limit": 1})
+        result = await api_client.get(endpoint, query_params={"limit": 1})
 
         assert "data" in result
         assert len(result["data"]) <= 1
@@ -284,7 +284,7 @@ async def test_rql_filter_by_status(api_client, mock_product_response):
 
         endpoint = "/public/v1/catalog/products"
         rql = "eq(status,Published)"
-        result = await api_client.get(endpoint, params={"rql": rql, "limit": 1})
+        result = await api_client.get(endpoint, query_params={"rql": rql, "limit": 1})
 
         assert "data" in result
         assert result["data"][0]["status"] == "Published"
@@ -305,7 +305,7 @@ async def test_rql_search_with_ilike(api_client, mock_product_response):
 
         endpoint = "/public/v1/catalog/products"
         rql = "ilike(name,*Microsoft*)"
-        result = await api_client.get(endpoint, params={"rql": rql, "limit": 5})
+        result = await api_client.get(endpoint, query_params={"rql": rql, "limit": 5})
 
         assert "data" in result
         for product in result["data"]:
@@ -330,7 +330,7 @@ async def test_rql_ordering_in_query_string(api_client):
 
         endpoint = "/public/v1/catalog/products"
         rql_query = "order=-id&limit=3"
-        result = await api_client.get(endpoint, params={"rql": rql_query})
+        result = await api_client.get(endpoint, query_params={"rql": rql_query})
 
         assert "data" in result
         assert "$meta" in result
@@ -355,7 +355,7 @@ async def test_rql_select_fields(api_client):
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         endpoint = "/public/v1/catalog/products"
-        result = await api_client.get(endpoint, params={"select": "+id,+name", "limit": 1})
+        result = await api_client.get(endpoint, query_params={"select": "+id,+name", "limit": 1})
 
         assert "data" in result
         product = result["data"][0]
@@ -380,7 +380,7 @@ async def test_rql_complex_query(api_client):
 
         endpoint = "/public/v1/catalog/products"
         rql = "and(eq(status,Published),ilike(name,*AWS*))"
-        result = await api_client.get(endpoint, params={"rql": rql, "limit": 5})
+        result = await api_client.get(endpoint, query_params={"rql": rql, "limit": 5})
 
         assert "data" in result
         for product in result["data"]:
@@ -393,14 +393,14 @@ async def test_rql_pagination_offset(api_client):
         # Mock responses for two pages
         page1_response = Mock()
         page1_response.json.return_value = {
-            "data": [{"id": f"prod-{i}", "name": f"Product {i}"} for i in range(1, 6)],
+            "data": [{"id": f"prod-{index}", "name": f"Product {index}"} for index in range(1, 6)],
             "$meta": {"pagination": {"limit": 5, "offset": 0, "total": 100}},
         }
         page1_response.raise_for_status = Mock()
 
         page2_response = Mock()
         page2_response.json.return_value = {
-            "data": [{"id": f"prod-{i}", "name": f"Product {i}"} for i in range(6, 11)],
+            "data": [{"id": f"prod-{index}", "name": f"Product {index}"} for index in range(6, 11)],
             "$meta": {"pagination": {"limit": 5, "offset": 5, "total": 100}},
         }
         page2_response.raise_for_status = Mock()
@@ -411,20 +411,20 @@ async def test_rql_pagination_offset(api_client):
         endpoint = "/public/v1/catalog/products"
 
         # Get first page
-        page1 = await api_client.get(endpoint, params={"limit": 5, "offset": 0})
+        page1 = await api_client.get(endpoint, query_params={"limit": 5, "offset": 0})
         assert "data" in page1
 
         # Get second page
-        page2 = await api_client.get(endpoint, params={"limit": 5, "offset": 5})
+        page2 = await api_client.get(endpoint, query_params={"limit": 5, "offset": 5})
         assert "data" in page2
 
         # Ensure different results
-        page1_ids = [p["id"] for p in page1["data"]]
-        page2_ids = [p["id"] for p in page2["data"]]
+        page1_ids = [product["id"] for product in page1["data"]]
+        page2_ids = [product["id"] for product in page2["data"]]
         assert page1_ids != page2_ids
 
 
-async def test_401_unauthorized_error():
+async def test_unauthorized_error():
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -446,7 +446,7 @@ async def test_401_unauthorized_error():
         assert exc_info.value.response.status_code == 401
 
 
-async def test_403_forbidden_error():
+async def test_forbidden_error():
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -468,7 +468,7 @@ async def test_403_forbidden_error():
         assert exc_info.value.response.status_code == 403
 
 
-async def test_404_not_found_error():
+async def test_not_found_error():
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -490,7 +490,7 @@ async def test_404_not_found_error():
         assert exc_info.value.response.status_code == 404
 
 
-async def test_429_rate_limit_error():
+async def test_rate_limit_error():
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -512,7 +512,7 @@ async def test_429_rate_limit_error():
         assert exc_info.value.response.status_code == 429
 
 
-async def test_500_server_error():
+async def test_server_error():
 
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -553,7 +553,7 @@ async def test_logs_omitted_fields_in_response(api_client):
         # Capture log output
         with patch("mpt_mcp.api_client.logger") as mock_logger:
             endpoint = "/public/v1/commerce/orders"
-            result = await api_client.get(endpoint, params={"limit": 10})
+            result = await api_client.get(endpoint, query_params={"limit": 10})
 
             # Verify response contains omitted fields
             assert "$meta" in result
@@ -588,7 +588,7 @@ async def test_handles_response_without_omitted_fields(api_client):
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         endpoint = "/public/v1/commerce/orders"
-        result = await api_client.get(endpoint, params={"limit": 10})
+        result = await api_client.get(endpoint, query_params={"limit": 10})
 
         # Should not raise error when omitted is missing
         assert "$meta" in result
@@ -612,7 +612,7 @@ async def test_handles_empty_omitted_fields_list(api_client):
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         endpoint = "/public/v1/commerce/orders"
-        result = await api_client.get(endpoint, params={"limit": 10})
+        result = await api_client.get(endpoint, query_params={"limit": 10})
 
         assert "$meta" in result
         assert result["$meta"]["omitted"] == []
@@ -657,13 +657,13 @@ async def test_select_parameter_includes_omitted_fields(api_client):
         endpoint = "/public/v1/commerce/orders"
 
         # First call: without select
-        result1 = await api_client.get(endpoint, params={"limit": 10})
+        result1 = await api_client.get(endpoint, query_params={"limit": 10})
         assert "omitted" in result1["$meta"]
         assert "lines" in result1["$meta"]["omitted"]
 
         # Second call: with select=+lines,+parameters
         result2 = await api_client.get(
-            endpoint, params={"limit": 10, "select": "+lines,+parameters"}
+            endpoint, query_params={"limit": 10, "select": "+lines,+parameters"}
         )
         # When fields are explicitly selected, they should be in data
         if "lines" in result2.get("data", [{}])[0]:

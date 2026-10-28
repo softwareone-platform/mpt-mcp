@@ -149,7 +149,7 @@ class AnalyticsLogger:
             if not self._event_queue:
                 return
 
-            events_to_insert = [self._normalize_event(e) for e in self._event_queue]
+            events_to_insert = [self._normalize_event(error) for error in self._event_queue]
             self._event_queue.clear()
 
         try:

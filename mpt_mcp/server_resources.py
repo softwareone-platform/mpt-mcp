@@ -36,11 +36,11 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
 
     try:
         openapi_spec = await endpoint_registry.get_openapi_spec(endpoint, force_refresh=False)
-    except Exception as e:
+    except Exception as error:
         return json.dumps(
             {
                 "error": "Failed to fetch OpenAPI specification",
-                "message": str(e),
+                "message": str(error),
                 "endpoint": endpoint,
             },
             indent=2,
@@ -96,8 +96,8 @@ def register_http_resources(mcp: Any) -> None:
                 "GITBOOK_SPACE_ID."
             )
 
-        content = await dc.get_resource(uri)
-        if content is None:
+        page_content = await dc.get_resource(uri)
+        if page_content is None:
             return f"Documentation page not found: {uri}"
 
-        return content
+        return page_content

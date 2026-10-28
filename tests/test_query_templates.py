@@ -68,7 +68,7 @@ def test_orders_category_content():
 
     assert result["description"] == "Common order queries"
     assert len(result["templates"]) >= 5, "Orders should have at least 5 templates"
-    template_names = [t["name"] for t in result["templates"]]
+    template_names = [template["name"] for template in result["templates"]]
     assert "Recent orders" in template_names
     assert "Orders by status" in template_names
 
@@ -80,7 +80,7 @@ def test_products_category_content():
 
     assert result["description"] == "Common product queries"
     assert len(result["templates"]) >= 5, "Products should have at least 5 templates"
-    template_names = [t["name"] for t in result["templates"]]
+    template_names = [template["name"] for template in result["templates"]]
     assert "Published products" in template_names
     assert "Search products by name" in template_names
 
@@ -92,7 +92,7 @@ def test_agreements_category_content():
 
     assert result["description"] == "Common agreement queries"
     assert len(result["templates"]) >= 3, "Agreements should have at least 3 templates"
-    template_names = [t["name"] for t in result["templates"]]
+    template_names = [template["name"] for template in result["templates"]]
     assert "Active agreements" in template_names
 
 
@@ -103,7 +103,7 @@ def test_subscriptions_category_content():
 
     assert result["description"] == "Common subscription queries"
     assert len(result["templates"]) >= 3, "Subscriptions should have at least 3 templates"
-    template_names = [t["name"] for t in result["templates"]]
+    template_names = [template["name"] for template in result["templates"]]
     assert "Active subscriptions" in template_names
 
 
@@ -114,7 +114,7 @@ def test_accounts_category_content():
 
     assert result["description"] == "Common account queries"
     assert len(result["templates"]) >= 3, "Accounts should have at least 3 templates"
-    template_names = [t["name"] for t in result["templates"]]
+    template_names = [template["name"] for template in result["templates"]]
     assert "Active buyers" in template_names
 
 
@@ -153,7 +153,7 @@ def test_tips_has_rql_basics():
 
 
 @pytest.mark.parametrize(("category", "template"), STATUS_TEMPLATES)
-def test_templates_with_status_have_available_values(category, template):
+def test_status_templates_have_available_values(category, template):
     result = template.get("available_statuses")
 
     assert isinstance(result, list)
@@ -161,7 +161,7 @@ def test_templates_with_status_have_available_values(category, template):
 
 
 @pytest.mark.parametrize(("category", "template"), TEMPLATES)
-def test_templates_reference_their_category_resource(category, template):
+def test_templates_reference_category_resource(category, template):
     result = template["query"]
 
     assert RESOURCE_BY_CATEGORY[category] in result

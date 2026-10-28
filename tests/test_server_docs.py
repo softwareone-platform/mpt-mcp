@@ -13,14 +13,14 @@ def gitbook_not_configured(monkeypatch):
 
 
 @pytest.mark.usefixtures("gitbook_not_configured")
-async def test_initialize_documentation_cache_creates_disabled_cache_without_gitbook():
+async def test_init_docs_cache_disabled_without_gitbook():
     await server_docs.initialize_documentation_cache()  # act
 
     assert server_docs.documentation_cache.is_enabled is False
 
 
 @pytest.mark.usefixtures("gitbook_not_configured")
-async def test_initialize_documentation_cache_reinitializes_in_a_new_process(monkeypatch):
+async def test_init_docs_cache_again_in_new_process(monkeypatch):
     await server_docs.initialize_documentation_cache()
     stale_cache = Mock()
     monkeypatch.setattr(server_docs, "documentation_cache", stale_cache)

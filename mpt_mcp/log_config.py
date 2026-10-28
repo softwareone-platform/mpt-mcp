@@ -40,9 +40,9 @@ def configure_logging(level: int = logging.INFO) -> None:
     Args:
         level: Log level of the application loggers
     """
-    handler = logging.StreamHandler(sys.stderr)
-    handler.addFilter(RequestContextFilter())
-    handler.setFormatter(logging.Formatter(LOG_FORMAT))
-    logging.basicConfig(level=logging.INFO, handlers=[handler], force=True)
+    stream_handler = logging.StreamHandler(sys.stderr)
+    stream_handler.addFilter(RequestContextFilter())
+    stream_handler.setFormatter(logging.Formatter(LOG_FORMAT))
+    logging.basicConfig(level=logging.INFO, handlers=[stream_handler], force=True)
     for logger_name in APP_LOGGERS:
         logging.getLogger(logger_name).setLevel(level)

@@ -56,10 +56,10 @@ async def test_fetch_space_content(client):
         mock_context.__aenter__.return_value.get = AsyncMock(return_value=mock_response)
         mock_client.return_value = mock_context
 
-        content = await client.fetch_space_content()
+        space_content = await client.fetch_space_content()
 
-        assert "pages" in content
-        assert len(content["pages"]) == 2
+        assert "pages" in space_content
+        assert len(space_content["pages"]) == 2
 
 
 async def test_fetch_page_by_path(client):

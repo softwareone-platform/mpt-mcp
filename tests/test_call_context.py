@@ -16,7 +16,9 @@ from mpt_mcp.config import config
 @pytest.fixture
 def make_request():
     def _make_request(headers):
-        raw_headers = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
+        raw_headers = [
+            (name.lower().encode(), header_value.encode()) for name, header_value in headers.items()
+        ]
         return Request({
             "type": "http",
             "method": "POST",
@@ -42,7 +44,7 @@ async def test_get_call_context_reads_mpt_headers(make_request):
     )
 
 
-async def test_get_call_context_defaults_without_headers(make_request):
+async def test_call_context_defaults_without_headers(make_request):
     request = make_request({})
 
     result = await get_call_context(request)
@@ -83,7 +85,7 @@ async def test_create_api_client_without_token_raises():
         await call_context.create_api_client()
 
 
-async def test_create_api_client_with_invalid_token_raises():
+async def test_create_api_client_invalid_token():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
     with (
@@ -120,7 +122,7 @@ async def test_create_api_client_validates_token(validate_fresh, use_cache):
     )
 
 
-async def test_create_api_client_returns_client_for_caller_endpoint():
+async def test_create_api_client_for_caller_endpoint():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
     with patch(

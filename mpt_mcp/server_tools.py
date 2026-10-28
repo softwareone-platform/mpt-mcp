@@ -47,11 +47,11 @@ async def marketplace_docs_list(
         section=section, subsection=subsection, search=search, limit=limit
     )
     resources_for_response = []
-    for r in resources:
-        item = dict(r)
-        if r.get("metadata", {}).get("browser_url"):
-            item["browser_url"] = r["metadata"]["browser_url"]
-        resources_for_response.append(item)
+    for resource in resources:
+        entry = dict(resource)
+        if resource.get("metadata", {}).get("browser_url"):
+            entry["browser_url"] = resource["metadata"]["browser_url"]
+        resources_for_response.append(entry)
     filters = []
     if section:
         filters.append(f"section={section}")
@@ -96,18 +96,18 @@ def register_http_tools(mcp):
     ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
-        except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HEADER_HINT}
+        except ValueError as error:
+            return {"error": str(error), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         logger.info("🔍 Using API endpoint: %s", api_base_url)
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
             openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)
-        except Exception as e:
+        except Exception as error:
             return {
                 "error": f"{OPENAPI_SPEC_LOAD_ERROR} for your endpoint",
                 "api_endpoint": api_base_url,
-                "details": str(e),
+                "details": str(error),
                 "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
             }
         audit_regex = audit_fields_module.get_audit_regex(api_base_url)
@@ -138,13 +138,13 @@ def register_http_tools(mcp):
     ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
-        except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HEADER_HINT}
+        except ValueError as error:
+            return {"error": str(error), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as e:
-            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(e)}
+        except Exception as error:
+            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
         return execute_marketplace_resources(
             api_base_url=api_base_url,
             user_id=call_context.user_id,
@@ -157,13 +157,13 @@ def register_http_tools(mcp):
     ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
-        except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HEADER_HINT}
+        except ValueError as error:
+            return {"error": str(error), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as e:
-            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(e)}
+        except Exception as error:
+            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
         return execute_marketplace_resource_info(
             resource=resource,
             endpoints_registry=endpoints_registry_data,
@@ -175,14 +175,14 @@ def register_http_tools(mcp):
     ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
-        except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HEADER_HINT}
+        except ValueError as error:
+            return {"error": str(error), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             spec = await endpoint_registry.get_openapi_spec(api_base_url)
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as e:
-            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(e)}
+        except Exception as error:
+            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
         return execute_marketplace_resource_schema(
             resource=resource,
             openapi_spec=spec,
@@ -195,15 +195,15 @@ def register_http_tools(mcp):
     ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
-        except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HEADER_HINT}
+        except ValueError as error:
+            return {"error": str(error), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as e:
+        except Exception as error:
             return {
                 "error": f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
-                "details": str(e),
+                "details": str(error),
                 "api_endpoint": api_base_url,
             }
         return audit_fields_module.get_audit_fields(api_base_url, resource)
@@ -232,8 +232,8 @@ def register_http_tools(mcp):
         if not dc or not dc.is_enabled:
             return {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
 
-        content = await dc.get_resource(uri)
-        if content is None:
+        page_content = await dc.get_resource(uri)
+        if page_content is None:
             return {
                 "text": (
                     f"Documentation page not found: {uri}\n\n"
@@ -242,7 +242,7 @@ def register_http_tools(mcp):
                 "count": 0,
             }
 
-        return {"text": content, "count": 1}
+        return {"text": page_content, "count": 1}
 
     # TBD: decide whether this is a debug tool (it only reports cache statistics); if so, tag it
     # "debug" so it is hidden in production

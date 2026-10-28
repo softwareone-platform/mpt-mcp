@@ -15,8 +15,8 @@ DEFAULT_FETCH_TIMEOUT = 30.0
 
 def _read_json_path(path: Path) -> dict[str, Any]:
     """Read and parse a JSON file (sync; run via asyncio.to_thread from async code)."""
-    with Path(path).open(encoding="utf-8") as f:
-        return json.load(f)
+    with Path(path).open(encoding="utf-8") as json_file:
+        return json.load(json_file)
 
 
 class CacheManager:
@@ -53,8 +53,8 @@ class CacheManager:
             return False
 
         try:
-            with Path(meta_path).open(encoding="utf-8") as f:
-                metadata = json.load(f)
+            with Path(meta_path).open(encoding="utf-8") as meta_handle:
+                metadata = json.load(meta_handle)
 
             cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
             expires_at = cached_at + self.ttl
@@ -82,8 +82,8 @@ class CacheManager:
             return None
 
         try:
-            with Path(cache_path).open(encoding="utf-8") as f:
-                return json.load(f)
+            with Path(cache_path).open(encoding="utf-8") as cache_handle:
+                return json.load(cache_handle)
         except OSError, json.JSONDecodeError:
             return None
 
@@ -99,8 +99,8 @@ class CacheManager:
         meta_path = self._get_metadata_path(key)
 
         # Write data
-        with Path(cache_path).open("w", encoding="utf-8") as f:
-            json.dump(data, f, indent=2)
+        with Path(cache_path).open("w", encoding="utf-8") as cache_handle:
+            json.dump(data, cache_handle, indent=2)
 
         # Write metadata
         metadata = {
@@ -108,8 +108,8 @@ class CacheManager:
             "key": key,
             "size": len(json.dumps(data)),
         }
-        with Path(meta_path).open("w", encoding="utf-8") as f:
-            json.dump(metadata, f, indent=2)
+        with Path(meta_path).open("w", encoding="utf-8") as meta_handle:
+            json.dump(metadata, meta_handle, indent=2)
 
     def invalidate(self, key: str) -> None:
         """
@@ -134,9 +134,13 @@ class CacheManager:
             Dictionary with cache statistics
         """
         cache_files = list(self.cache_dir.glob("*.json"))
-        data_files = [f for f in cache_files if not f.name.endswith(".meta.json")]
+        data_files = [
+            meta_handle
+            for meta_handle in cache_files
+            if not meta_handle.name.endswith(".meta.json")
+        ]
 
-        total_size = sum(f.stat().st_size for f in cache_files)
+        total_size = sum(meta_handle.stat().st_size for meta_handle in cache_files)
 
         valid_count = 0
         expired_count = 0
@@ -147,8 +151,8 @@ class CacheManager:
 
             if meta_file.exists():
                 try:
-                    with Path(meta_file).open(encoding="utf-8") as f:
-                        metadata = json.load(f)
+                    with Path(meta_file).open(encoding="utf-8") as meta_handle:
+                        metadata = json.load(meta_handle)
 
                     cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
                     expires_at = cached_at + self.ttl
@@ -210,10 +214,10 @@ async def fetch_with_cache(
             # Log if redirects occurred
             if len(response.history) > 0:
                 logger.info("🔄 Followed %s redirect(s)", len(response.history))
-                for i, redirect in enumerate(response.history, 1):
+                for position, redirect in enumerate(response.history, 1):
                     logger.info(
                         "   %s. %s → %s",
-                        i,
+                        position,
                         redirect.status_code,
                         redirect.headers.get("Location", "unknown"),
                     )
@@ -228,9 +232,9 @@ async def fetch_with_cache(
 
         return data
 
-    except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
+    except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as error:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
-        logger.warning("⚠ Network fetch failed: %s", e)
+        logger.warning("⚠ Network fetch failed: %s", error)
 
         cache_path = cache_manager.get_cache_path(url)
         if cache_path.exists():

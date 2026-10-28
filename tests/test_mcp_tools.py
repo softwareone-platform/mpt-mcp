@@ -59,7 +59,7 @@ def orders_with_audit_response():
     }
 
 
-async def test_auto_adds_audit_when_filtering_by_created_at(
+async def test_adds_audit_filtering_by_created_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -82,11 +82,11 @@ async def test_auto_adds_audit_when_filtering_by_created_at(
 
     # Verify API was called with select=audit
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
 
 
-async def test_auto_adds_audit_when_filtering_by_updated_at(
+async def test_adds_audit_filtering_by_updated_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -108,11 +108,11 @@ async def test_auto_adds_audit_when_filtering_by_updated_at(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
 
 
-async def test_auto_adds_audit_when_filtering_by_completed_at(
+async def test_adds_audit_filtering_by_completed_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -134,11 +134,11 @@ async def test_auto_adds_audit_when_filtering_by_completed_at(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
 
 
-async def test_auto_adds_audit_when_filtering_by_processing_at(
+async def test_adds_audit_filtering_by_processing_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -160,11 +160,11 @@ async def test_auto_adds_audit_when_filtering_by_processing_at(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
 
 
-async def test_auto_adds_audit_when_filtering_by_quoted_at(
+async def test_adds_audit_filtering_by_quoted_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -186,11 +186,11 @@ async def test_auto_adds_audit_when_filtering_by_quoted_at(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
 
 
-async def test_auto_adds_audit_when_filtering_by_failed_at(
+async def test_adds_audit_filtering_by_failed_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -212,13 +212,13 @@ async def test_auto_adds_audit_when_filtering_by_failed_at(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), (
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), (
         "select parameter should include 'audit' for audit.failed.at"
     )
 
 
-async def test_auto_adds_audit_when_filtering_by_created_by(
+async def test_adds_audit_filtering_by_created_by(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -240,11 +240,11 @@ async def test_auto_adds_audit_when_filtering_by_created_by(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), "select parameter should include 'audit'"
 
 
-async def test_auto_adds_audit_when_ordering_by_audit_field(
+async def test_adds_audit_ordering_by_audit_field(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -265,13 +265,13 @@ async def test_auto_adds_audit_when_ordering_by_audit_field(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), (
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), (
         "select parameter should include 'audit' when ordering by audit field"
     )
 
 
-async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(
+async def test_adds_audit_ordering_asc_by_audit_field(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -292,13 +292,13 @@ async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), (
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), (
         "select parameter should include 'audit' when ordering by audit field"
     )
 
 
-async def test_does_not_add_audit_when_already_in_select(
+async def test_skips_audit_when_already_in_select(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -319,8 +319,8 @@ async def test_does_not_add_audit_when_already_in_select(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     # Count occurrences of 'audit' - should be exactly 1
     audit_count = select_value.count("audit")
     assert audit_count == 1, (
@@ -328,7 +328,7 @@ async def test_does_not_add_audit_when_already_in_select(
     )
 
 
-async def test_does_not_add_audit_when_using_plus_prefix(
+async def test_skips_audit_with_plus_prefix(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -349,15 +349,15 @@ async def test_does_not_add_audit_when_using_plus_prefix(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     audit_count = select_value.count("audit")
     assert audit_count == 1, (
         f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
     )
 
 
-async def test_does_not_add_audit_when_using_audit_dot_notation(
+async def test_skips_audit_with_dot_notation(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -378,13 +378,13 @@ async def test_does_not_add_audit_when_using_audit_dot_notation(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     # Should not have standalone 'audit' added, but audit.created.at should be there
     assert "audit.created.at" in select_value, "audit.created.at should be in select"
     # Should not have standalone 'audit' added when audit.field is already present
-    select_parts = [s.strip() for s in select_value.split(",")]
-    standalone_audit = [p for p in select_parts if p in {"audit", "+audit"}]
+    select_parts = [part.strip() for part in select_value.split(",")]
+    standalone_audit = [part for part in select_parts if part in {"audit", "+audit"}]
     assert len(standalone_audit) == 0, (
         "standalone 'audit' should not be added when audit.field is already present"
     )
@@ -415,13 +415,13 @@ async def test_complex_rql_with_audit_fields(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), (
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "audit" in query_params.get("select", ""), (
         "select parameter should include 'audit' for complex RQL with audit fields"
     )
 
 
-async def test_does_not_add_audit_when_no_audit_fields_used(
+async def test_skips_audit_without_audit_fields(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -442,8 +442,8 @@ async def test_does_not_add_audit_when_no_audit_fields_used(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     assert "audit" not in select_value, (
         "select parameter should NOT include 'audit' when no audit fields are used"
     )
@@ -470,15 +470,15 @@ async def test_appends_audit_to_existing_select(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     assert "audit" in select_value, "select should include 'audit'"
     assert "id" in select_value, "select should include id (always added by sanitization)"
     assert "name" in select_value, "select should still include original fields"
     assert "status" in select_value, "select should still include original fields"
 
 
-async def test_creates_select_with_audit_when_no_select_provided(
+async def test_creates_audit_select_without_select(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -499,13 +499,13 @@ async def test_creates_select_with_audit_when_no_select_provided(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     assert "audit" in select_value, "select should include 'audit'"
     assert "id" in select_value, "select should include id (always added by sanitization)"
 
 
-async def test_creates_select_with_audit_when_no_select_provided_exact(
+async def test_creates_exact_audit_select(
     api_client, orders_with_audit_response, endpoints_registry
 ):
     api_client.get.return_value = orders_with_audit_response
@@ -525,8 +525,8 @@ async def test_creates_select_with_audit_when_no_select_provided_exact(
         config=None,
     )
 
-    params = api_client.get.call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = api_client.get.call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
     assert select_value == "id,audit", f"select should be 'id,audit', but got '{select_value}'"
 
 
@@ -548,7 +548,7 @@ async def test_creates_select_with_audit_when_no_select_provided_exact(
         ("audit.created", False),
     ],
 )
-def test_fallback_audit_regex_matches_audit_fields(field, expected):
+def test_fallback_audit_regex_matches_fields(field, expected):
     result = FALLBACK_STATIC_REGEX.search(field) is not None
 
     assert result is expected
@@ -579,8 +579,8 @@ async def test_real_world_date_range_query(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
 
     # Should include audit
     assert "audit" in select_value, "select should include 'audit' for date range queries"
@@ -589,7 +589,7 @@ async def test_real_world_date_range_query(
     assert "+product.id" in select_value or "product.id" in select_value
     assert "+product.name" in select_value or "product.name" in select_value
     # Should have correct order
-    assert params.get("order") == "-audit.created.at"
+    assert query_params.get("order") == "-audit.created.at"
 
 
 async def test_real_world_recent_orders_query(
@@ -613,8 +613,8 @@ async def test_real_world_recent_orders_query(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    select_value = params.get("select", "")
+    query_params = call_args.kwargs.get("query_params", {})
+    select_value = query_params.get("select", "")
 
     # Should include audit for ordering
     assert "audit" in select_value, "select should include 'audit' when ordering by audit field"
@@ -624,7 +624,7 @@ async def test_real_world_recent_orders_query(
     assert "+product.name" in select_value or "product.name" in select_value
 
 
-async def test_retries_without_audit_on_400_error(
+async def test_retries_without_audit_on_bad_request(
     api_client, orders_with_audit_response, endpoints_registry
 ):
 
@@ -663,11 +663,11 @@ async def test_retries_without_audit_on_400_error(
     assert api_client.get.call_count == 2, "API should be called twice (initial + retry)"
 
     # First call should have audit
-    first_call_params = api_client.get.call_args_list[0].kwargs.get("params", {})
+    first_call_params = api_client.get.call_args_list[0].kwargs.get("query_params", {})
     assert "audit" in first_call_params.get("select", ""), "First call should include 'audit'"
 
     # Second call (retry) should not have audit, but should have original fields
-    second_call_params = api_client.get.call_args_list[1].kwargs.get("params", {})
+    second_call_params = api_client.get.call_args_list[1].kwargs.get("query_params", {})
     assert "audit" not in second_call_params.get("select", ""), "Retry should not include 'audit'"
     assert "+id" in second_call_params.get("select", ""), "Retry should preserve original fields"
     assert "+name" in second_call_params.get("select", ""), "Retry should preserve original fields"
@@ -676,7 +676,7 @@ async def test_retries_without_audit_on_400_error(
 @pytest.fixture
 def products_page_response():
     return {
-        "data": [{"id": f"prod-{i}", "name": f"Product {i}"} for i in range(1, 11)],
+        "data": [{"id": f"prod-{index}", "name": f"Product {index}"} for index in range(1, 11)],
         "$meta": {"pagination": {"total": 100, "limit": 10, "offset": 0}},
     }
 
@@ -703,10 +703,10 @@ async def test_applies_default_limit_when_none(
     call_args = api_client.get.call_args
     assert call_args is not None, "API client should have been called"
 
-    # Check that limit=10 was passed in params
-    params = call_args.kwargs.get("params", {})
-    assert "limit" in params, "Limit parameter should be present"
-    assert params["limit"] == 10, f"Expected limit=10, got limit={params.get('limit')}"
+    # Check that limit=10 was passed in query_params
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "limit" in query_params, "Limit parameter should be present"
+    assert query_params["limit"] == 10, f"Expected limit=10, got limit={query_params.get('limit')}"
 
     # Verify result
     assert "data" in result
@@ -732,8 +732,8 @@ async def test_respects_explicit_limit(api_client, products_page_response, endpo
 
     # Verify API was called with limit=50 (not default 10)
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert params["limit"] == 50, f"Expected limit=50, got limit={params.get('limit')}"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert query_params["limit"] == 50, f"Expected limit=50, got limit={query_params.get('limit')}"
 
     # Verify result
     assert "data" in result
@@ -757,8 +757,8 @@ async def test_respects_limit_zero(api_client, products_page_response, endpoints
 
     # Verify API was called with limit=0 (not default 10)
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert params["limit"] == 0, f"Expected limit=0, got limit={params.get('limit')}"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert query_params["limit"] == 0, f"Expected limit=0, got limit={query_params.get('limit')}"
     assert "data" in result
 
 
@@ -780,9 +780,9 @@ async def test_default_limit_with_rql(api_client, products_page_response, endpoi
 
     # Verify API was called with both RQL and limit=10
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert params["rql"] == "eq(status,Published)", "RQL should be preserved"
-    assert params["limit"] == 10, "Default limit should be applied"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert query_params["rql"] == "eq(status,Published)", "RQL should be preserved"
+    assert query_params["limit"] == 10, "Default limit should be applied"
     assert "data" in result
 
 
@@ -806,10 +806,10 @@ async def test_default_limit_with_other_params(
 
     # Verify API was called with all parameters including default limit
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert {"id", "name"} <= set(params["select"].split(","))
-    assert params["order"] == "-created", "Order should be preserved"
-    assert params["limit"] == 10, "Default limit should be applied"
+    query_params = call_args.kwargs.get("query_params", {})
+    assert {"id", "name"} <= set(query_params["select"].split(","))
+    assert query_params["order"] == "-created", "Order should be preserved"
+    assert query_params["limit"] == 10, "Default limit should be applied"
     assert "data" in result
 
 
@@ -835,7 +835,7 @@ async def test_default_limit_logs_message(
     assert "default limit=10" in caplog.text.lower()
 
 
-async def test_catalog_products_default_select_when_omit(
+async def test_catalog_products_default_select(
     api_client, products_page_response, endpoints_registry
 ):
     api_client.get.return_value = products_page_response
@@ -853,8 +853,8 @@ async def test_catalog_products_default_select_when_omit(
         endpoints_registry=endpoints_registry,
     )
 
-    params = api_client.get.call_args.kwargs.get("params", {})
-    sel = params.get("select") or ""
+    query_params = api_client.get.call_args.kwargs.get("query_params", {})
+    sel = query_params.get("select") or ""
     assert {"id", "name", "+shortDescription"} <= set(sel.split(","))
     assert "data" in result
 
@@ -924,13 +924,13 @@ async def test_sanitizes_select_drops_invalid_adds_id(
     )
 
     call_args = api_client.get.call_args
-    params = call_args.kwargs.get("params", {})
-    assert "select" in params
+    query_params = call_args.kwargs.get("query_params", {})
+    assert "select" in query_params
     # orderNumber must be dropped; id must be present
-    assert "orderNumber" not in params["select"]
-    assert "id" in params["select"]
-    assert "audit" in params["select"]
-    assert "status" in params["select"]
+    assert "orderNumber" not in query_params["select"]
+    assert "id" in query_params["select"]
+    assert "audit" in query_params["select"]
+    assert "status" in query_params["select"]
 
 
 async def test_select_without_openapi_spec_adds_id(api_client, endpoints_registry, orders_response):
@@ -950,14 +950,14 @@ async def test_select_without_openapi_spec_adds_id(api_client, endpoints_registr
         openapi_spec=None,
     )
 
-    params = api_client.get.call_args.kwargs.get("params", {})
-    assert "select" in params
-    assert "id" in params["select"]
-    assert "audit" in params["select"]
-    assert "status" in params["select"]
+    query_params = api_client.get.call_args.kwargs.get("query_params", {})
+    assert "select" in query_params
+    assert "id" in query_params["select"]
+    assert "audit" in query_params["select"]
+    assert "status" in query_params["select"]
 
 
-def test_marketplace_resource_info_includes_omitted_fields_note(endpoints_registry):
+def test_resource_info_notes_omitted_fields(endpoints_registry):
     result = execute_marketplace_resource_info(
         resource="commerce.orders",
         endpoints_registry=endpoints_registry,
@@ -970,7 +970,7 @@ def test_marketplace_resource_info_includes_omitted_fields_note(endpoints_regist
     assert "select=+field" in result["omitted_fields_note"]
 
 
-def test_marketplace_resource_info_select_param_documents_omitted_fields(endpoints_registry):
+def test_resource_info_select_documents_omitted(endpoints_registry):
     result = execute_marketplace_resource_info(
         resource="commerce.orders",
         endpoints_registry=endpoints_registry,
@@ -983,7 +983,7 @@ def test_marketplace_resource_info_select_param_documents_omitted_fields(endpoin
     assert "select=+field" in select_doc or "+field" in select_doc
 
 
-def test_marketplace_resources_tips_mention_omitted_fields():
+def test_resources_tips_mention_omitted_fields():
     mock_registry = {
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
@@ -1007,7 +1007,7 @@ def test_marketplace_resources_tips_mention_omitted_fields():
     assert "select=+field" in field_selection_tip or "+field" in field_selection_tip
 
 
-def test_marketplace_resource_info_handles_unknown_resource(endpoints_registry):
+def test_resource_info_handles_unknown_resource(endpoints_registry):
     result = execute_marketplace_resource_info(
         resource="unknown.resource",
         endpoints_registry=endpoints_registry,
@@ -1052,7 +1052,7 @@ def sent_select(api_client, endpoints_registry, orders_response, openapi_spec_wi
             endpoints_registry=endpoints_registry,
             openapi_spec=openapi_spec_with_fields(fields) if fields is not None else None,
         )
-        return api_client.get.call_args.kwargs["params"].get("select")
+        return api_client.get.call_args.kwargs["query_params"].get("select")
 
     return _sent_select
 

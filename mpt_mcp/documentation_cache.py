@@ -32,7 +32,7 @@ class DocumentationCache:
         self.refresh_interval = dt.timedelta(hours=refresh_interval_hours)
         self.public_url = public_url.rstrip("/") if public_url else ""
 
-        self._content: dict[str, Any] | None = None
+        self._space_content: dict[str, Any] | None = None
         self._last_refresh: dt.datetime | None = None
         self._is_refreshing = False
 
@@ -56,7 +56,7 @@ class DocumentationCache:
         if not self.is_enabled:
             return False
 
-        if self._content is None or self._last_refresh is None:
+        if self._space_content is None or self._last_refresh is None:
             return True
 
         return dt.datetime.now() - self._last_refresh > self.refresh_interval
@@ -87,9 +87,9 @@ class DocumentationCache:
             self._is_refreshing = True
             logger.info("📚 Refreshing documentation cache...")
 
-            content = await self.gitbook_client.fetch_space_content()
+            space_content = await self.gitbook_client.fetch_space_content()
 
-            self._content = content
+            self._space_content = space_content
             self._last_refresh = dt.datetime.now()
 
             self._build_resource_index()
@@ -109,7 +109,7 @@ class DocumentationCache:
         """Build an index of resources from the content for fast lookups."""
         self._resources.clear()
 
-        if not self._content:
+        if not self._space_content:
             return
 
         def index_page(page):
@@ -147,7 +147,7 @@ class DocumentationCache:
                 for child_page in pages:
                     index_page(child_page)
 
-        pages = self._content.get("pages", [])
+        pages = self._space_content.get("pages", [])
         if isinstance(pages, list):
             for page in pages:
                 index_page(page)
@@ -185,18 +185,23 @@ class DocumentationCache:
         resources = list(self._resources.values())
 
         if section:
-            resources = [r for r in resources if r["uri"].startswith(f"docs://{section}/")]
+            resources = [
+                resource
+                for resource in resources
+                if resource["uri"].startswith(f"docs://{section}/")
+            ]
 
         if subsection:
             prefix = f"docs://{section}/{subsection}/" if section else f"/{subsection}/"
-            resources = [r for r in resources if prefix in r["uri"]]
+            resources = [resource for resource in resources if prefix in resource["uri"]]
 
         if search:
             search_lower = search.lower()
             resources = [
-                r
-                for r in resources
-                if search_lower in r["name"].lower() or search_lower in r["uri"].lower()
+                resource
+                for resource in resources
+                if search_lower in resource["name"].lower()
+                or search_lower in resource["uri"].lower()
             ]
 
         if limit and limit > 0:
@@ -251,9 +256,9 @@ class DocumentationCache:
 
             return resource["content"]
 
-        except Exception as e:
+        except Exception as error:
             logger.exception("❌ Failed to fetch resource %s", uri)
-            return f"Error fetching content: {e!s}"
+            return f"Error fetching content: {error!s}"
 
     def _extract_text_from_document(self, document: dict) -> str:
         """
@@ -304,11 +309,11 @@ class DocumentationCache:
             for node in document["nodes"]:
                 extract_from_node(node)
 
-        content = "".join(text_parts)
-        while "\n\n\n" in content:
-            content = content.replace("\n\n\n", "\n\n")
+        text = "".join(text_parts)
+        while "\n\n\n" in text:
+            text = text.replace("\n\n\n", "\n\n")
 
-        return content.strip()
+        return text.strip()
 
     async def get_documentation_index(self) -> dict[str, Any]:
         """
@@ -359,7 +364,7 @@ class DocumentationCache:
         """
         return {
             "enabled": self.is_enabled,
-            "has_content": self._content is not None,
+            "has_content": self._space_content is not None,
             "last_refresh": self._last_refresh.isoformat() if self._last_refresh else None,
             "needs_refresh": self.needs_refresh,
             "resource_count": len(self._resources),

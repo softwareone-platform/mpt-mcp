@@ -21,7 +21,9 @@ def analytics():
 @pytest.fixture
 def make_request():
     def _make_request(headers, query_string=b""):
-        raw_headers = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
+        raw_headers = [
+            (name.lower().encode(), header_value.encode()) for name, header_value in headers.items()
+        ]
         scope = {
             "type": "http",
             "method": "POST",
@@ -103,7 +105,7 @@ async def test_on_call_tool_skips_logging_when_disabled(middleware, analytics, t
 
 
 @pytest.mark.parametrize(
-    ("content", "success", "error_message"),
+    ("resource_text", "success", "error_message"),
     [
         (json.dumps({"spec": {}}), True, None),
         (json.dumps({"error": "Authentication required"}), False, "Authentication required"),
@@ -112,9 +114,9 @@ async def test_on_call_tool_skips_logging_when_disabled(middleware, analytics, t
     ],
 )
 async def test_on_read_resource_logs_outcome(
-    middleware, analytics, resource_context, content, success, error_message
+    middleware, analytics, resource_context, resource_text, success, error_message
 ):
-    call_next = AsyncMock(return_value=ResourceResult([ResourceContent(content=content)]))
+    call_next = AsyncMock(return_value=ResourceResult([ResourceContent(content=resource_text)]))
 
     await middleware.on_read_resource(resource_context, call_next)  # act
 
@@ -126,9 +128,7 @@ async def test_on_read_resource_logs_outcome(
     )
 
 
-async def test_on_read_resource_logs_and_reraises_exception(
-    middleware, analytics, resource_context
-):
+async def test_on_read_resource_reraises_exception(middleware, analytics, resource_context):
     call_next = AsyncMock(side_effect=RuntimeError("boom"))
 
     with pytest.raises(RuntimeError, match="boom"):
@@ -180,7 +180,7 @@ async def test_on_request_sets_analytics_context(
     )
 
 
-async def test_on_request_without_http_request_passes_through(middleware, analytics):
+async def test_on_request_without_http_request(middleware, analytics):
     call_next = AsyncMock(return_value="result")
 
     with patch(

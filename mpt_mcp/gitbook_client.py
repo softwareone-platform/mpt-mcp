@@ -121,12 +121,16 @@ class GitBookClient:
         url = f"{self.base_url}/spaces/{self.space_id}/content"
         logger.info("📥 Fetching GitBook space content from: %s", url)
 
-        content = await self._get_with_retry(url)
+        space_content = await self._get_with_retry(url)
         logger.info("✅ Successfully fetched GitBook content")
-        if "pages" in content:
-            page_count = len(content["pages"]) if isinstance(content["pages"], list) else "unknown"
+        if "pages" in space_content:
+            page_count = (
+                len(space_content["pages"])
+                if isinstance(space_content["pages"], list)
+                else "unknown"
+            )
             logger.info("   📄 Pages: %s", page_count)
-        return content
+        return space_content
 
     async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
         """

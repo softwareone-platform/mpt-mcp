@@ -57,17 +57,17 @@ async def _create_app():
     if doc_cache and doc_cache.is_enabled:
         try:
             doc_list = await doc_cache.list_resources()
-            for r in doc_list:
-                uri = r.get("uri") or ""
+            for doc in doc_list:
+                uri = doc.get("uri") or ""
                 if not uri.startswith("docs://"):
                     continue
-                name = r.get("name") or (r.get("metadata") or {}).get("title", uri)
-                description = r.get("description") or f"Documentation: {name}"
+                name = doc.get("name") or (doc.get("metadata") or {}).get("title", uri)
+                description = doc.get("description") or f"Documentation: {name}"
 
                 def _make_reader(cache, resource_uri: str):
                     async def _doc_reader() -> str:
-                        content = await cache.get_resource(resource_uri)
-                        return content or ""
+                        page_content = await cache.get_resource(resource_uri)
+                        return page_content or ""
 
                     return _doc_reader
 
@@ -83,8 +83,8 @@ async def _create_app():
             logger.info(
                 "📝 Registered %s documentation resources for discovery", doc_resource_count
             )
-        except Exception as e:
-            logger.warning("⚠️  Could not register doc resources for discovery: %s", e)
+        except Exception as error:
+            logger.warning("⚠️  Could not register doc resources for discovery: %s", error)
     else:
         logger.info(
             "ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to "
@@ -211,8 +211,8 @@ def run_migrations():
         alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
         command.upgrade(alembic_cfg, "head")
         logger.info("✅ Database migrations completed successfully")
-    except Exception as e:
-        logger.warning("⚠️  Migration warning: %s", e)
+    except Exception as error:
+        logger.warning("⚠️  Migration warning: %s", error)
         logger.info("   Server will continue, but analytics may not work correctly")
 
 

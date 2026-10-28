@@ -5,7 +5,7 @@ from fastmcp import FastMCP
 from mpt_mcp.analytics.lifespan import analytics_lifespan
 
 
-async def test_analytics_lifespan_closes_logger_on_shutdown():
+async def test_lifespan_closes_logger_on_shutdown():
     analytics_logger = AsyncMock(enabled=True)
     server = FastMCP("test")
 
