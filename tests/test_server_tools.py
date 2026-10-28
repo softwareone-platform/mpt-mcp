@@ -518,7 +518,8 @@ async def test_docs_list_includes_browser_url_and_usage(docs_cache):
 
 
 async def test_marketplace_docs_list_tip_when_limited(docs_cache):
-    docs_cache(resources=[{"uri": f"docs://p/{index}", "metadata": {}} for index in range(10)])
+    resources = [{"uri": f"docs://p/{index}", "metadata": {}} for index in range(10)]
+    docs_cache(resources=resources)
 
     result = await server_tools.marketplace_docs_list(limit=5)
 
@@ -530,7 +531,8 @@ async def test_docs_list_uses_live_docs_cache(docs_cache):
 
     result = await server_tools.marketplace_docs_list(limit=5)
 
-    assert (result["total"], result["resources"][0]["uri"]) == (1, "docs://readme")
+    first_uri = result["resources"][0]["uri"]
+    assert (result["total"], first_uri) == (1, "docs://readme")
 
 
 async def test_docs_read_returns_text_and_count(docs_cache, http_tools):
@@ -550,7 +552,8 @@ async def test_docs_read_not_found_returns_zero_count(docs_cache, http_tools):
 
     result = await http_tools["marketplace_docs_read"](uri="docs://missing/page")
 
-    assert (result["count"], "not found" in result["text"].lower()) == (0, True)
+    text = result["text"].lower()
+    assert (result["count"], "not found" in text) == (0, True)
 
 
 async def test_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
@@ -559,4 +562,5 @@ async def test_resources_info_reflects_docs_cache(docs_cache, http_tools, monkey
 
     result = await http_tools["marketplace_resources_info"]()
 
-    assert (result["documentation"]["enabled"], result["documentation"]["total_pages"]) == (True, 1)
+    documentation = result["documentation"]
+    assert (documentation["enabled"], documentation["total_pages"]) == (True, 1)

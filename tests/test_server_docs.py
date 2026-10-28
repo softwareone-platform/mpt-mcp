@@ -24,7 +24,8 @@ async def test_init_docs_cache_again_in_new_process(monkeypatch):
     await server_docs.initialize_documentation_cache()
     stale_cache = Mock()
     monkeypatch.setattr(server_docs, "documentation_cache", stale_cache)
-    monkeypatch.setattr(server_docs.os, "getpid", Mock(return_value=os.getpid() + 1))
+    other_pid = os.getpid() + 1
+    monkeypatch.setattr(server_docs.os, "getpid", Mock(return_value=other_pid))
 
     await server_docs.initialize_documentation_cache()  # act
 

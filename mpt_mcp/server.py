@@ -67,7 +67,8 @@ async def _create_app() -> ASGIApp:
                 uri = doc.get("uri") or ""
                 if not uri.startswith("docs://"):
                     continue
-                name = doc.get("name") or (doc.get("metadata") or {}).get("title", uri)
+                doc_metadata = doc.get("metadata") or {}
+                name = doc.get("name") or doc_metadata.get("title", uri)
                 description = doc.get("description") or f"Documentation: {name}"
 
                 def _make_reader(

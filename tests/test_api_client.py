@@ -603,7 +603,7 @@ async def test_handles_response_without_omitted_fields(api_client):
 
         # Should not raise error when omitted is missing
         assert "$meta" in result
-        assert "omitted" not in result["$meta"] or result["$meta"].get("omitted") is None
+        assert result["$meta"].get("omitted") is None
 
 
 async def test_handles_empty_omitted_fields_list(api_client):

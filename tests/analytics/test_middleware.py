@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from fastmcp.resources import ResourceContent, ResourceResult
 from fastmcp.tools import ToolResult
+from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from mpt_mcp.analytics.middleware import AnalyticsMiddleware
@@ -23,9 +24,7 @@ def analytics():
 @pytest.fixture
 def make_request():
     def _make_request(headers, query_string=b""):
-        raw_headers = [
-            (name.lower().encode(), header_value.encode()) for name, header_value in headers.items()
-        ]
+        raw_headers = Headers(headers).raw
         scope = {
             "type": "http",
             "method": "POST",

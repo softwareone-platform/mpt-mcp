@@ -24,6 +24,7 @@ ISSUED_SECONDS_AGO = 3600
 JWT_USER_ID = "USR-1234-5678"
 RSA_KEY_SIZE = 2048
 RSA_PUBLIC_EXPONENT = 65537
+SLUG_TRANSLATION = str.maketrans({"_": "-", "[": "-", "]": None})
 TOKEN_CACHE_TTL_MINUTES = 30
 WIDE_LEEWAY_SECONDS = 300
 
@@ -349,9 +350,8 @@ async def test_validate_token_with_normalized_token():
 async def test_validate_jwt_requires_jwks_url_or_iss():
 
     payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
-    payload_b64 = (
-        base64.urlsafe_b64encode(__import__("json").dumps(payload).encode()).decode().rstrip("=")
-    )
+    payload_json = json.dumps(payload).encode()
+    payload_b64 = base64.urlsafe_b64encode(payload_json).decode().rstrip("=")
     token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
     api_base_url = "https://api.test.com"
 
@@ -369,7 +369,7 @@ async def test_validate_jwt_requires_jwks_url_or_iss():
 @pytest.fixture
 def issuer(request):
     # One issuer per test: the JWKS URL is derived from it and its keys are cached per URL
-    slug = request.node.name.replace("_", "-").replace("[", "-").replace("]", "")
+    slug = request.node.name.translate(SLUG_TRANSLATION)
     return f"https://{slug}.auth.test.com"
 
 
@@ -466,7 +466,8 @@ async def test_validate_jwt_without_kid_tries_every_key(
     sign_jwt, jwks, other_private_key, mock_auth_http
 ):
     other_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(other_private_key.public_key()))
-    mock_auth_http.jwks_state["jwks"] = {"keys": [{**other_jwk, "kid": "other-key"}, *jwks["keys"]]}
+    other_key = {**other_jwk, "kid": "other-key"}
+    mock_auth_http.jwks_state["jwks"] = {"keys": [other_key, *jwks["keys"]]}
     token = sign_jwt({}, kid=None)
 
     is_valid, _, error = await validate_token(token, API_BASE_URL, use_cache=False)

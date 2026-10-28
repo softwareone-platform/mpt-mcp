@@ -14,11 +14,12 @@ TEMPLATES = [
     for category in RESOURCE_BY_CATEGORY
     for template in get_query_templates()[category]["templates"]
 ]
+STATUS_WORDS = ("status", "published", "active")
 STATUS_TEMPLATES = [
     (category, template)
     for category, template in TEMPLATES
     if "status," in template["query"]
-    and any(word in template["name"].lower() for word in ("status", "published", "active"))
+    and any(word in template["name"].lower() for word in STATUS_WORDS)
 ]
 
 

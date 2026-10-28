@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from mpt_mcp.log_config import current_session_id, current_user_id
@@ -10,9 +11,7 @@ from mpt_mcp.server_middleware import RequestContextMiddleware
 @pytest.fixture
 def make_request():
     def _make_request(headers, query_string=b""):
-        raw_headers = [
-            (name.lower().encode(), header_value.encode()) for name, header_value in headers.items()
-        ]
+        raw_headers = Headers(headers).raw
         scope = {
             "type": "http",
             "method": "POST",

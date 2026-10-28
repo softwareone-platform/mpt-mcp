@@ -1,6 +1,7 @@
 from unittest.mock import AsyncMock, patch
 
 import pytest
+from starlette.datastructures import Headers
 from starlette.requests import Request
 
 from mpt_mcp.api_client import APIClient
@@ -16,9 +17,7 @@ from mpt_mcp.config import config
 @pytest.fixture
 def make_request():
     def _make_request(headers):
-        raw_headers = [
-            (name.lower().encode(), header_value.encode()) for name, header_value in headers.items()
-        ]
+        raw_headers = Headers(headers).raw
         return Request({
             "type": "http",
             "method": "POST",
@@ -56,7 +55,13 @@ async def test_call_context_defaults_without_headers(make_request):
 
 @pytest.mark.parametrize(
     ("header_value", "expected"),
-    [("1", True), ("YES", True), (" true ", True), ("false", False), ("", False)],
+    [
+        ("1", True),
+        ("YES", True),
+        (" true ", True),
+        ("false", False),
+        ("", False),
+    ],
 )
 async def test_get_call_context_validate_fresh_values(make_request, header_value, expected):
     request = make_request({"X-MPT-Validate-Fresh": header_value})

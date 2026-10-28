@@ -427,9 +427,12 @@ async def execute_marketplace_query(
             )
 
         # Log what we return so agent-side can verify $meta/omitted are present
-        data_list = result.get("data") if isinstance(result.get("data"), list) else []
-        meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
-        omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
+        data = result.get("data")
+        data_list = data if isinstance(data, list) else []
+        result_meta = result.get(KEY_META)
+        meta = result_meta if isinstance(result_meta, dict) else {}
+        meta_omitted = meta.get("omitted")
+        omitted = meta_omitted if isinstance(meta_omitted, list) else []
         logger.info(
             "   📤 Returning: data len=%s, %s=%s, omitted=%s",
             len(data_list),
@@ -546,9 +549,12 @@ async def execute_marketplace_query(
                     )
 
                 # Log what we return so agent-side can verify $meta/omitted are present
-                data_list = result.get("data") if isinstance(result.get("data"), list) else []
-                meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
-                omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
+                data = result.get("data")
+                data_list = data if isinstance(data, list) else []
+                result_meta = result.get(KEY_META)
+                meta = result_meta if isinstance(result_meta, dict) else {}
+                meta_omitted = meta.get("omitted")
+                omitted = meta_omitted if isinstance(meta_omitted, list) else []
                 logger.info(
                     "   📤 Returning: data len=%s, %s=%s, omitted=%s",
                     len(data_list),

@@ -32,7 +32,10 @@ def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     return out if isinstance(out, dict) else {}
 
 
-def _resolve_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+def _resolve_schema(
+    spec: dict[str, Any],
+    schema: dict[str, Any],
+) -> dict[str, Any]:
     """
     Resolve schema that may use $ref or allOf (common in downloaded OpenAPI specs).
 
@@ -51,7 +54,10 @@ def _resolve_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, A
     return schema
 
 
-def _get_item_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
+def _get_item_schema(
+    spec: dict[str, Any],
+    schema: dict[str, Any],
+) -> dict[str, Any]:
     """
     Get the item schema for list-like responses.
 
@@ -75,7 +81,8 @@ def _get_item_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, 
                 prop = properties[key]
                 if isinstance(prop, dict) and "$ref" in prop:
                     prop = _resolve_ref(spec, prop["$ref"])
-                if isinstance(prop, dict) and prop.get("type") == "array" and "items" in prop:
+                is_array = isinstance(prop, dict) and prop.get("type") == "array"
+                if is_array and "items" in prop:
                     item_schema = prop["items"]
                     if isinstance(item_schema, dict) and "$ref" in item_schema:
                         return _resolve_ref(spec, item_schema["$ref"])
@@ -212,7 +219,9 @@ def build_audit_regex(events: set[str]) -> re.Pattern[str]:
 
 
 def update_cache(
-    cache_key: str, spec: dict[str, Any], path_to_resource_id: Callable[[str], str]
+    cache_key: str,
+    spec: dict[str, Any],
+    path_to_resource_id: Callable[[str], str],
 ) -> None:
     """
     Compute audit data from spec and store in cache under cache_key.

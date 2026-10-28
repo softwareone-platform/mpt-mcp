@@ -66,7 +66,11 @@ class TokenValidationCache:
             "🔐 Token validation cache initialized (TTL: %sm, secure hash keys)", ttl_minutes
         )
 
-    async def get(self, token: str, api_base_url: str) -> tuple[bool, dict[str, Any] | None] | None:
+    async def get(
+        self,
+        token: str,
+        api_base_url: str,
+    ) -> tuple[bool, dict[str, Any] | None] | None:
         """
         Get cached validation result for a token.
 
@@ -144,7 +148,8 @@ class TokenValidationCache:
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
         now = dt.datetime.now()
-        valid_count = sum(1 for _, expiry, _ in self._cache.values() if expiry > now)
+        expiries = [expiry for _, expiry, _ in self._cache.values()]
+        valid_count = sum(1 for expiry in expiries if expiry > now)
         expired_count = len(self._cache) - valid_count
 
         return {
@@ -210,7 +215,9 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
     return jwks_dict
 
 
-def _extract_claims_from_payload(payload: dict[str, Any]) -> tuple[str | None, str | None]:
+def _extract_claims_from_payload(
+    payload: dict[str, Any],
+) -> tuple[str | None, str | None]:
     """Extract userId and accountId from SoftwareOne JWT payload."""
     raw_user_id = payload.get("https://claims.softwareone.com/userId")
     user_id = (

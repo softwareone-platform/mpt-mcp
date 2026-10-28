@@ -68,7 +68,7 @@ extend-ignore = [
   "WPS201",  # 1
   "WPS202",  # 4
   "WPS204",  # 26
-  "WPS210",  # 49
+  "WPS210",  # 50
   "WPS211",  # 8
   "WPS212",  # 3
   "WPS213",  # 9
@@ -77,7 +77,6 @@ extend-ignore = [
   "WPS218",  # 2
   "WPS219",  # 3
   "WPS220",  # 59
-  "WPS221",  # 31
   "WPS229",  # 36
   "WPS231",  # 29
   "WPS232",  # 6
@@ -91,7 +90,6 @@ extend-ignore = [
   "WPS407",  # 6
   "WPS410",  # 2
   "WPS420",  # 9
-  "WPS421",  # 1
   "WPS430",  # 30
   "WPS431",  # 2
   "WPS441",  # 12
@@ -120,7 +118,7 @@ select = ["AAA", "E999", "WPS"]
 show-source = true
 statistics = false
 per-file-ignores = [
-  "*alembic/versions/**:WPS102,WPS432",
+  "*alembic/versions/**:WPS102,WPS221,WPS432",
   "*mpt_mcp/analytics/models.py:WPS432",
   "*tests/**:WPS202",
 ]

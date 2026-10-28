@@ -229,10 +229,8 @@ async def test_list_resources_with_search():
     resources = await cache.list_resources(search="billing")
 
     assert len(resources) == 2
-    assert all(
-        "billing" in resource["name"].lower() or "billing" in resource["uri"].lower()
-        for resource in resources
-    )
+    searched_texts = [f"{resource['name']} {resource['uri']}".lower() for resource in resources]
+    assert all("billing" in text for text in searched_texts)
 
 
 async def test_list_resources_with_limit():
