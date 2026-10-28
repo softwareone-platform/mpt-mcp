@@ -44,10 +44,9 @@ def obfuscate_token_values(data: Any) -> Any:
                 # Recursively sanitize nested structures
                 sanitized[key] = obfuscate_token_values(value)
         return sanitized
-    elif isinstance(data, list):
+    if isinstance(data, list):
         return [obfuscate_token_values(item) for item in data]
-    else:
-        return data
+    return data
 
 
 # ============================================================================
@@ -60,7 +59,7 @@ def _get_allowed_select_fields(
     endpoints_registry: dict[str, Any],
     resource: str,
 ) -> set[str]:
-    """Return the set of top-level property names allowed in select for this resource (from GET response item schema)."""
+    """Return the top-level fields allowed in select, from the GET response item schema."""
     if resource not in endpoints_registry or not openapi_spec:
         return set()
 
@@ -95,7 +94,8 @@ def _get_allowed_select_fields(
     return set(properties.keys())
 
 
-# When present in schema, these fields are always added to select so responses are usable (id, status, name).
+# When present in schema, these fields are always added to select so responses are usable (id,
+# status, name).
 _ALWAYS_INCLUDE_WHEN_IN_SCHEMA = ("id", "status", "name")
 
 
@@ -104,7 +104,9 @@ def _sanitize_select(
     allowed_fields: set[str],
 ) -> str | None:
     """
-    Ensure select only contains allowed top-level fields and always includes id (and status, name when in schema).
+    Keep only the allowed top-level fields in select and always include id.
+
+    Status and name are added too when the schema has them.
 
     Drops any part whose top-level field is not in allowed_fields (if allowed_fields is non-empty).
     """
@@ -155,7 +157,7 @@ def _sanitize_select(
     # Re-add -* at the start if it was present (and convert bare fields to +field when -* is used)
     if has_exclude_all:
         # When using -*, fields should use + prefix to explicitly include them
-        kept = [p if p.startswith("+") or p.startswith("-") else f"+{p}" for p in kept]
+        kept = [p if p.startswith(("+", "-")) else f"+{p}" for p in kept]
         return "-*," + ",".join(kept) if kept else "-*"
     return ",".join(kept)
 
@@ -197,7 +199,7 @@ async def execute_marketplace_query(
         endpoints_registry: Registry of available endpoints
         analytics_logger: Optional analytics logger instance
         config: Optional config object for checking if analytics is enabled
-        audit_regex: Pattern of audit fields that require select=audit (falls back to the static one)
+        audit_regex: Audit fields that need select=audit (falls back to the static pattern)
         openapi_spec: OpenAPI spec used to validate select fields against the response schema
 
     Returns:
@@ -225,11 +227,12 @@ async def execute_marketplace_query(
     # Check if resource exists
     if resource not in endpoints_registry:
         # Find similar resources to suggest
-        similar_resources = []
         resource_lower = resource.lower()
-        for r in endpoints_registry:
-            if resource_lower in r.lower() or r.lower() in resource_lower:
-                similar_resources.append(r)
+        similar_resources = [
+            r
+            for r in endpoints_registry
+            if resource_lower in r.lower() or r.lower() in resource_lower
+        ]
 
         error_response = {
             "error": f"Unknown resource: '{resource}'",
@@ -271,13 +274,18 @@ async def execute_marketplace_query(
 
         # Build hint string
         hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
-        hint = f"You must provide path_params dictionary. For example: path_params={{{', '.join(hint_parts)}}}"
+        hint = (
+            "You must provide path_params dictionary. For example: "
+            f"path_params={{{', '.join(hint_parts)}}}"
+        )
 
         return {
             "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
             "resource": resource,
             "path_template": endpoint_info["path"],
-            "example": f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
+            "example": (
+                f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)"
+            ),
             "hint": hint,
         }
 
@@ -286,14 +294,15 @@ async def execute_marketplace_query(
     if resource == "catalog.products" and (not select or not select.strip()):
         select = "+id,+name,+shortDescription"
         logger.info(
-            "   💡 Default select for catalog.products: +id,+name,+shortDescription (omit select for full fields)"
+            "   💡 Default select for catalog.products: +id,+name,+shortDescription (omit select "
+            "for full fields)"
         )
 
     # Auto-detect audit field usage in RQL and ensure audit is selected
     # The API requires select=audit when filtering/sorting by audit fields
     # Use dynamic regex from spec-derived cache if provided, else fallback (includes failed)
-    _audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
-    uses_audit_fields = bool(rql and _audit_pattern.search(rql))
+    audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
+    uses_audit_fields = bool(rql and audit_pattern.search(rql))
     uses_audit_in_order = bool(order and "audit" in order.lower())
 
     # Store original select value for potential retry
@@ -306,22 +315,15 @@ async def execute_marketplace_query(
         # Parse select string (e.g., "+id,+name,audit" or "+audit.created.at")
         select_parts = [s.strip() for s in select.split(",")]
         has_audit_in_select = any(
-            part == "audit"
-            or part == "+audit"
-            or part.startswith("audit.")
-            or part.startswith("+audit.")
+            part in {"audit", "+audit"} or part.startswith(("audit.", "+audit."))
             for part in select_parts
         )
 
     # Auto-add audit to select if needed
     if (uses_audit_fields or uses_audit_in_order) and not has_audit_in_select:
         auto_added_audit = True
-        if select:
-            # Append audit to existing select
-            select = f"{select},audit"
-        else:
-            # Create new select with audit
-            select = "audit"
+        # Append audit to the existing select, or create one with audit
+        select = f"{select},audit" if select else "audit"
         logger.info(
             "   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)"
         )
@@ -336,7 +338,8 @@ async def execute_marketplace_query(
     if limit is None:
         limit = 10
         logger.info(
-            "   💡 Applied default limit=10 (platform default is 1000, too large for most use cases)"
+            "   💡 Applied default limit=10 (platform default is 1000, too large for most use "
+            "cases)"
         )
     elif limit == 0:
         # If limit is explicitly set to 0, respect it (might be intentional)
@@ -348,7 +351,8 @@ async def execute_marketplace_query(
     # Build query parameters
     params = {}
     if rql:
-        # Sanitize RQL: remove spaces after commas in function calls (e.g. "and(..., ilike(..." -> "and(...,ilike(...")
+        # Sanitize RQL: remove spaces after commas in function calls (e.g. "and(..., ilike(..." ->
+        # "and(...,ilike(...")
         # This prevents 400 errors from the API which is strict about RQL syntax
         rql = re.sub(r",\s+", ",", rql)
         params["rql"] = rql
@@ -375,7 +379,8 @@ async def execute_marketplace_query(
             logger.info("   ✅ Result: %s total items", result_count or "?")
 
         # SECURITY: Obfuscate token values if querying API token endpoints
-        # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
+        # Check the actual API path to catch /public/v1/accounts/api-tokens and
+        # /public/v1/accounts/api-tokens/{id}
         # This ensures we catch all token-related endpoints regardless of resource name
         is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
         if is_token_endpoint:
@@ -408,7 +413,7 @@ async def execute_marketplace_query(
             len(data_list),
             KEY_META,
             "yes" if meta else "no",
-            omitted if omitted else "none",
+            omitted or "none",
         )
 
         return result
@@ -440,18 +445,21 @@ async def execute_marketplace_query(
                     errors = error_body.get("errors", {})
                     # Check if any error mentions "Unknown expression group" for audit fields
                     for field, error_list in errors.items():
-                        if isinstance(error_list, list) and any(
-                            "Unknown expression group" in str(err) for err in error_list
+                        if (
+                            isinstance(error_list, list)
+                            and any("Unknown expression group" in str(err) for err in error_list)
+                            and (
+                                "audit" in field.lower()
+                                or any("audit" in str(err).lower() for err in error_list)
+                            )
                         ):
-                            if "audit" in field.lower() or any(
-                                "audit" in str(err).lower() for err in error_list
-                            ):
-                                error_response["hint"] = (
-                                    "When filtering or sorting by audit fields (e.g., audit.created.at), "
-                                    "you must include 'audit' in the select parameter. "
-                                    "Example: select='audit' or select='+id,+name,audit'"
-                                )
-                                break
+                            error_response["hint"] = (
+                                "When filtering or sorting by audit fields (e.g., "
+                                "audit.created.at), "
+                                "you must include 'audit' in the select parameter. "
+                                "Example: select='audit' or select='+id,+name,audit'"
+                            )
+                            break
             except Exception:
                 # If not JSON, include raw text
                 error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
@@ -490,7 +498,8 @@ async def execute_marketplace_query(
                     logger.info("   ✅ Retry successful: %s total items", result_count or "?")
 
                 # SECURITY: Obfuscate token values if querying API token endpoints
-                # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
+                # Check the actual API path to catch /public/v1/accounts/api-tokens and
+                # /public/v1/accounts/api-tokens/{id}
                 # This ensures we catch all token-related endpoints regardless of resource name
                 is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
                 if is_token_endpoint:
@@ -523,7 +532,7 @@ async def execute_marketplace_query(
                     len(data_list),
                     KEY_META,
                     "yes" if meta else "no",
-                    omitted if omitted else "none",
+                    omitted or "none",
                 )
 
                 return result
@@ -638,7 +647,8 @@ def execute_marketplace_resources(
             else:
                 status_value = "Active"
             examples.append(
-                f"marketplace_query(resource='{resource_name}', rql='eq(status,{status_value})', limit=20)"
+                f"marketplace_query(resource='{resource_name}', rql='eq(status,{status_value})', "
+                "limit=20)"
             )
 
         # Add search example for resources that likely have name fields
@@ -648,7 +658,8 @@ def execute_marketplace_resources(
             ".vendors",
         )):
             examples.append(
-                f"marketplace_query(resource='{resource_name}', rql='ilike(name,*keyword*)', limit=10)"
+                f"marketplace_query(resource='{resource_name}', rql='ilike(name,*keyword*)', "
+                "limit=10)"
             )
 
         resource_entry["example_queries"] = examples
@@ -666,24 +677,33 @@ def execute_marketplace_resources(
         "total_resources": len(endpoints_registry),
         "categories": categories,
         "usage": {
-            "query_resource": "Use marketplace_query(resource='category.resource', ...) to query any resource",
-            "get_schema": "Use marketplace_resource_schema(resource='...') to see full field list and types",
+            "query_resource": "Use marketplace_query(resource='category.resource', ...) to query "
+            "any resource",
+            "get_schema": "Use marketplace_resource_schema(resource='...') to see full field "
+            "list and types",
             "get_details": "Use marketplace_resource_info(resource='...') for parameter details",
         },
         "tips": {
-            "filtering": "Use RQL for complex filters: eq(field,value), ilike(name,*keyword*), and(condition1,condition2)",
+            "filtering": "Use RQL for complex filters: eq(field,value), ilike(name,*keyword*), "
+            "and(condition1,condition2)",
             "pagination": (
-                "Use limit= and offset= for pagination. Max limit 100 (capped). When using limit up to 100, use "
+                "Use limit= and offset= for pagination. Max limit 100 (capped). When using limit "
+                "up to 100, use "
                 "select= with only the fields you need (from marketplace_resource_schema); "
                 "otherwise the response may cause a context limit error."
             ),
             "sorting": "Use order= parameter: order=-created (descending), order=+name (ascending)",
             "field_selection": (
-                "Use select=: select=+id,+name,+status or select=-metadata. Many fields omitted by default "
-                f"({KEY_META}.omitted). Use select=+field for lines, parameters, subscriptions. Nested: "
-                "+subscriptions (full), +subscriptions.id (ids only), +subscriptions.id,+subscriptions.name. "
-                "For catalog.products when including vendor use select=+vendor.id,+vendor.name (not +vendor). "
-                "RQL filter fields must exist on the resource—use marketplace_resource_schema(resource) to check."
+                "Use select=: select=+id,+name,+status or select=-metadata. Many fields omitted "
+                "by default "
+                f"({KEY_META}.omitted). Use select=+field for lines, parameters, subscriptions. "
+                "Nested: "
+                "+subscriptions (full), +subscriptions.id (ids only), "
+                "+subscriptions.id,+subscriptions.name. "
+                "For catalog.products when including vendor use select=+vendor.id,+vendor.name "
+                "(not +vendor). "
+                "RQL filter fields must exist on the resource—use "
+                "marketplace_resource_schema(resource) to check."
             ),
         },
     }
@@ -754,29 +774,38 @@ def execute_marketplace_resource_info(
                 "summary": other_info["summary"],
             })
 
-        # Parent resource: current path extends parent
-        if resource_path.startswith(other_path + "/") and resource.startswith(other_resource + "."):
-            # Only set if this is the immediate parent (not grandparent)
-            if not related_resources["parent"] or len(other_path) > len(
-                related_resources["parent"]["path"]
-            ):
-                related_resources["parent"] = {
-                    "resource": other_resource,
-                    "summary": other_info["summary"],
-                    "path": other_path,
-                }
+        # Parent resource: current path extends parent; keep only the immediate parent
+        is_parent = resource_path.startswith(other_path + "/") and resource.startswith(
+            other_resource + "."
+        )
+        if is_parent and (
+            not related_resources["parent"]
+            or len(other_path) > len(related_resources["parent"]["path"])
+        ):
+            related_resources["parent"] = {
+                "resource": other_resource,
+                "summary": other_info["summary"],
+                "path": other_path,
+            }
 
         # Sibling resources: same parent category
         resource_parts = resource.split(".")
         other_parts = other_resource.split(".")
-        if len(resource_parts) >= 2 and len(other_parts) >= 2:
-            if resource_parts[0] == other_parts[0] and resource_parts[1] == other_parts[1]:
-                # Same subcategory, not self
-                if len(resource_parts) == len(other_parts) and other_resource != resource:
-                    related_resources["siblings"].append({
-                        "resource": other_resource,
-                        "summary": other_info["summary"],
-                    })
+        # Same subcategory and depth, not self
+        same_subcategory = (
+            len(resource_parts) >= 2
+            and len(other_parts) >= 2
+            and resource_parts[:2] == other_parts[:2]
+        )
+        if (
+            same_subcategory
+            and len(resource_parts) == len(other_parts)
+            and other_resource != resource
+        ):
+            related_resources["siblings"].append({
+                "resource": other_resource,
+                "summary": other_info["summary"],
+            })
 
     # Limit siblings to top 5 most relevant
     if len(related_resources["siblings"]) > 5:
@@ -791,17 +820,19 @@ def execute_marketplace_resource_info(
 
     # Add example with enum filter if available
     if enum_fields:
-        first_enum_field = list(enum_fields.keys())[0]
+        first_enum_field = next(iter(enum_fields.keys()))
         first_enum_value = enum_fields[first_enum_field][0]
         examples.append(
-            f"marketplace_query(resource='{resource}', rql='eq({first_enum_field},{first_enum_value})', limit=10)"
+            f"marketplace_query(resource='{resource}', "
+            f"rql='eq({first_enum_field},{first_enum_value})', limit=10)"
         )
 
     # Add example with path params if needed
     if path_params_info:
         example_params = {k: f"<{k}_value>" for k in path_params_info}
         examples.append(
-            f"marketplace_query(resource='{resource}', path_params={example_params}, select='+id,+name')"
+            f"marketplace_query(resource='{resource}', path_params={example_params}, "
+            "select='+id,+name')"
         )
 
     result = {
@@ -817,13 +848,15 @@ def execute_marketplace_resource_info(
             "offset": "Number of items to skip",
             "page": "Page number",
             "select": (
-                f"Fields to include/exclude. Use select=+field for omitted fields (see {KEY_META}.omitted). Example: select=+lines,+parameters."
+                "Fields to include/exclude. Use select=+field for omitted fields (see "
+                f"{KEY_META}.omitted). Example: select=+lines,+parameters."
             ),
             "order": "Sort order (e.g., -created for descending, +name for ascending)",
             "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})",
         },
         "omitted_fields_note": (
-            f"Many resources omit fields by default. Check {KEY_META}.omitted in responses; use select=+field to include them."
+            f"Many resources omit fields by default. Check {KEY_META}.omitted in responses; use "
+            "select=+field to include them."
         ),
         "example_queries": examples,
     }
@@ -832,7 +865,8 @@ def execute_marketplace_resource_info(
     if enum_fields:
         result["enum_fields"] = enum_fields
         result["filtering_tips"] = (
-            f"Filter by {', '.join(enum_fields.keys())} using RQL: eq({list(enum_fields.keys())[0]},<value>)"
+            f"Filter by {', '.join(enum_fields.keys())} using RQL: "
+            f"eq({next(iter(enum_fields.keys()))},<value>)"
         )
 
     # Add path parameters info if any found

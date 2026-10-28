@@ -25,7 +25,7 @@ mcp_events = Table(
     # Timing
     Column("timestamp", DateTime, nullable=False, server_default=func.now()),
     Column("response_time_ms", Integer),
-    # User/Environment (Privacy-Safe)
+    # User and environment, privacy safe
     Column("token_id", String(20)),  # TKN-XXXX-XXXX or USR-XXXX-XXXX
     Column("api_endpoint", String(100)),  # api.s1.show, etc.
     Column("session_id", String(100)),

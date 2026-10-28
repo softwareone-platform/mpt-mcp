@@ -15,8 +15,10 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
         return json.dumps(
             {
                 "error": "Authentication required",
-                "message": "Please provide X-MPT-Authorization header to access OpenAPI specification",
-                "hint": "The OpenAPI spec is specific to your API endpoint and requires authentication",
+                "message": "Please provide X-MPT-Authorization header to access OpenAPI "
+                "specification",
+                "hint": "The OpenAPI spec is specific to your API endpoint and requires "
+                "authentication",
             },
             indent=2,
         )
@@ -89,7 +91,10 @@ def register_http_resources(mcp: Any) -> None:
         await server_docs.initialize_documentation_cache()
         dc = server_docs.documentation_cache
         if not dc or not dc.is_enabled:
-            return "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
+            return (
+                "Documentation cache is not available. Please configure GITBOOK_API_KEY and "
+                "GITBOOK_SPACE_ID."
+            )
 
         content = await dc.get_resource(uri)
         if content is None:

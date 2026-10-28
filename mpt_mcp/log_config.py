@@ -17,7 +17,7 @@ class RequestContextFilter(logging.Filter):
     """Add the caller's session and user ID of the current MCP request to every log record."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        """Set record.request_context to a "[sess:...|user:...] " prefix, or "" outside a request."""
+        """Set record.request_context to "[sess:...|user:...] ", or "" outside a request."""
         context_parts = []
         session_id = current_session_id.get()
         if session_id:

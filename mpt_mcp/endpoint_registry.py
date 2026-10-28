@@ -14,11 +14,9 @@ logger = logging.getLogger(__name__)
 class OpenAPISpecFetchError(Exception):
     """Raised when the OpenAPI spec cannot be fetched from primary or fallback URL."""
 
-    pass
-
 
 # Global registries per API base URL
-# Format: {api_base_url: {resource_id: endpoint_info}}
+# Keyed by API base URL, then by resource ID, holding each endpoint's info
 _endpoint_registries: dict[str, dict[str, dict[str, Any]]] = {}
 
 # Global OpenAPI specs per API base URL (for schema lookups)
@@ -114,7 +112,8 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
             except (httpx.HTTPError, httpx.TimeoutException, OSError, ValueError) as fallback_error:
                 logger.exception("❌ Fallback also failed")
                 raise OpenAPISpecFetchError(
-                    f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback {fallback_url}"
+                    f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback "
+                    f"{fallback_url}"
                 ) from fallback_error
 
         # No fallback available, re-raise original error
@@ -137,9 +136,7 @@ def _path_to_resource_id(path: str) -> str:
     path = path.replace("/{id}", ".by_id")
 
     # Replace slashes with dots
-    resource_id = path.replace("/", ".")
-
-    return resource_id
+    return path.replace("/", ".")
 
 
 async def get_endpoints_registry(

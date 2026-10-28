@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-
 import asyncio
 import logging
 import os
@@ -47,7 +45,11 @@ register_http_resources(mcp)
 
 
 async def _create_app():
-    """Build the ASGI app (init + middleware). Used so uvicorn can load via 'mpt_mcp.server:app' for reload."""
+    """
+    Build the ASGI app (init + middleware).
+
+    Used so uvicorn can load it via 'mpt_mcp.server:app' for reload.
+    """
     await server_docs.initialize_documentation_cache()
     doc_cache = server_docs.documentation_cache
     doc_resource_count = 0
@@ -84,18 +86,22 @@ async def _create_app():
             logger.warning("⚠️  Could not register doc resources for discovery: %s", e)
     else:
         logger.info(
-            "ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured."
+            "ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to "
+            "enable). docs://{path} template is still available for reading when configured."
         )
-    # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
+    # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-
+    # balanced.
     # Docs cache is populated at startup and remains in memory for all requests in that process.
     starlette_app = mcp.http_app(stateless_http=True)
     # Route POST /mcp is registered by FastMCP here and never unregistered in this process.
-    # Intermittent 404s are usually: path stripped to / (we rewrite POST / → /mcp), or traffic hitting an old revision during deploy.
+    # Intermittent 404s are usually: path stripped to / (we rewrite POST / → /mcp), or traffic
+    # hitting an old revision during deploy.
 
     # Custom 404 response so clients see a clear hint when path is wrong (e.g. 404 on POST /mcp)
     def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         if exc.status_code == 404:
-            # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips path)
+            # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips
+            # path)
             has_mcp_session_id = bool(
                 request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id")
             )
@@ -110,7 +116,9 @@ async def _create_app():
             return JSONResponse(
                 {
                     "error": "Not found",
-                    "hint": "MCP endpoint is POST /mcp (no trailing slash). Ensure MCP_SERVER_URL ends with /mcp and the MCP server is running. See README Troubleshooting.",
+                    "hint": "MCP endpoint is POST /mcp (no trailing slash). Ensure "
+                    "MCP_SERVER_URL ends "
+                    "with /mcp and the MCP server is running. See README Troubleshooting.",
                 },
                 status_code=404,
             )
@@ -125,16 +133,18 @@ async def _create_app():
         async def __call__(self, scope, receive, send):
             if scope["type"] == "http":
                 request = Request(scope, receive)
-                # Accept POST /mcp/ (trailing slash) by rewriting to /mcp so path matches FastMCP route
+                # Accept POST /mcp/ (trailing slash) by rewriting to /mcp so path matches FastMCP
+                # route
                 if request.url.path == "/mcp/" and request.method == "POST":
                     scope = dict(scope)
                     scope["path"] = "/mcp"
-                # When platform (e.g. LB/API Gateway) strips path, requests arrive as POST / ; treat as MCP
+                # When platform (e.g. LB/API Gateway) strips path, requests arrive as POST / ; treat
+                # as MCP
                 if request.url.path == "/" and request.method == "POST":
                     scope = dict(scope)
                     scope["path"] = "/mcp"
                 # Health only for GET (POST / is rewritten above and must go to MCP)
-                if request.method == "GET" and request.url.path in ["/", "/health"]:
+                if request.method == "GET" and request.url.path in {"/", "/health"}:
                     response = JSONResponse({
                         "status": "healthy",
                         "service": "mpt-mcp-http",
@@ -154,7 +164,7 @@ async def _create_app():
         def filter(self, record: logging.LogRecord) -> bool:
             if hasattr(record, "args") and len(record.args) >= 3:
                 path = str(record.args[2])
-                if path in ["/mcp", "/health", "GET /health", "POST /mcp"]:
+                if path in {"/mcp", "/health", "GET /health", "POST /mcp"}:
                     return False
             return True
 
@@ -164,7 +174,12 @@ async def _create_app():
 
 
 def _build_app():
-    """Build app once. Use asyncio.run() when no loop is running (main process); run in a thread when inside uvicorn worker (loop already running)."""
+    """
+    Build the app once.
+
+    Uses asyncio.run() when no loop is running (main process), or a thread inside a uvicorn
+    worker (loop already running).
+    """
     try:
         asyncio.get_running_loop()
     except RuntimeError:
@@ -237,7 +252,8 @@ def main():
         logger.info("   - Clients MUST provide X-MPT-Authorization header")
         logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")
         logger.info(
-            "   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')"
+            "   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token "
+            "invalid (cached)')"
         )
         logger.info("   - Headers are case-insensitive")
         logger.info("✓ Server URL: http://%s:%s/mcp", server_host, server_port)

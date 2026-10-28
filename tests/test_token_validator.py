@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import base64
 import json
 import time
@@ -275,12 +274,12 @@ async def test_validate_token_uses_cache():
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
         # First call - should hit API
-        is_valid1, token_info1, error1 = await validate_token(token, api_base_url, use_cache=True)
+        is_valid1, token_info1, _error1 = await validate_token(token, api_base_url, use_cache=True)
         assert is_valid1 is True
         assert mock_client.get.call_count == 1
 
         # Second call - should use cache
-        is_valid2, token_info2, error2 = await validate_token(token, api_base_url, use_cache=True)
+        is_valid2, token_info2, _error2 = await validate_token(token, api_base_url, use_cache=True)
         assert is_valid2 is True
         assert token_info2 == token_info1
         # Should still be 1 because cache was used
@@ -338,7 +337,7 @@ async def test_validate_token_with_normalized_token():
         mock_client.get = AsyncMock(return_value=mock_response_obj)
         mock_client_class.return_value.__aenter__.return_value = mock_client
 
-        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
+        is_valid, _token_info, _error = await validate_token(token, api_base_url, use_cache=False)
 
         assert is_valid is True
         assert mock_client.get.call_count == 1
@@ -371,7 +370,8 @@ async def test_validate_token_jwt_requires_jwks_url_or_iss():
 @pytest.fixture
 def issuer(request):
     # One issuer per test: the JWKS URL is derived from it and its keys are cached per URL
-    return f"https://{request.node.name.replace('_', '-').replace('[', '-').replace(']', '')}.auth.test.com"
+    slug = request.node.name.replace("_", "-").replace("[", "-").replace("]", "")
+    return f"https://{slug}.auth.test.com"
 
 
 @pytest.fixture(scope="module")

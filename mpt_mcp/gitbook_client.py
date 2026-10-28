@@ -84,7 +84,7 @@ class GitBookClient:
                         await asyncio.sleep(wait_sec)
                         continue
                     raise
-                if response.status_code in (429, 503):
+                if response.status_code in {429, 503}:
                     if attempt < MAX_RETRIES - 1:
                         retry_after = response.headers.get("Retry-After")
                         if retry_after and retry_after.isdigit():
@@ -92,7 +92,8 @@ class GitBookClient:
                         else:
                             wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
                         logger.warning(
-                            "📚 GitBook rate limit/unavailable (%s), retry in %.1fs (attempt %s/%s)",
+                            "📚 GitBook rate limit/unavailable (%s), retry in %.1fs "
+                            "(attempt %s/%s)",
                             response.status_code,
                             wait_sec,
                             attempt + 1,

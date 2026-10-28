@@ -396,7 +396,7 @@ async def test_does_not_add_audit_when_using_audit_dot_notation(
     assert "audit.created.at" in select_value, "audit.created.at should be in select"
     # Should not have standalone 'audit' added when audit.field is already present
     select_parts = [s.strip() for s in select_value.split(",")]
-    standalone_audit = [p for p in select_parts if p == "audit" or p == "+audit"]
+    standalone_audit = [p for p in select_parts if p in {"audit", "+audit"}]
     assert len(standalone_audit) == 0, (
         "standalone 'audit' should not be added when audit.field is already present"
     )
@@ -408,7 +408,10 @@ async def test_complex_rql_with_audit_fields(
 ):
     api_client.get.return_value = orders_with_audit_response
 
-    rql = 'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),lt(audit.created.at,"2026-01-22T23:59:59Z"))'
+    rql = (
+        'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),'
+        'lt(audit.created.at,"2026-01-22T23:59:59Z"))'
+    )
     await execute_marketplace_query(
         resource="commerce.orders",
         rql=rql,
@@ -579,7 +582,10 @@ async def test_real_world_date_range_query(
 ):
     api_client.get.return_value = orders_with_audit_response
 
-    rql = 'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),lt(audit.created.at,"2026-01-22T23:59:59Z"))'
+    rql = (
+        'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),'
+        'lt(audit.created.at,"2026-01-22T23:59:59Z"))'
+    )
     await execute_marketplace_query(
         resource="commerce.orders",
         rql=rql,

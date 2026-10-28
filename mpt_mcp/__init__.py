@@ -8,9 +8,9 @@ from mpt_mcp.openapi_parser import OpenAPIParser
 from mpt_mcp.server_stdio import mcp
 
 __all__ = [
-    "mcp",
     "APIClient",
-    "config",
     "CacheManager",
     "OpenAPIParser",
+    "config",
+    "mcp",
 ]

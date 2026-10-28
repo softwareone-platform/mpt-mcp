@@ -15,7 +15,7 @@ DEFAULT_FETCH_TIMEOUT = 30.0
 
 def _read_json_path(path: Path) -> dict[str, Any]:
     """Read and parse a JSON file (sync; run via asyncio.to_thread from async code)."""
-    with open(path) as f:
+    with Path(path).open(encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -53,7 +53,7 @@ class CacheManager:
             return False
 
         try:
-            with open(meta_path) as f:
+            with Path(meta_path).open(encoding="utf-8") as f:
                 metadata = json.load(f)
 
             cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
@@ -82,7 +82,7 @@ class CacheManager:
             return None
 
         try:
-            with open(cache_path) as f:
+            with Path(cache_path).open(encoding="utf-8") as f:
                 return json.load(f)
         except OSError, json.JSONDecodeError:
             return None
@@ -99,7 +99,7 @@ class CacheManager:
         meta_path = self._get_metadata_path(key)
 
         # Write data
-        with open(cache_path, "w") as f:
+        with Path(cache_path).open("w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
 
         # Write metadata
@@ -108,7 +108,7 @@ class CacheManager:
             "key": key,
             "size": len(json.dumps(data)),
         }
-        with open(meta_path, "w") as f:
+        with Path(meta_path).open("w", encoding="utf-8") as f:
             json.dump(metadata, f, indent=2)
 
     def invalidate(self, key: str) -> None:
@@ -147,7 +147,7 @@ class CacheManager:
 
             if meta_file.exists():
                 try:
-                    with open(meta_file) as f:
+                    with Path(meta_file).open(encoding="utf-8") as f:
                         metadata = json.load(f)
 
                     cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))

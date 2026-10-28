@@ -12,7 +12,10 @@ from mpt_mcp.token_validator import normalize_token, parse_token_id, validate_to
 
 logger = logging.getLogger(__name__)
 
-MISSING_TOKEN_ERROR = "Missing X-MPT-Authorization header. Please provide your API token in the X-MPT-Authorization header."
+MISSING_TOKEN_ERROR = (
+    "Missing X-MPT-Authorization header. Please provide your API token in the "
+    "X-MPT-Authorization header."
+)
 TRUTHY_HEADER_VALUES = ("1", "true", "yes")
 
 
@@ -53,7 +56,8 @@ class CallContext:
         if not is_valid:
             logger.warning("❌ Token validation failed: %s", error)
             raise ValueError(
-                f"Token validation failed: {error}. Please ensure your API token is valid and active."
+                f"Token validation failed: {error}. Please ensure your API token is valid and "
+                "active."
             )
 
         account = (token_info or {}).get("account", {})

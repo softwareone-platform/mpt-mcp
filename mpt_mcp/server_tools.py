@@ -32,7 +32,10 @@ OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
 
 async def marketplace_docs_list(
-    section: str = None, subsection: str = None, search: str = None, limit: int = 100
+    section: str | None = None,
+    subsection: str | None = None,
+    search: str | None = None,
+    limit: int = 100,
 ) -> dict[str, Any]:
     """List documentation resources with optional filters (section, subsection, search)."""
     await server_docs.initialize_documentation_cache()
@@ -221,7 +224,8 @@ def register_http_tools(mcp):
         """Read a documentation page by uri (e.g. docs://help-and-support/contact-support).
 
         Returns a JSON object: {"text": "<markdown content>", "count": 1}.
-        Clients should use the "text" field for the document body and "count" (always 1) for consistency with other tools.
+        Clients should use the "text" field for the document body and "count" (always 1) for
+        consistency with other tools.
         """
         await server_docs.initialize_documentation_cache()
         dc = server_docs.documentation_cache
@@ -231,13 +235,17 @@ def register_http_tools(mcp):
         content = await dc.get_resource(uri)
         if content is None:
             return {
-                "text": f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages.",
+                "text": (
+                    f"Documentation page not found: {uri}\n\n"
+                    "Use marketplace_docs_list() to see available pages."
+                ),
                 "count": 0,
             }
 
         return {"text": content, "count": 1}
 
-    # TBD: decide whether this is a debug tool (it only reports cache statistics); if so, tag it "debug" so it is hidden in production
+    # TBD: decide whether this is a debug tool (it only reports cache statistics); if so, tag it
+    # "debug" so it is hidden in production
     @mcp.tool()
     async def marketplace_resources_info() -> dict[str, Any]:
         result = {
@@ -257,7 +265,8 @@ def register_http_tools(mcp):
             result["token_validation"] = {
                 "enabled": True,
                 "cache_stats": token_cache.get_stats(),
-                "description": "Token validation cache prevents repeated API calls for authentication",
+                "description": "Token validation cache prevents repeated API calls for "
+                "authentication",
             }
         except Exception as e_inner:
             result["token_validation"] = {"enabled": False, "error": str(e_inner)}

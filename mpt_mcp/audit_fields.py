@@ -103,11 +103,14 @@ def _collect_audit_events_and_paths_from_props(
         for event_name, event_schema in nested.items():
             if not isinstance(event_schema, dict):
                 continue
-            event_schema = _resolve_schema(spec, event_schema)
+            resolved_schema = _resolve_schema(spec, event_schema)
             event_props = (
-                (event_schema.get("properties") or {}) if isinstance(event_schema, dict) else {}
+                (resolved_schema.get("properties") or {})
+                if isinstance(resolved_schema, dict)
+                else {}
             )
-            # .at = when (spec may use "at", "timestamp", or "date"), .by = who (spec may use "by", "actor", or "user")
+            # .at = when (spec may use "at", "timestamp", or "date"), .by = who (spec may use "by",
+            # "actor", or "user")
             has_when = "at" in event_props or "timestamp" in event_props or "date" in event_props
             has_who = "by" in event_props or "actor" in event_props or "user" in event_props
             if has_when:
@@ -127,14 +130,17 @@ def get_audit_data_from_spec(
     Walk OpenAPI spec and derive audit event names per resource.
 
     Audit is always on the **object** schema (the single-entity shape). We consider both:
-    - **By-id paths** (e.g. /public/v1/commerce/orders/{id}): 200 response is the object schema (e.g. Order) with audit.
-    - **Collection paths** (e.g. /public/v1/commerce/orders): 200 response is a list wrapper (e.g. { $meta, data: [items] });
-      we unwrap via _get_item_schema to get the same object schema (Order) that has audit.
+    - **By-id paths** (e.g. /public/v1/commerce/orders/{id}): 200 response is the object
+      schema (e.g. Order) with audit.
+    - **Collection paths** (e.g. /public/v1/commerce/orders): 200 response is a list wrapper
+      (e.g. { $meta, data: [items] }); we unwrap via _get_item_schema to get the same object
+      schema (Order) that has audit.
 
     So we always derive audit from the object schema; the collection returns those same objects.
 
     Returns { "events": set of str, "by_resource": { resource_id: [ "event1", "event2", ... ] } }.
-    Paths are always audit.<event>.at and audit.<event>.by; we store only event names to keep payloads small.
+    Paths are always audit.<event>.at and audit.<event>.by; we store only event names to keep
+    payloads small.
     """
     all_events: set[str] = set()
     by_resource: dict[str, list[str]] = {}
@@ -232,7 +238,8 @@ def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict
 
     Paths are always audit.<event>.at and audit.<event>.by.
     If resource is provided, return { "resource": resource, "events": [...] } or error.
-    If resource is None, return { "by_resource": { resource_id: ["event1", "event2", ...], ... } } for all resources.
+    If resource is None, return
+    { "by_resource": { resource_id: ["event1", "event2", ...], ... } } for all resources.
     """
     if not cache_key or cache_key not in _audit_cache:
         if resource:

@@ -16,7 +16,8 @@ async def initialize_documentation_cache():
     """Create the documentation cache once per process, from GitBook when it is configured."""
     global documentation_cache, _docs_cache_initialized, _docs_cache_init_pid
     current_pid = os.getpid()
-    # Re-init whenever we're in a different process (worker after fork/spawn, or first run). Ensures worker has its own cache.
+    # Re-init whenever we're in a different process (worker after fork/spawn, or first run). Ensures
+    # worker has its own cache.
     if _docs_cache_init_pid != current_pid:
         _docs_cache_initialized = False
         documentation_cache = None
@@ -46,7 +47,8 @@ async def initialize_documentation_cache():
                 )
                 logger.info("✓ Documentation cache initialized")
                 logger.info(
-                    "✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are available"
+                    "✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are "
+                    "available"
                 )
             else:
                 logger.warning("⚠️  GitBook credentials invalid, documentation cache disabled")
@@ -58,7 +60,8 @@ async def initialize_documentation_cache():
         has_key = bool(config.gitbook_api_key)
         has_space = bool(config.gitbook_space_id)
         logger.info(
-            "ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY=%s, GITBOOK_SPACE_ID=%s).",
+            "ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY=%s, "
+            "GITBOOK_SPACE_ID=%s).",
             "set" if has_key else "missing",
             "set" if has_space else "missing",
         )

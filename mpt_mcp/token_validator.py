@@ -82,9 +82,8 @@ class TokenValidationCache:
                         (expiry - dt.datetime.now()).seconds,
                     )
                     return (is_valid, token_info)
-                else:
-                    logger.debug("⏰ Token validation cache expired, removing")
-                    del self._cache[cache_key]
+                logger.debug("⏰ Token validation cache expired, removing")
+                del self._cache[cache_key]
 
             return None
 
@@ -243,8 +242,9 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
     Uses explicit algorithm list (no alg:none). Validates exp and nbf with leeway (clock skew).
 
     Returns:
-        (payload, error_message). On success: (payload_dict, None). On failure: (None, "Token expired")
-        or (None, "JWT signature or claims invalid"). If JWKS fetch failed: (None, None).
+        (payload, error_message). On success: (payload_dict, None). On failure:
+        (None, "Token expired") or (None, "JWT signature or claims invalid").
+        If JWKS fetch failed: (None, None).
     """
     jwks_dict = await _fetch_jwks_cached(jwks_url)
     if not jwks_dict:
@@ -424,14 +424,18 @@ async def validate_token(
 
             return (is_valid, token_info, None if is_valid else "Token invalid (cached)")
 
-    # JWT path: verify with JWKS when URL is set or can be derived from token's iss claim (e.g. Auth0)
+    # JWT path: verify with JWKS when URL is set or can be derived from token's iss claim (e.g.
+    # Auth0)
     is_jwt = is_jwt_token(token)
     account_id_from_jwt: str | None = None
 
     if is_jwt:
         jwks_url = config.jwt_jwks_url or _get_jwks_url_from_token(token)
         if not jwks_url:
-            error = "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. Auth0)."
+            error = (
+                "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. "
+                "Auth0)."
+            )
             logger.warning("❌ %s", error)
             return (False, None, error)
         payload, verify_error = await _verify_jwt_and_get_payload(token, jwks_url)
@@ -531,7 +535,8 @@ async def validate_token(
                         return (False, token_info, error)
 
                     logger.info(
-                        "✅ JWT token validated successfully\n   User: %s (%s)\n   Email: %s\n   Account: %s (%s)\n   Status: %s",
+                        "✅ JWT token validated successfully\n   User: %s (%s)\n   Email: %s\n   "
+                        "Account: %s (%s)\n   Status: %s",
                         user_name,
                         user_id,
                         user_email,
@@ -562,7 +567,7 @@ async def validate_token(
 
                     return (True, token_info, None)
 
-                elif response.status_code == 401:
+                if response.status_code == 401:
                     error = "JWT token authentication failed (401 Unauthorized)"
                     logger.warning("❌ %s", error)
 
@@ -571,7 +576,7 @@ async def validate_token(
 
                     return (False, None, error)
 
-                elif response.status_code == 404:
+                if response.status_code == 404:
                     error = f"User {user_id} not found (404)"
                     logger.warning("❌ %s", error)
 
@@ -580,12 +585,11 @@ async def validate_token(
 
                     return (False, None, error)
 
-                else:
-                    error = f"JWT token validation failed with status {response.status_code}"
-                    logger.warning("❌ %s", error)
+                error = f"JWT token validation failed with status {response.status_code}"
+                logger.warning("❌ %s", error)
 
-                    # Don't cache unexpected errors (might be transient)
-                    return (False, None, error)
+                # Don't cache unexpected errors (might be transient)
+                return (False, None, error)
 
         except httpx.TimeoutException:
             error = "JWT token validation timed out"
@@ -594,13 +598,13 @@ async def validate_token(
             return (False, None, error)
 
         except httpx.HTTPError as e:
-            error = f"JWT token validation failed: {str(e)}"
+            error = f"JWT token validation failed: {e!s}"
             logger.exception("❌ %s", error)
             # Don't cache HTTP errors (might be transient)
             return (False, None, error)
 
         except Exception as e:
-            error = f"Unexpected error during JWT token validation: {str(e)}"
+            error = f"Unexpected error during JWT token validation: {e!s}"
             logger.exception("❌ %s", error)
             # Don't cache unexpected errors
             return (False, None, error)
@@ -642,7 +646,8 @@ async def validate_token(
                         return (False, token_info, error)
 
                     logger.info(
-                        "✅ Token %s validated successfully\n   Token Name: %s\n   Account: %s (%s)\n   Type: %s\n   Status: %s",
+                        "✅ Token %s validated successfully\n   Token Name: %s\n   Account: %s "
+                        "(%s)\n   Type: %s\n   Status: %s",
                         token_id,
                         token_name,
                         account_name,
@@ -656,7 +661,7 @@ async def validate_token(
 
                     return (True, token_info, None)
 
-                elif response.status_code == 401:
+                if response.status_code == 401:
                     error = "Token authentication failed (401 Unauthorized)"
                     logger.warning("❌ %s", error)
 
@@ -665,7 +670,7 @@ async def validate_token(
 
                     return (False, None, error)
 
-                elif response.status_code == 404:
+                if response.status_code == 404:
                     error = f"Token {token_id} not found (404)"
                     logger.warning("❌ %s", error)
 
@@ -674,12 +679,11 @@ async def validate_token(
 
                     return (False, None, error)
 
-                else:
-                    error = f"Token validation failed with status {response.status_code}"
-                    logger.warning("❌ %s", error)
+                error = f"Token validation failed with status {response.status_code}"
+                logger.warning("❌ %s", error)
 
-                    # Don't cache unexpected errors (might be transient)
-                    return (False, None, error)
+                # Don't cache unexpected errors (might be transient)
+                return (False, None, error)
 
         except httpx.TimeoutException:
             error = "Token validation timed out"
@@ -688,13 +692,13 @@ async def validate_token(
             return (False, None, error)
 
         except httpx.HTTPError as e:
-            error = f"Token validation failed: {str(e)}"
+            error = f"Token validation failed: {e!s}"
             logger.exception("❌ %s", error)
             # Don't cache HTTP errors (might be transient)
             return (False, None, error)
 
         except Exception as e:
-            error = f"Unexpected error during token validation: {str(e)}"
+            error = f"Unexpected error during token validation: {e!s}"
             logger.exception("❌ %s", error)
             # Don't cache unexpected errors
             return (False, None, error)

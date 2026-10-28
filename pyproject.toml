@@ -67,8 +67,8 @@ extend-ignore = [
   "WPS111",  # 99
   "WPS114",  # 9
   "WPS118",  # 55
-  "WPS121",  # 10
-  "WPS122",  # 11
+  "WPS121",  # 8
+  "WPS122",  # 9
   "WPS201",  # 1
   "WPS202",  # 4
   "WPS204",  # 24
@@ -80,14 +80,14 @@ extend-ignore = [
   "WPS217",  # 2
   "WPS218",  # 2
   "WPS219",  # 3
-  "WPS220",  # 61
-  "WPS221",  # 38
+  "WPS220",  # 59
+  "WPS221",  # 36
   "WPS229",  # 36
-  "WPS231",  # 30
+  "WPS231",  # 29
   "WPS232",  # 6
   "WPS234",  # 2
   "WPS235",  # 1
-  "WPS237",  # 9
+  "WPS237",  # 8
   "WPS239",  # 1
   "WPS328",  # 1
   "WPS336",  # 5
@@ -95,21 +95,19 @@ extend-ignore = [
   "WPS404",  # 7
   "WPS407",  # 6
   "WPS410",  # 2
-  "WPS420",  # 11
+  "WPS420",  # 9
   "WPS421",  # 1
   "WPS430",  # 31
   "WPS431",  # 2
   "WPS432",  # 89
-  "WPS441",  # 14
-  "WPS453",  # 2
-  "WPS473",  # 3
+  "WPS441",  # 12
+  "WPS473",  # 2
   "WPS476",  # 4
   "WPS501",  # 1
   "WPS504",  # 4
   "WPS505",  # 6
   "WPS529",  # 40
   "WPS602",  # 7
-  "WPS604",  # 1
 ]
 extend-exclude = [
   ".coverage",
@@ -206,51 +204,26 @@ ignore = [
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "ambiguous-unicode-character-string",  # 2
     "boolean-default-value-positional-argument",  # 11
     "boolean-positional-value-in-call",  # 8
     "boolean-type-hint-positional-argument",  # 12
-    "builtin-open",  # 6
     "call-datetime-now-without-tzinfo",  # 13
-    "collapsible-if",  # 4
-    "commented-out-code",  # 2
     "complex-structure",  # 22
     "datetime-min-max",  # 1
-    "datetime-timezone-utc",  # 4
-    "explicit-f-string-type-conversion",  # 5
     "global-statement",  # 18
-    "global-variable-not-assigned",  # 1
     "hardcoded-bind-all-interfaces",  # 3
     "hardcoded-password-func-arg",  # 21
     "hardcoded-password-string",  # 3
     "hashlib-insecure-hash-function",  # 2
-    "if-else-block-instead-of-if-exp",  # 2
-    "if-exp-instead-of-or-operator",  # 2
-    "implicit-optional",  # 3
-    "in-dict-keys",  # 1
-    "line-too-long",  # 103
-    "literal-membership",  # 4
-    "manual-list-comprehension",  # 2
-    "multiple-starts-ends-with",  # 2
-    "multiple-with-statements",  # 12
-    "redefined-loop-name",  # 1
-    "repeated-equality-comparison",  # 2
-    "shebang-not-executable",  # 2
     "signature-in-docstring",  # 4
-    "superfluous-else-return",  # 4
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 18
     "try-consider-else",  # 11
-    "unnecessary-assign",  # 3
-    "unnecessary-iterable-allocation-for-first-element",  # 2
-    "unnecessary-placeholder",  # 1
-    "unsorted-dunder-all",  # 1
-    "unspecified-encoding",  # 6
     "unused-async",  # 13
-    "unused-unpacked-variable",  # 4
-    "used-dummy-variable",  # 2
 ]
 external = [ "AAA", "WPS" ]
+# The ℹ️ (information source) emoji is used on purpose in log messages
+allowed-confusables = ["ℹ"]
 
 # Plugin configs:
 [tool.ruff.lint.flake8-bugbear]
@@ -314,7 +287,7 @@ warn_unreachable = true
 # TBD: existing violations (code: count), fixed in follow-up commits
 disable_error_code = [
   "arg-type",  # 6
-  "assignment",  # 9
+  "assignment",  # 6
   "attr-defined",  # 2
   "call-overload",  # 1
   "index",  # 6
@@ -326,5 +299,5 @@ disable_error_code = [
   "union-attr",  # 4
   "unreachable",  # 2
   "untyped-decorator",  # 10
-  "var-annotated",  # 3
+  "var-annotated",  # 4
 ]

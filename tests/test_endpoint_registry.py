@@ -7,7 +7,8 @@ from mpt_mcp.endpoint_registry import get_openapi_spec
 
 @pytest.fixture
 def unique_endpoint(request):
-    # get_openapi_spec caches per endpoint for the whole process, so every test uses its own endpoint
+    # get_openapi_spec caches per endpoint for the whole process, so every test uses its own
+    # endpoint
     slug = request.node.name.replace("_", "-").replace("[", "-").replace("]", "")
     return f"https://{slug}.test.com"
 

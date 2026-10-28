@@ -107,11 +107,10 @@ class AnalyticsLogger:
         """Ensure event has all required columns for database insertion."""
         # Define all table columns with default None values
         timestamp = event.get("timestamp")
-        normalized = {
-            # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware datetimes)
-            "timestamp": timestamp.astimezone(dt.timezone.utc).replace(tzinfo=None)
-            if timestamp
-            else None,
+        return {
+            # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware
+            # datetimes)
+            "timestamp": timestamp.astimezone(dt.UTC).replace(tzinfo=None) if timestamp else None,
             "response_time_ms": event.get("response_time_ms"),
             "token_id": event.get("token_id"),
             "api_endpoint": event.get("api_endpoint"),
@@ -140,7 +139,6 @@ class AnalyticsLogger:
             "client_info": event.get("client_info"),
             "client_ip": event.get("client_ip"),
         }
-        return normalized
 
     async def flush(self):
         """Flush all pending events to database."""
@@ -218,7 +216,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": dt.datetime.now(dt.timezone.utc),
+            "timestamp": dt.datetime.now(dt.UTC),
             "event_type": "tool_call" if success else "error",
             "server_type": server_type,
             "tool_name": tool_name,
@@ -277,7 +275,7 @@ class AnalyticsLogger:
         """
         event = {
             **self._get_context(),
-            "timestamp": dt.datetime.now(dt.timezone.utc),
+            "timestamp": dt.datetime.now(dt.UTC),
             "event_type": "api_query",
             "server_type": server_type,
             "tool_name": tool_name,
@@ -341,7 +339,7 @@ class AnalyticsLogger:
 
         event = {
             **self._get_context(),
-            "timestamp": dt.datetime.now(dt.timezone.utc),
+            "timestamp": dt.datetime.now(dt.UTC),
             "event_type": "resource_read" if success else "error",
             "server_type": server_type,
             "resource_uri": resource_uri,
@@ -443,7 +441,6 @@ _analytics_logger: AnalyticsLogger | None = None
 
 def get_analytics_logger() -> AnalyticsLogger | None:
     """Get global analytics logger instance (returns None if not initialized)."""
-    global _analytics_logger
     return _analytics_logger
 
 

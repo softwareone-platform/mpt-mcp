@@ -188,10 +188,7 @@ class DocumentationCache:
             resources = [r for r in resources if r["uri"].startswith(f"docs://{section}/")]
 
         if subsection:
-            if section:
-                prefix = f"docs://{section}/{subsection}/"
-            else:
-                prefix = f"/{subsection}/"
+            prefix = f"docs://{section}/{subsection}/" if section else f"/{subsection}/"
             resources = [r for r in resources if prefix in r["uri"]]
 
         if search:
@@ -256,7 +253,7 @@ class DocumentationCache:
 
         except Exception as e:
             logger.exception("❌ Failed to fetch resource %s", uri)
-            return f"Error fetching content: {str(e)}"
+            return f"Error fetching content: {e!s}"
 
     def _extract_text_from_document(self, document: dict) -> str:
         """
@@ -278,9 +275,11 @@ class DocumentationCache:
                 return
 
             if node.get("object") == "text" and "leaves" in node:
-                for leaf in node["leaves"]:
-                    if isinstance(leaf, dict) and "text" in leaf:
-                        text_parts.append(leaf["text"])
+                text_parts.extend(
+                    leaf["text"]
+                    for leaf in node["leaves"]
+                    if isinstance(leaf, dict) and "text" in leaf
+                )
 
             if "text" in node:
                 text_parts.append(node["text"])
@@ -289,7 +288,7 @@ class DocumentationCache:
                 for child in node["nodes"]:
                     extract_from_node(child)
 
-                if node.get("type") in [
+                if node.get("type") in {
                     "paragraph",
                     "heading-1",
                     "heading-2",
@@ -298,7 +297,7 @@ class DocumentationCache:
                     "heading-5",
                     "heading-6",
                     "list-item",
-                ]:
+                }:
                     text_parts.append("\n")
 
         if "nodes" in document:

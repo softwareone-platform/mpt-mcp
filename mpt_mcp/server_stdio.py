@@ -109,9 +109,7 @@ def _path_to_resource_id(path: str) -> str:
     """
     path = path.replace("/public/v1/", "")
     path = path.replace("/{id}", ".by_id")
-    resource_id = path.replace("/", ".")
-
-    return resource_id
+    return path.replace("/", ".")
 
 
 @mcp.tool()
@@ -130,21 +128,25 @@ async def marketplace_query(
 
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
 
-    Supports both simple queries and advanced RQL filtering, sorting, and pagination. See documentation at https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
+    Supports both simple queries and advanced RQL filtering, sorting, and pagination. See
+    documentation at https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
 
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
-        rql: Advanced RQL query string. Examples: eq(status,Active), ilike(name,*Microsoft*). Dates in UTC
-            (YYYY-MM-DDTHH:MM:SS.mmmZ). Pagination/selection: limit=100, select=+status, order=-created.
+        rql: Advanced RQL query string. Examples: eq(status,Active), ilike(name,*Microsoft*).
+            Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Pagination/selection: limit=100,
+            select=+status, order=-created.
         limit: Max items to return (default 10, max 100). Use select= with only needed fields
             (from marketplace_resource_schema) to avoid huge responses.
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
         page: Page number (alternative to offset)
-        select: Fields to include/exclude (+name,+description or -metadata). For audit fields include 'audit'.
-            Nested: +subscriptions (full), +subscriptions.id, +subscriptions.id,+subscriptions.name.
+        select: Fields to include/exclude (+name,+description or -metadata). For audit
+            fields include 'audit'. Nested: +subscriptions (full), +subscriptions.id,
+            +subscriptions.id,+subscriptions.name.
             For catalog.products when including vendor use +vendor.id,+vendor.name (not +vendor).
             RQL filter fields must exist—use marketplace_resource_schema(resource) to check.
-        order: Sort order (e.g., -created for descending, +name for ascending). When using audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
+        order: Sort order (e.g., -created for descending, +name for ascending). When using
+            audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id
                      {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines
@@ -166,13 +168,13 @@ async def marketplace_query(
     - Sort: order=-created or order=+name
 
     Use marketplace_resources() to see all available resources.
-    """
+    """  # ruff: ignore[line-too-long]
     if not _initialized:
         await initialize_server()
     if not api_client:
         return {"error": "Server not initialized"}
 
-    _audit_regex = audit_fields.get_audit_regex(config.marketplace_api_base_url)
+    audit_regex = audit_fields.get_audit_regex(config.marketplace_api_base_url)
     return await execute_marketplace_query(
         resource=resource,
         rql=rql,
@@ -186,7 +188,7 @@ async def marketplace_query(
         endpoints_registry=endpoints_registry,
         analytics_logger=None,  # STDIO mode - no analytics
         config=config,
-        audit_regex=_audit_regex,
+        audit_regex=audit_regex,
         openapi_spec=openapi_spec,
     )
 
@@ -246,7 +248,8 @@ async def marketplace_cache_info() -> dict[str, Any]:
     return {
         "cache_status": "enabled",
         "cache_info": cache_info,
-        "note": "Cache reduces startup time and allows offline operation. Cache is automatically refreshed every 24 hours.",
+        "note": "Cache reduces startup time and allows offline operation. Cache is automatically "
+        "refreshed every 24 hours.",
     }
 
 
@@ -310,7 +313,8 @@ async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     """
     marketplace_resource_schema(resource): Get the full schema for a resource.
 
-    Returns detailed information about the resource including available parameters, example queries, filterable fields, and response structure.
+    Returns detailed information about the resource including available parameters, example
+    queries, filterable fields, and response structure.
 
     Args:
         resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
@@ -318,7 +322,8 @@ async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
     Returns:
         Complete JSON schema with field types, descriptions, enums, and examples
 
-    Example: marketplace_resource_schema(resource=catalog.products) returns full schema; for products use select=+vendor.id,+vendor.name when including vendor.
+    Example: marketplace_resource_schema(resource=catalog.products) returns full schema; for
+    products use select=+vendor.id,+vendor.name when including vendor.
     """
     if not _initialized:
         await initialize_server()
@@ -340,7 +345,8 @@ async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any
 
     Derived from the OpenAPI spec at startup. Returns event names (e.g. created, updated, failed);
     paths are always audit.<event>.at (when) and audit.<event>.by (who). Use for queries like
-    "orders failed starting when" (audit.failed.at) or "agreements created after X" (audit.created.at).
+    "orders failed starting when" (audit.failed.at) or "agreements created after X"
+    (audit.created.at).
     Include select=audit when filtering or sorting by these fields.
 
     Args:
@@ -349,7 +355,8 @@ async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any
 
     Returns:
         If resource is set: { "resource": str, "events": [ "created", "updated", ... ] }.
-        If resource is omitted: { "by_resource": { resource_id: [ "event1", "event2", ... ], ... } }.
+        If resource is omitted:
+            { "by_resource": { resource_id: [ "event1", "event2", ... ], ... } }.
     """
     if not _initialized:
         await initialize_server()

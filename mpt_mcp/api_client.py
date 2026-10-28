@@ -33,7 +33,8 @@ class APIClient:
 
         if base_url != normalized_base_url:
             logger.info(
-                "🔧 Base URL normalization: Stripped path from '%s' → '%s' (paths come from OpenAPI spec)",
+                "🔧 Base URL normalization: Stripped path from '%s' → '%s' (paths come from "
+                "OpenAPI spec)",
                 base_url,
                 normalized_base_url,
             )
@@ -148,7 +149,8 @@ class APIClient:
             logger.info("   Parameters: %s", original_params)
         logger.info("   Full URL: %s", url)
 
-        # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at least 30s
+        # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at
+        # least 30s
         timeout_config = httpx.Timeout(self.timeout, connect=30.0)
         async with httpx.AsyncClient(
             follow_redirects=True, http2=True, timeout=timeout_config

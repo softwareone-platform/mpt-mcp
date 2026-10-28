@@ -71,7 +71,7 @@ async def test_get_openapi_spec_resource_fetch_error():
 async def test_openapi_resource_listed_in_resources():
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}
-    resource_uris = [str(uri) for uri in resources.keys()]
+    resource_uris = [str(uri) for uri in resources]
 
     assert "api://openapi.json" in resource_uris
 
@@ -110,7 +110,8 @@ def docs_cache(monkeypatch):
         async def install_cache():
             server_docs.documentation_cache = cache
 
-        # The resource must read the cache that initialize_documentation_cache sets, not a stale import
+        # The resource must read the cache that initialize_documentation_cache sets, not a stale
+        # import
         monkeypatch.setattr(server_docs, "documentation_cache", None)
         monkeypatch.setattr(
             server_docs, "initialize_documentation_cache", AsyncMock(side_effect=install_cache)
