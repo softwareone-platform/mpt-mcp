@@ -96,7 +96,7 @@ def register_http_tools(mcp):
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
-        logger.info(f"🔍 Using API endpoint: {api_base_url}")
+        logger.info("🔍 Using API endpoint: %s", api_base_url)
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
             openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)

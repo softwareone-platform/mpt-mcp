@@ -35,7 +35,7 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
-logger.info(f"🌐 Configured for {server_host}:{server_port}")
+logger.info("🌐 Configured for %s:%s", server_host, server_port)
 # RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
 mcp = FastMCP(
     "softwareone-marketplace",
@@ -77,9 +77,11 @@ async def _create_app():
                 )
                 mcp.add_resource(doc_resource)
                 doc_resource_count += 1
-            logger.info(f"📝 Registered {doc_resource_count} documentation resources for discovery")
+            logger.info(
+                "📝 Registered %s documentation resources for discovery", doc_resource_count
+            )
         except Exception as e:
-            logger.warning(f"⚠️  Could not register doc resources for discovery: {e}")
+            logger.warning("⚠️  Could not register doc resources for discovery: %s", e)
     else:
         logger.info(
             "ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured."
@@ -99,7 +101,11 @@ async def _create_app():
             )
             ua = (request.headers.get("user-agent") or "")[:80]
             logger.warning(
-                f"⚠️ 404 {request.method} path={request.url.path!r} mcp_session_id={'yes' if has_mcp_session_id else 'no'} ua={ua!r}"
+                "⚠️ 404 %s path=%r mcp_session_id=%s ua=%r",
+                request.method,
+                request.url.path,
+                "yes" if has_mcp_session_id else "no",
+                ua,
             )
             return JSONResponse(
                 {
@@ -190,7 +196,7 @@ def run_migrations():
         command.upgrade(alembic_cfg, "head")
         logger.info("✅ Database migrations completed successfully")
     except Exception as e:
-        logger.warning(f"⚠️  Migration warning: {e}")
+        logger.warning("⚠️  Migration warning: %s", e)
         logger.info("   Server will continue, but analytics may not work correctly")
 
 
@@ -203,7 +209,7 @@ def _run_uvicorn():
             "🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic"
         )
     uvicorn_log_level = "debug" if config.debug else "info"
-    logger.info(f"📋 Log level: {uvicorn_log_level} (DEBUG={os.getenv('DEBUG', '(not set)')!r})")
+    logger.info("📋 Log level: %s (DEBUG=%r)", uvicorn_log_level, os.getenv("DEBUG", "(not set)"))
     uvicorn.run(
         "mpt_mcp.server:app",
         host=server_host,
@@ -223,10 +229,10 @@ def main():
         logger.info("=" * 60)
         logger.info("🚀 SoftwareOne Marketplace MCP Server (HTTP Mode)")
         logger.info("=" * 60)
-        logger.info(f"🌐 Starting server on {server_host}:{server_port}")
+        logger.info("🌐 Starting server on %s:%s", server_host, server_port)
         logger.info("📡 Transport: Streamable HTTP (POST/DELETE)")
         logger.info("📡 Endpoint path: /mcp (registered at startup, not per-request)")
-        logger.info(f"📡 Default API endpoint: {config.sse_default_base_url}")
+        logger.info("📡 Default API endpoint: %s", config.sse_default_base_url)
         logger.info("🔑 Multi-tenant Authentication:")
         logger.info("   - Clients MUST provide X-MPT-Authorization header")
         logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")
@@ -234,16 +240,16 @@ def main():
             "   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')"
         )
         logger.info("   - Headers are case-insensitive")
-        logger.info(f"✓ Server URL: http://{server_host}:{server_port}/mcp")
-        logger.info(f"✓ Health check: http://{server_host}:{server_port}/health")
-        logger.info("=" * 60 + "\n")
+        logger.info("✓ Server URL: http://%s:%s/mcp", server_host, server_port)
+        logger.info("✓ Health check: http://%s:%s/health", server_host, server_port)
+        logger.info("=" * 60)
         run_migrations()
         _run_uvicorn()
     except KeyboardInterrupt:
         logger.info("Shutting down server...")
         sys.exit(0)
-    except Exception as e:
-        logger.exception(f"❌ Error: {e}")
+    except Exception:
+        logger.exception("❌ Server error")
         sys.exit(1)
 
 

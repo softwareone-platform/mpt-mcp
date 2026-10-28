@@ -85,24 +85,24 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
     # Get the OpenAPI spec URL for this endpoint
     openapi_url = get_openapi_spec_url(api_base_url)
 
-    logger.info(f"📡 Loading OpenAPI spec from: {openapi_url}")
+    logger.info("📡 Loading OpenAPI spec from: %s", openapi_url)
 
     try:
         # Try to fetch from the endpoint-specific URL
         spec = await fetch_with_cache(
             url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh
         )
-        logger.info(f"✓ Loaded OpenAPI spec from {api_base_url}")
+        logger.info("✓ Loaded OpenAPI spec from %s", api_base_url)
         return spec
 
     except (httpx.HTTPError, httpx.TimeoutException) as e:
-        logger.warning(f"⚠️  Failed to fetch from {openapi_url}: {e}")
+        logger.warning("⚠️  Failed to fetch from %s: %s", openapi_url, e)
 
         # If it's a 404, try the default fallback
         fallback_url = "https://api.platform.softwareone.com/public/v1/openapi.json"
 
         if openapi_url != fallback_url:
-            logger.info(f"🔄 Trying fallback: {fallback_url}")
+            logger.info("🔄 Trying fallback: %s", fallback_url)
 
             try:
                 spec = await fetch_with_cache(
@@ -112,7 +112,7 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
                 return spec
 
             except (httpx.HTTPError, httpx.TimeoutException, OSError, ValueError) as fallback_error:
-                logger.error(f"❌ Fallback also failed: {fallback_error}")
+                logger.exception("❌ Fallback also failed")
                 raise OpenAPISpecFetchError(
                     f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback {fallback_url}"
                 ) from fallback_error
@@ -160,10 +160,10 @@ async def get_endpoints_registry(
     """
     # Check if we already have this registry cached
     if api_base_url in _endpoint_registries and not force_refresh:
-        logger.info(f"✓ Using cached endpoints registry for {api_base_url}")
+        logger.info("✓ Using cached endpoints registry for %s", api_base_url)
         return _endpoint_registries[api_base_url]
 
-    logger.info(f"🔄 Initializing endpoints registry for {api_base_url}")
+    logger.info("🔄 Initializing endpoints registry for %s", api_base_url)
 
     try:
         # Fetch the OpenAPI spec for this endpoint
@@ -187,17 +187,17 @@ async def get_endpoints_registry(
             await asyncio.to_thread(
                 audit_fields.update_cache, api_base_url, spec, _path_to_resource_id
             )
-            logger.info(f"✓ Audit fields cache updated for {api_base_url}")
+            logger.info("✓ Audit fields cache updated for %s", api_base_url)
         except Exception as audit_err:
-            logger.warning(f"⚠ Audit fields cache skipped: {audit_err}")
+            logger.warning("⚠ Audit fields cache skipped: %s", audit_err)
 
-        logger.info(f"✓ Discovered {len(registry)} GET endpoints for {api_base_url}")
-        logger.info(f"✓ Stored in registry with {len(registry)} resource IDs")
+        logger.info("✓ Discovered %s GET endpoints for %s", len(registry), api_base_url)
+        logger.info("✓ Stored in registry with %s resource IDs", len(registry))
 
         return registry
 
-    except Exception as e:
-        logger.error(f"❌ Failed to initialize endpoints registry for {api_base_url}: {e}")
+    except Exception:
+        logger.exception("❌ Failed to initialize endpoints registry for %s", api_base_url)
         # Return empty registry on failure
         _endpoint_registries[api_base_url] = {}
         return {}

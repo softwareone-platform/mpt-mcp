@@ -33,7 +33,9 @@ class APIClient:
 
         if base_url != normalized_base_url:
             logger.info(
-                f"🔧 Base URL normalization: Stripped path from '{base_url}' → '{normalized_base_url}' (paths come from OpenAPI spec)"
+                "🔧 Base URL normalization: Stripped path from '%s' → '%s' (paths come from OpenAPI spec)",
+                base_url,
+                normalized_base_url,
             )
 
         self.base_url = normalized_base_url
@@ -51,7 +53,7 @@ class APIClient:
         # Token format: idt:TKN-XXXX-XXXX:actual_token
         self.user_id = self._extract_user_id(token)
         if self.user_id:
-            logger.info(f"👤 Authenticated as user: {self.user_id}")
+            logger.info("👤 Authenticated as user: %s", self.user_id)
 
         self.timeout = timeout
 
@@ -139,12 +141,12 @@ class APIClient:
         logger.info("=" * 80)
         logger.info("🔍 Marketplace API Request")
         if self.user_id:
-            logger.info(f"   👤 User: {self.user_id}")
-        logger.info(f"   Base URL: {self.base_url}")
-        logger.info(f"   Endpoint: {endpoint}")
+            logger.info("   👤 User: %s", self.user_id)
+        logger.info("   Base URL: %s", self.base_url)
+        logger.info("   Endpoint: %s", endpoint)
         if original_params:
-            logger.info(f"   Parameters: {original_params}")
-        logger.info(f"   Full URL: {url}")
+            logger.info("   Parameters: %s", original_params)
+        logger.info("   Full URL: %s", url)
 
         # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at least 30s
         timeout_config = httpx.Timeout(self.timeout, connect=30.0)
@@ -166,14 +168,14 @@ class APIClient:
                 ) from e
 
             # Log the API response
-            logger.info(f"✅ Response: {response.status_code}")
+            logger.info("✅ Response: %s", response.status_code)
 
             # Try to log useful info about the response
             if isinstance(response_data, dict):
                 if "data" in response_data:
                     data = response_data["data"]
                     if isinstance(data, list):
-                        logger.info(f"   Items returned: {len(data)}")
+                        logger.info("   Items returned: %s", len(data))
                     elif isinstance(data, dict):
                         logger.info("   Single item returned")
 
@@ -185,21 +187,24 @@ class APIClient:
                         total = pagination.get("total")
                         offset = pagination.get("offset")
                         limit = pagination.get("limit")
-                        logger.info(f"   Pagination: offset={offset}, limit={limit}, total={total}")
+                        logger.info(
+                            "   Pagination: offset=%s, limit=%s, total=%s", offset, limit, total
+                        )
 
                     # Log omitted fields if present
                     if "omitted" in meta:
                         omitted = meta.get("omitted", [])
                         if omitted:
                             logger.info(
-                                f"   Omitted fields: {', '.join(omitted)} (use select=+field to include)"
+                                "   Omitted fields: %s (use select=+field to include)",
+                                ", ".join(omitted),
                             )
                 # Fallback to root-level pagination
                 elif "pagination" in response_data:
                     pagination = response_data["pagination"]
-                    logger.info(f"   Pagination: {pagination}")
+                    logger.info("   Pagination: %s", pagination)
             elif isinstance(response_data, list):
-                logger.info(f"   Items returned: {len(response_data)}")
+                logger.info("   Items returned: %s", len(response_data))
 
             logger.info("=" * 80)
 

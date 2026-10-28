@@ -44,7 +44,9 @@ class GitBookClient:
         self.timeout = timeout
 
         logger.info(
-            f"📚 GitBook client initialized for space: {space_id} (max concurrent: {max_concurrent_requests})"
+            "📚 GitBook client initialized for space: %s (max concurrent: %s)",
+            space_id,
+            max_concurrent_requests,
         )
 
     def _get_headers(self) -> dict[str, str]:
@@ -74,7 +76,10 @@ class GitBookClient:
                     if attempt < MAX_RETRIES - 1:
                         wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
                         logger.warning(
-                            f"📚 GitBook request timed out, retry in {wait_sec:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                            "📚 GitBook request timed out, retry in %.1fs (attempt %s/%s)",
+                            wait_sec,
+                            attempt + 1,
+                            MAX_RETRIES,
                         )
                         await asyncio.sleep(wait_sec)
                         continue
@@ -87,7 +92,11 @@ class GitBookClient:
                         else:
                             wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
                         logger.warning(
-                            f"📚 GitBook rate limit/unavailable ({response.status_code}), retry in {wait_sec:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                            "📚 GitBook rate limit/unavailable (%s), retry in %.1fs (attempt %s/%s)",
+                            response.status_code,
+                            wait_sec,
+                            attempt + 1,
+                            MAX_RETRIES,
                         )
                         await asyncio.sleep(wait_sec)
                         continue
@@ -109,13 +118,13 @@ class GitBookClient:
             httpx.HTTPError: If the request fails
         """
         url = f"{self.base_url}/spaces/{self.space_id}/content"
-        logger.info(f"📥 Fetching GitBook space content from: {url}")
+        logger.info("📥 Fetching GitBook space content from: %s", url)
 
         content = await self._get_with_retry(url)
         logger.info("✅ Successfully fetched GitBook content")
         if "pages" in content:
             page_count = len(content["pages"]) if isinstance(content["pages"], list) else "unknown"
-            logger.info(f"   📄 Pages: {page_count}")
+            logger.info("   📄 Pages: %s", page_count)
         return content
 
     async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
@@ -133,7 +142,7 @@ class GitBookClient:
         """
         page_path = page_path.lstrip("/")
         url = f"{self.base_url}/spaces/{self.space_id}/content/path/{page_path}"
-        logger.debug(f"📥 Fetching page: {page_path}")
+        logger.debug("📥 Fetching page: %s", page_path)
         return await self._get_with_retry(url)
 
     async def fetch_page_by_id(self, page_id: str) -> dict[str, Any]:
@@ -150,7 +159,7 @@ class GitBookClient:
             httpx.HTTPError: If the request fails
         """
         url = f"{self.base_url}/spaces/{self.space_id}/content/page/{page_id}"
-        logger.debug(f"📥 Fetching page by ID: {page_id}")
+        logger.debug("📥 Fetching page by ID: %s", page_id)
         return await self._get_with_retry(url)
 
     async def validate_credentials(self) -> bool:
@@ -165,6 +174,6 @@ class GitBookClient:
             await self._get_with_retry(url)
             logger.info("✅ GitBook credentials validated successfully")
             return True
-        except Exception as e:
-            logger.error(f"❌ GitBook credential validation failed: {e}")
+        except Exception:
+            logger.exception("❌ GitBook credential validation failed")
             return False

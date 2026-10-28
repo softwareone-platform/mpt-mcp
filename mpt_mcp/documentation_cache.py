@@ -40,7 +40,7 @@ class DocumentationCache:
 
         if gitbook_client:
             logger.info(
-                f"📚 Documentation cache initialized (refresh interval: {refresh_interval_hours}h)"
+                "📚 Documentation cache initialized (refresh interval: %sh)", refresh_interval_hours
             )
         else:
             logger.info("📚 Documentation cache disabled (no GitBook client configured)")
@@ -95,12 +95,12 @@ class DocumentationCache:
             self._build_resource_index()
 
             logger.info(
-                f"✅ Documentation cache refreshed successfully ({len(self._resources)} resources)"
+                "✅ Documentation cache refreshed successfully (%s resources)", len(self._resources)
             )
             return True
 
-        except Exception as e:
-            logger.error(f"❌ Failed to refresh documentation cache: {e}")
+        except Exception:
+            logger.exception("❌ Failed to refresh documentation cache")
             return False
         finally:
             self._is_refreshing = False
@@ -152,7 +152,7 @@ class DocumentationCache:
             for page in pages:
                 index_page(page)
 
-        logger.info(f"📇 Built resource index with {len(self._resources)} entries")
+        logger.info("📇 Built resource index with %s entries", len(self._resources))
 
     async def ensure_cached(self):
         """Ensure cache is populated, refresh if needed."""
@@ -220,7 +220,7 @@ class DocumentationCache:
         await self.ensure_cached()
 
         if uri not in self._resources:
-            logger.warning(f"📚 Resource not found: {uri}")
+            logger.warning("📚 Resource not found: %s", uri)
             return None
 
         resource = self._resources[uri]
@@ -232,7 +232,7 @@ class DocumentationCache:
         page_id = resource["metadata"].get("id")
 
         if not page_id:
-            logger.error(f"📚 Resource has no ID: {uri}")
+            logger.error("📚 Resource has no ID: %s", uri)
             return "Content not available - no page ID"
 
         try:
@@ -241,7 +241,7 @@ class DocumentationCache:
             markdown = page_data.get("markdown", "")
 
             available_fields = list(page_data.keys())
-            logger.debug(f"📋 GitBook page fields: {available_fields}")
+            logger.debug("📋 GitBook page fields: %s", available_fields)
 
             if not markdown and "document" in page_data:
                 logger.debug("📄 No markdown, extracting from document structure")
@@ -250,12 +250,12 @@ class DocumentationCache:
             resource["content"] = markdown or "No content available"
 
             content_length = len(markdown) if markdown else 0
-            logger.info(f"✅ Fetched and cached content for: {uri} (length: {content_length})")
+            logger.info("✅ Fetched and cached content for: %s (length: %s)", uri, content_length)
 
             return resource["content"]
 
         except Exception as e:
-            logger.error(f"❌ Failed to fetch resource {uri}: {e}")
+            logger.exception("❌ Failed to fetch resource %s", uri)
             return f"Error fetching content: {str(e)}"
 
     def _extract_text_from_document(self, document: dict) -> str:

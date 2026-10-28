@@ -49,5 +49,5 @@ class RequestContextMiddleware(Middleware):
         if endpoint_display.startswith("https://"):
             endpoint_display = endpoint_display.removeprefix("https://").split("/")[0]
         token_status = "✓" if call_context.token else "✗"
-        logger.info(f"📨 {caller} @ {endpoint_display} [{token_status}] (active)")
+        logger.info("📨 %s @ %s [%s] (active)", caller, endpoint_display, token_status)
         self._last_activity_log[log_key] = now

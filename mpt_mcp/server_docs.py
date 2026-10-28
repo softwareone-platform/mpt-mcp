@@ -41,7 +41,8 @@ async def initialize_documentation_cache():
                 await documentation_cache.refresh()
                 doc_resources = await documentation_cache.list_resources()
                 logger.info(
-                    f"📝 Documentation cache loaded ({len(doc_resources)} pages); served via docs://{{path}} template"
+                    "📝 Documentation cache loaded (%s pages); served via docs://{path} template",
+                    len(doc_resources),
                 )
                 logger.info("✓ Documentation cache initialized")
                 logger.info(
@@ -51,13 +52,15 @@ async def initialize_documentation_cache():
                 logger.warning("⚠️  GitBook credentials invalid, documentation cache disabled")
                 documentation_cache = DocumentationCache(gitbook_client=None)
         except Exception as e:
-            logger.warning(f"⚠️  Failed to initialize documentation cache: {e}")
+            logger.warning("⚠️  Failed to initialize documentation cache: %s", e)
             documentation_cache = DocumentationCache(gitbook_client=None)
     else:
         has_key = bool(config.gitbook_api_key)
         has_space = bool(config.gitbook_space_id)
         logger.info(
-            f"ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY={'set' if has_key else 'missing'}, GITBOOK_SPACE_ID={'set' if has_space else 'missing'})."
+            "ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY=%s, GITBOOK_SPACE_ID=%s).",
+            "set" if has_key else "missing",
+            "set" if has_space else "missing",
         )
         documentation_cache = DocumentationCache(gitbook_client=None)
     _docs_cache_initialized = True

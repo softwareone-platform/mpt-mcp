@@ -64,7 +64,7 @@ extend-ignore = [
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
   "WPS110",  # 65
-  "WPS111",  # 107
+  "WPS111",  # 99
   "WPS114",  # 9
   "WPS118",  # 55
   "WPS121",  # 10
@@ -81,16 +81,16 @@ extend-ignore = [
   "WPS218",  # 2
   "WPS219",  # 3
   "WPS220",  # 61
-  "WPS221",  # 41
+  "WPS221",  # 38
   "WPS229",  # 36
   "WPS231",  # 30
   "WPS232",  # 6
   "WPS234",  # 2
   "WPS235",  # 1
-  "WPS237",  # 25
+  "WPS237",  # 9
   "WPS239",  # 1
   "WPS328",  # 1
-  "WPS336",  # 7
+  "WPS336",  # 5
   "WPS338",  # 6
   "WPS404",  # 7
   "WPS407",  # 6
@@ -217,7 +217,6 @@ ignore = [
     "complex-structure",  # 22
     "datetime-min-max",  # 1
     "datetime-timezone-utc",  # 4
-    "error-instead-of-exception",  # 16
     "explicit-f-string-type-conversion",  # 5
     "global-statement",  # 18
     "global-variable-not-assigned",  # 1
@@ -229,10 +228,8 @@ ignore = [
     "if-exp-instead-of-or-operator",  # 2
     "implicit-optional",  # 3
     "in-dict-keys",  # 1
-    "line-too-long",  # 114
+    "line-too-long",  # 103
     "literal-membership",  # 4
-    "logging-f-string",  # 129
-    "logging-string-concat",  # 2
     "manual-list-comprehension",  # 2
     "multiple-starts-ends-with",  # 2
     "multiple-with-statements",  # 12
@@ -252,7 +249,6 @@ ignore = [
     "unused-async",  # 13
     "unused-unpacked-variable",  # 4
     "used-dummy-variable",  # 2
-    "verbose-log-message",  # 2
 ]
 external = [ "AAA", "WPS" ]
 

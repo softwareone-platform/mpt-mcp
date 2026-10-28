@@ -134,7 +134,7 @@ def _sanitize_select(
             continue
         kept.append(p)
     if dropped:
-        logger.info(f"   💡 Select sanitized: dropped fields not in schema: {', '.join(dropped)}")
+        logger.info("   💡 Select sanitized: dropped fields not in schema: %s", ", ".join(dropped))
 
     # Always include id; when they exist in schema, also include status and name (in that order)
     tops = {top_level_field(p) for p in kept}
@@ -146,7 +146,7 @@ def _sanitize_select(
             to_add.append(field)
             tops.add(field)
     if to_add:
-        logger.info(f"   💡 Select: added {', '.join(to_add)} (always included when in schema)")
+        logger.info("   💡 Select: added %s (always included when in schema)", ", ".join(to_add))
     # Canonical order: id, status, name first (when present), then the rest
     prefix = [f for f in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA if f in tops]
     rest = [p for p in kept if top_level_field(p) not in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA]
@@ -342,7 +342,7 @@ async def execute_marketplace_query(
         # If limit is explicitly set to 0, respect it (might be intentional)
         logger.warning("   ⚠️ Limit is 0, keeping as-is (might be intentional)")
     elif limit > 100:
-        logger.info(f"   💡 Capped limit {limit} to 100 (max allowed to avoid context overflow)")
+        logger.info("   💡 Capped limit %s to 100 (max allowed to avoid context overflow)", limit)
         limit = 100
 
     # Build query parameters
@@ -363,16 +363,16 @@ async def execute_marketplace_query(
     if order:
         params["order"] = order
 
-    logger.info(f"📊 Query: {resource}")
-    logger.info(f"   Path: {api_path}")
-    logger.info(f"   Params: {params}")
+    logger.info("📊 Query: %s", resource)
+    logger.info("   Path: %s", api_path)
+    logger.info("   Params: %s", params)
 
     try:
         result = await api_client.get(api_path, params=params)
         result_count = None
         if KEY_META in result:
             result_count = result[KEY_META].get("pagination", {}).get("total")
-            logger.info(f"   ✅ Result: {result_count or '?'} total items")
+            logger.info("   ✅ Result: %s total items", result_count or "?")
 
         # SECURITY: Obfuscate token values if querying API token endpoints
         # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
@@ -404,12 +404,16 @@ async def execute_marketplace_query(
         meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
         omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
         logger.info(
-            f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}"
+            "   📤 Returning: data len=%s, %s=%s, omitted=%s",
+            len(data_list),
+            KEY_META,
+            "yes" if meta else "no",
+            omitted if omitted else "none",
         )
 
         return result
     except Exception as e:
-        logger.error(f"   ❌ Error: {e}")
+        logger.warning("   ❌ Error: %s", e)
 
         error_response = {"error": str(e), "resource": resource, "path": api_path}
         response_code = None
@@ -461,7 +465,8 @@ async def execute_marketplace_query(
         # Retry without auto-added audit if we got a 400
         if should_retry_without_audit:
             logger.info(
-                f"   🔄 Retrying query without auto-added 'audit' (using original select: {original_select or 'None'})"
+                "   🔄 Retrying query without auto-added 'audit' (using original select: %s)",
+                original_select or "None",
             )
             retry_params = {}
             if rql:
@@ -482,7 +487,7 @@ async def execute_marketplace_query(
                 result_count = None
                 if KEY_META in result:
                     result_count = result[KEY_META].get("pagination", {}).get("total")
-                    logger.info(f"   ✅ Retry successful: {result_count or '?'} total items")
+                    logger.info("   ✅ Retry successful: %s total items", result_count or "?")
 
                 # SECURITY: Obfuscate token values if querying API token endpoints
                 # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
@@ -514,12 +519,16 @@ async def execute_marketplace_query(
                 meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
                 omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
                 logger.info(
-                    f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}"
+                    "   📤 Returning: data len=%s, %s=%s, omitted=%s",
+                    len(data_list),
+                    KEY_META,
+                    "yes" if meta else "no",
+                    omitted if omitted else "none",
                 )
 
                 return result
             except Exception as retry_e:
-                logger.error(f"   ❌ Retry also failed: {retry_e}")
+                logger.warning("   ❌ Retry also failed: %s", retry_e)
                 # Fall through to return original error
 
         # Log failed API query

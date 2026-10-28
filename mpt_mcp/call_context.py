@@ -51,14 +51,17 @@ class CallContext:
             self.token, self.endpoint, use_cache=not self.validate_fresh
         )
         if not is_valid:
-            logger.warning(f"❌ Token validation failed: {error}")
+            logger.warning("❌ Token validation failed: %s", error)
             raise ValueError(
                 f"Token validation failed: {error}. Please ensure your API token is valid and active."
             )
 
         account = (token_info or {}).get("account", {})
         logger.info(
-            f"✅ Token validated for {self.endpoint} - Account: {account.get('name', 'Unknown')} ({account.get('id', 'Unknown')})"
+            "✅ Token validated for %s - Account: %s (%s)",
+            self.endpoint,
+            account.get("name", "Unknown"),
+            account.get("id", "Unknown"),
         )
 
 

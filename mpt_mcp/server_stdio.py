@@ -52,7 +52,7 @@ async def initialize_server(force_refresh: bool = False):
     if errors:
         logger.error("❌ Configuration errors:")
         for error in errors:
-            logger.info(f"  - {error}")
+            logger.info("  - %s", error)
         raise ValueError("Invalid configuration")
 
     api_client = APIClient(
@@ -66,7 +66,7 @@ async def initialize_server(force_refresh: bool = False):
     openapi_parser = OpenAPIParser()
 
     try:
-        logger.info(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
+        logger.info("📡 Loading OpenAPI spec from: %s", config.openapi_spec_url)
 
         spec = await fetch_with_cache(
             url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh
@@ -81,19 +81,19 @@ async def initialize_server(force_refresh: bool = False):
                 "parameters": endpoint["parameters"],
             }
 
-        logger.info(f"✓ Discovered {len(endpoints_registry)} GET endpoints")
-        logger.info(f"✓ Stored in memory registry with {len(endpoints_registry)} resource IDs")
+        logger.info("✓ Discovered %s GET endpoints", len(endpoints_registry))
+        logger.info("✓ Stored in memory registry with %s resource IDs", len(endpoints_registry))
 
         try:
             audit_fields.update_cache(config.marketplace_api_base_url, spec, _path_to_resource_id)
             logger.info("✓ Audit fields cache updated")
         except Exception as audit_err:
-            logger.warning(f"⚠ Audit fields cache skipped: {audit_err}")
+            logger.warning("⚠ Audit fields cache skipped: %s", audit_err)
 
         _initialized = True
 
     except Exception as e:
-        logger.warning(f"⚠ Failed to load OpenAPI spec: {e}")
+        logger.warning("⚠ Failed to load OpenAPI spec: %s", e)
         endpoints_registry = {}
         _initialized = False
 
@@ -371,13 +371,13 @@ if __name__ == "__main__":
         logger.info("Server will initialize on first tool call...")
         logger.info("Available tools: 7 (streamlined interface with caching)")
         logger.info("✓ Starting server on stdio...")
-        logger.info("=" * 60 + "\n")
+        logger.info("=" * 60)
 
         mcp.run()
 
     except KeyboardInterrupt:
         logger.info("Shutting down server...")
         sys.exit(0)
-    except Exception as e:
-        logger.exception(f"❌ Error: {e}")
+    except Exception:
+        logger.exception("❌ Server error")
         sys.exit(1)

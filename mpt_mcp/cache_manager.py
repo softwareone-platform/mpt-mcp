@@ -193,11 +193,11 @@ async def fetch_with_cache(
     if not force_refresh:
         cached_data = cache_manager.get(url)
         if cached_data is not None:
-            logger.info(f"✓ Using cached data from: {url}")
+            logger.info("✓ Using cached data from: %s", url)
             return cached_data
 
     # Fetch from network (connect and default DEFAULT_FETCH_TIMEOUT, connect at least 30s)
-    logger.info(f"📡 Fetching from: {url}")
+    logger.info("📡 Fetching from: %s", url)
     try:
         timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=30.0)
         async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
@@ -208,25 +208,28 @@ async def fetch_with_cache(
 
             # Log if redirects occurred
             if len(response.history) > 0:
-                logger.info(f"🔄 Followed {len(response.history)} redirect(s)")
+                logger.info("🔄 Followed %s redirect(s)", len(response.history))
                 for i, redirect in enumerate(response.history, 1):
                     logger.info(
-                        f"   {i}. {redirect.status_code} → {redirect.headers.get('Location', 'unknown')}"
+                        "   %s. %s → %s",
+                        i,
+                        redirect.status_code,
+                        redirect.headers.get("Location", "unknown"),
                     )
-                logger.info(f"   Final: {response.url}")
+                logger.info("   Final: %s", response.url)
 
             response.raise_for_status()
             data = response.json()
 
         # Cache the result
         cache_manager.set(url, data)
-        logger.info(f"✓ Cached data from: {url}")
+        logger.info("✓ Cached data from: %s", url)
 
         return data
 
     except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as e:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
-        logger.warning(f"⚠ Network fetch failed: {e}")
+        logger.warning("⚠ Network fetch failed: %s", e)
 
         cache_path = cache_manager.get_cache_path(url)
         if cache_path.exists():
