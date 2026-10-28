@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import pytest
 from starlette.requests import Request
 
-from mpt_mcp.server_context import current_session_id, current_user_id
+from mpt_mcp.log_config import current_session_id, current_user_id
 from mpt_mcp.server_middleware import RequestContextMiddleware
 
 

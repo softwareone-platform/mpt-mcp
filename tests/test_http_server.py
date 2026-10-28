@@ -52,16 +52,6 @@ def test_tools_registered():
 
 
 @pytest.mark.unit
-def test_normalize_endpoint_from_server():
-    from mpt_mcp.server_context import normalize_endpoint_url
-
-    # Test removing /public suffix
-    assert normalize_endpoint_url("https://api.test.com/public") == "https://api.test.com"
-    assert normalize_endpoint_url("https://api.test.com") == "https://api.test.com"
-    assert normalize_endpoint_url("https://api.test.com/") == "https://api.test.com"
-
-
-@pytest.mark.unit
 def test_mcp_server_initialization():
     from mpt_mcp.server import mcp
 
@@ -74,17 +64,6 @@ def test_mcp_server_initialization():
     # Should be able to get the app
     app = mcp.http_app()
     assert app is not None
-
-
-@pytest.mark.unit
-def test_normalize_endpoint_url_function():
-    from mpt_mcp.server_context import normalize_endpoint_url
-
-    # Test various URL formats
-    assert normalize_endpoint_url("https://api.s1.show/public") == "https://api.s1.show"
-    assert normalize_endpoint_url("https://api.s1.show/public/") == "https://api.s1.show"
-    assert normalize_endpoint_url("https://api.s1.show") == "https://api.s1.show"
-    assert normalize_endpoint_url("https://api.s1.show/") == "https://api.s1.show"
 
 
 @pytest.mark.unit

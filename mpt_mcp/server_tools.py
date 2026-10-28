@@ -1,3 +1,4 @@
+import logging
 from typing import Any
 
 from fastmcp.dependencies import Depends
@@ -17,8 +18,9 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
 )
-from mpt_mcp.server_context import log
 from mpt_mcp.token_validator import get_token_cache
+
+logger = logging.getLogger(__name__)
 
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 AUTH_HINT_HEADER_TOKEN = "Provide X-MPT-Authorization header with your API token"
@@ -82,7 +84,7 @@ def register_http_tools(mcp):
         except ValueError as e:
             return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
         api_base_url = api_client.base_url
-        log(f"🔍 Using API endpoint: {api_base_url}")
+        logger.info(f"🔍 Using API endpoint: {api_base_url}")
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
             openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)
@@ -105,7 +107,6 @@ def register_http_tools(mcp):
             path_params=path_params,
             api_client=api_client,
             endpoints_registry=endpoints_registry_data,
-            log_fn=log,
             analytics_logger=get_analytics_logger(),
             config=config,
             audit_regex=audit_regex,

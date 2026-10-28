@@ -15,13 +15,6 @@ async def test_missing_authorization_header():
     assert "Missing X-MPT-Authorization header" in error_message or "Missing" in error_message
 
 
-def test_normalize_endpoint_url():
-    from mpt_mcp.server_context import normalize_endpoint_url
-
-    assert normalize_endpoint_url("https://api.s1.show/public") == "https://api.s1.show"
-    assert normalize_endpoint_url("https://api.s1.show") == "https://api.s1.show"
-
-
 @pytest.mark.asyncio
 async def test_401_unauthorized_error():
     from mpt_mcp.api_client import APIClient

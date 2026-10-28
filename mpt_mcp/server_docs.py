@@ -1,9 +1,11 @@
+import logging
 import os
 
-from .config import config
-from .documentation_cache import DocumentationCache
-from .gitbook_client import GitBookClient
-from .server_context import log
+from mpt_mcp.config import config
+from mpt_mcp.documentation_cache import DocumentationCache
+from mpt_mcp.gitbook_client import GitBookClient
+
+logger = logging.getLogger(__name__)
 
 documentation_cache: DocumentationCache | None = None
 _docs_cache_initialized: bool = False
@@ -20,7 +22,7 @@ async def initialize_documentation_cache():
         _docs_cache_init_pid = None
     if _docs_cache_initialized:
         return
-    log("📖 Loading documentation cache...")
+    logger.info("📖 Loading documentation cache...")
     if config.gitbook_api_key and config.gitbook_space_id:
         try:
             gitbook_client = GitBookClient(
@@ -37,19 +39,21 @@ async def initialize_documentation_cache():
                 )
                 await documentation_cache.refresh()
                 doc_resources = await documentation_cache.list_resources()
-                log(f"📝 Documentation cache loaded ({len(doc_resources)} pages); served via docs://{{path}} template")
-                log("✓ Documentation cache initialized")
-                log("✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are available")
+                logger.info(f"📝 Documentation cache loaded ({len(doc_resources)} pages); served via docs://{{path}} template")
+                logger.info("✓ Documentation cache initialized")
+                logger.info("✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are available")
             else:
-                log("⚠️  GitBook credentials invalid, documentation cache disabled")
+                logger.warning("⚠️  GitBook credentials invalid, documentation cache disabled")
                 documentation_cache = DocumentationCache(gitbook_client=None)
         except Exception as e:
-            log(f"⚠️  Failed to initialize documentation cache: {e}")
+            logger.warning(f"⚠️  Failed to initialize documentation cache: {e}")
             documentation_cache = DocumentationCache(gitbook_client=None)
     else:
         has_key = bool(config.gitbook_api_key)
         has_space = bool(config.gitbook_space_id)
-        log(f"ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY={'set' if has_key else 'missing'}, GITBOOK_SPACE_ID={'set' if has_space else 'missing'}).")
+        logger.info(
+            f"ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY={'set' if has_key else 'missing'}, GITBOOK_SPACE_ID={'set' if has_space else 'missing'})."
+        )
         documentation_cache = DocumentationCache(gitbook_client=None)
     _docs_cache_initialized = True
     _docs_cache_init_pid = os.getpid()

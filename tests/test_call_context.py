@@ -4,7 +4,7 @@ import pytest
 from starlette.requests import Request
 
 from mpt_mcp.api_client import APIClient
-from mpt_mcp.call_context import MISSING_TOKEN_ERROR, CallContext, get_call_context
+from mpt_mcp.call_context import MISSING_TOKEN_ERROR, CallContext, get_call_context, normalize_endpoint_url
 from mpt_mcp.config import config
 
 
@@ -95,3 +95,25 @@ async def test_create_api_client_returns_client_for_caller_endpoint():
 
     assert isinstance(result, APIClient)
     assert (result.base_url, result.token) == ("https://api.test.com", "Bearer idt:TKN-1234-5678:SECRET")
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "expected"),
+    [
+        ("https://api.s1.show/public", "https://api.s1.show"),
+        ("https://api.platform.softwareone.com/public", "https://api.platform.softwareone.com"),
+        ("https://api.s1.show/public/", "https://api.s1.show"),
+        ("https://api.s1.show", "https://api.s1.show"),
+        ("https://api.s1.show/", "https://api.s1.show"),
+        ("https://api.s1.show//", "https://api.s1.show"),
+        ("http://localhost:8080/public", "http://localhost:8080"),
+        ("https://api.example.com/api/v1", "https://api.example.com/api/v1"),
+        ("https://api.example.com/Public", "https://api.example.com/Public"),
+        ("/public", ""),
+        ("", ""),
+    ],
+)
+def test_normalize_endpoint_url(endpoint, expected):
+    result = normalize_endpoint_url(endpoint)
+
+    assert result == expected

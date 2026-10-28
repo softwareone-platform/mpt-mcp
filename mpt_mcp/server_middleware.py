@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -5,7 +6,9 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
 from mpt_mcp.call_context import CallContext, get_call_context
-from mpt_mcp.server_context import current_session_id, current_user_id, log
+from mpt_mcp.log_config import current_session_id, current_user_id
+
+logger = logging.getLogger(__name__)
 
 
 class RequestContextMiddleware(Middleware):
@@ -44,5 +47,5 @@ class RequestContextMiddleware(Middleware):
         if endpoint_display.startswith("https://"):
             endpoint_display = endpoint_display.removeprefix("https://").split("/")[0]
         token_status = "✓" if call_context.token else "✗"
-        log(f"📨 {caller} @ {endpoint_display} [{token_status}] (active)")
+        logger.info(f"📨 {caller} @ {endpoint_display} [{token_status}] (active)")
         self._last_activity_log[log_key] = now

@@ -6,7 +6,6 @@ import logging
 import os
 import pathlib
 import sys
-import traceback
 import warnings
 
 import uvicorn
@@ -21,20 +20,23 @@ from alembic import command
 from mpt_mcp import server_docs
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
-from mpt_mcp.server_context import log
+from mpt_mcp.log_config import configure_logging
 from mpt_mcp.server_docs import initialize_documentation_cache
 from mpt_mcp.server_middleware import RequestContextMiddleware
 from mpt_mcp.server_resources import register_http_resources
 from mpt_mcp.server_tools import register_http_tools
 
+logger = logging.getLogger(__name__)
+
 warnings.filterwarnings("ignore", category=DeprecationWarning, module="websockets")
 warnings.filterwarnings("ignore", category=DeprecationWarning, message=".*websockets.*deprecated.*")
+configure_logging(logging.DEBUG if config.debug else logging.INFO)
 logging.getLogger("fastmcp").setLevel(logging.WARNING)
 logging.getLogger("mcp").setLevel(logging.WARNING)
 
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
-print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
+logger.info(f"🌐 Configured for {server_host}:{server_port}")
 # RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
 mcp = FastMCP("softwareone-marketplace", lifespan=analytics_lifespan, middleware=[RequestContextMiddleware(), AnalyticsMiddleware()])
 register_http_tools(mcp)
@@ -72,11 +74,11 @@ async def _create_app():
                 )
                 mcp.add_resource(doc_resource)
                 doc_resource_count += 1
-            log(f"📝 Registered {doc_resource_count} documentation resources for discovery")
+            logger.info(f"📝 Registered {doc_resource_count} documentation resources for discovery")
         except Exception as e:
-            log(f"⚠️  Could not register doc resources for discovery: {e}")
+            logger.warning(f"⚠️  Could not register doc resources for discovery: {e}")
     else:
-        log("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
+        logger.info("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
     # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
     # Docs cache is populated at startup and remains in memory for all requests in that process.
     starlette_app = mcp.http_app(stateless_http=True)
@@ -89,7 +91,7 @@ async def _create_app():
             # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips path)
             has_mcp_session_id = bool(request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id"))
             ua = (request.headers.get("user-agent") or "")[:80]
-            log(f"⚠️ 404 {request.method} path={request.url.path!r} mcp_session_id={'yes' if has_mcp_session_id else 'no'} ua={ua!r}")
+            logger.warning(f"⚠️ 404 {request.method} path={request.url.path!r} mcp_session_id={'yes' if has_mcp_session_id else 'no'} ua={ua!r}")
             return JSONResponse(
                 {
                     "error": "Not found",
@@ -131,7 +133,7 @@ async def _create_app():
             await self.app(scope, receive, send)
 
     final_app = HealthCheckMiddleware(starlette_app)
-    print("✅ Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware", file=sys.stderr, flush=True)
+    logger.info("✅ Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware")
 
     class AccessLogFilter(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:
@@ -162,22 +164,24 @@ app = _build_app()
 
 def run_migrations():
     if not config.analytics_database_url:
-        log("⏩ Skipping migrations (analytics not configured)")
+        logger.info("⏩ Skipping migrations (analytics not configured)")
         return
     try:
-        log("🔄 Running database migrations...")
+        logger.info("🔄 Running database migrations...")
         project_root = pathlib.Path(__file__).parent.parent
         alembic_ini_path = project_root / "alembic.ini"
         alembic_dir = project_root / "alembic"
         alembic_cfg = AlembicConfig(str(alembic_ini_path))
         alembic_cfg.set_main_option("script_location", str(alembic_dir))
+        # Keep the server logging setup: alembic/env.py only configures logging for the alembic CLI
+        alembic_cfg.attributes["configure_logger"] = False
         sync_url = config.analytics_database_url.replace("postgresql+asyncpg://", "postgresql://")
         alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
         command.upgrade(alembic_cfg, "head")
-        log("✅ Database migrations completed successfully")
+        logger.info("✅ Database migrations completed successfully")
     except Exception as e:
-        log(f"⚠️  Migration warning: {e}")
-        log("   Server will continue, but analytics may not work correctly")
+        logger.warning(f"⚠️  Migration warning: {e}")
+        logger.info("   Server will continue, but analytics may not work correctly")
 
 
 def _run_uvicorn():
@@ -185,13 +189,9 @@ def _run_uvicorn():
     enable_reload = os.getenv("DEBUG", "false").lower() == "true"
     reload_dirs = ["mpt_mcp", "config", "alembic"] if enable_reload else None
     if enable_reload:
-        print("🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic", file=sys.stderr, flush=True)
+        logger.info("🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic")
     uvicorn_log_level = "debug" if config.debug else "info"
-    print(
-        f"📋 Log level: {uvicorn_log_level} (DEBUG={os.getenv('DEBUG', '(not set)')!r})",
-        file=sys.stderr,
-        flush=True,
-    )
+    logger.info(f"📋 Log level: {uvicorn_log_level} (DEBUG={os.getenv('DEBUG', '(not set)')!r})")
     uvicorn.run(
         "mpt_mcp.server:app",
         host=server_host,
@@ -206,33 +206,29 @@ def _run_uvicorn():
 
 
 def main():
-    def log_startup(message):
-        print(message, file=sys.stderr, flush=True)
-
     try:
-        log_startup("=" * 60)
-        log_startup("🚀 SoftwareOne Marketplace MCP Server (HTTP Mode)")
-        log_startup("=" * 60)
-        log_startup(f"\n🌐 Starting server on {server_host}:{server_port}")
-        log_startup("📡 Transport: Streamable HTTP (POST/DELETE)")
-        log_startup("📡 Endpoint path: /mcp (registered at startup, not per-request)")
-        log_startup(f"📡 Default API endpoint: {config.sse_default_base_url}")
-        log_startup("\n🔑 Multi-tenant Authentication:")
-        log_startup("   - Clients MUST provide X-MPT-Authorization header")
-        log_startup("   - Optional X-MPT-Endpoint header for custom endpoints")
-        log_startup("   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')")
-        log_startup("   - Headers are case-insensitive")
-        log_startup(f"\n✓ Server URL: http://{server_host}:{server_port}/mcp")
-        log_startup(f"✓ Health check: http://{server_host}:{server_port}/health")
-        log_startup("=" * 60 + "\n")
+        logger.info("=" * 60)
+        logger.info("🚀 SoftwareOne Marketplace MCP Server (HTTP Mode)")
+        logger.info("=" * 60)
+        logger.info(f"🌐 Starting server on {server_host}:{server_port}")
+        logger.info("📡 Transport: Streamable HTTP (POST/DELETE)")
+        logger.info("📡 Endpoint path: /mcp (registered at startup, not per-request)")
+        logger.info(f"📡 Default API endpoint: {config.sse_default_base_url}")
+        logger.info("🔑 Multi-tenant Authentication:")
+        logger.info("   - Clients MUST provide X-MPT-Authorization header")
+        logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")
+        logger.info("   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')")
+        logger.info("   - Headers are case-insensitive")
+        logger.info(f"✓ Server URL: http://{server_host}:{server_port}/mcp")
+        logger.info(f"✓ Health check: http://{server_host}:{server_port}/health")
+        logger.info("=" * 60 + "\n")
         run_migrations()
         _run_uvicorn()
     except KeyboardInterrupt:
-        log_startup("\n\nShutting down server...")
+        logger.info("Shutting down server...")
         sys.exit(0)
     except Exception as e:
-        log_startup(f"\n❌ Error: {e}")
-        traceback.print_exc(file=sys.stderr)
+        logger.exception(f"❌ Error: {e}")
         sys.exit(1)
 
 

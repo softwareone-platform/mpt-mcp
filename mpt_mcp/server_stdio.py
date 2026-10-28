@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 
+import logging
 import sys
-import traceback
 from typing import Any
 
 from fastmcp import FastMCP
@@ -10,6 +10,7 @@ from mpt_mcp import audit_fields
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.cache_manager import CacheManager, fetch_with_cache
 from mpt_mcp.config import config
+from mpt_mcp.log_config import configure_logging
 from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
     execute_marketplace_quick_queries,
@@ -18,6 +19,8 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resources,
 )
 from mpt_mcp.openapi_parser import OpenAPIParser
+
+logger = logging.getLogger(__name__)
 
 DEBUG_TAG = "debug"
 
@@ -42,17 +45,14 @@ async def initialize_server(force_refresh: bool = False):
     if _initialized and not force_refresh:
         return
 
-    def log(message):
-        print(message, file=sys.stderr, flush=True)
-
     # STDIO is for local development - don't use analytics
-    log("📊 Analytics disabled (STDIO mode is for local development)")
+    logger.info("📊 Analytics disabled (STDIO mode is for local development)")
 
     errors = config.validate()
     if errors:
-        log("❌ Configuration errors:")
+        logger.error("❌ Configuration errors:")
         for error in errors:
-            log(f"  - {error}")
+            logger.info(f"  - {error}")
         raise ValueError("Invalid configuration")
 
     api_client = APIClient(base_url=config.marketplace_api_base_url, token=config.marketplace_api_token, timeout=config.request_timeout)
@@ -62,7 +62,7 @@ async def initialize_server(force_refresh: bool = False):
     openapi_parser = OpenAPIParser()
 
     try:
-        log(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
+        logger.info(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
 
         spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh)
 
@@ -75,19 +75,19 @@ async def initialize_server(force_refresh: bool = False):
                 "parameters": endpoint["parameters"],
             }
 
-        log(f"✓ Discovered {len(endpoints_registry)} GET endpoints")
-        log(f"✓ Stored in memory registry with {len(endpoints_registry)} resource IDs")
+        logger.info(f"✓ Discovered {len(endpoints_registry)} GET endpoints")
+        logger.info(f"✓ Stored in memory registry with {len(endpoints_registry)} resource IDs")
 
         try:
             audit_fields.update_cache(config.marketplace_api_base_url, spec, _path_to_resource_id)
-            log("✓ Audit fields cache updated")
+            logger.info("✓ Audit fields cache updated")
         except Exception as audit_err:
-            log(f"⚠ Audit fields cache skipped: {audit_err}")
+            logger.warning(f"⚠ Audit fields cache skipped: {audit_err}")
 
         _initialized = True
 
     except Exception as e:
-        log(f"⚠ Failed to load OpenAPI spec: {e}")
+        logger.warning(f"⚠ Failed to load OpenAPI spec: {e}")
         endpoints_registry = {}
         _initialized = False
 
@@ -178,7 +178,6 @@ async def marketplace_query(
         path_params=path_params,
         api_client=api_client,
         endpoints_registry=endpoints_registry,
-        log_fn=None,  # use logger only (no duplicate print)
         analytics_logger=None,  # STDIO mode - no analytics
         config=config,
         audit_regex=_audit_regex,
@@ -261,7 +260,7 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
         return {"error": "Cache manager not initialized"}
 
     try:
-        print("🔄 Force refreshing OpenAPI spec cache...")
+        logger.info("🔄 Force refreshing OpenAPI spec cache...")
 
         cache_manager.invalidate(config.openapi_spec_url)
 
@@ -354,25 +353,21 @@ if not config.debug:
 
 
 if __name__ == "__main__":
-    # Send all logs to stderr (stdout is for JSON-RPC only!)
-    def log(message):
-        print(message, file=sys.stderr, flush=True)
-
+    configure_logging(logging.DEBUG if config.debug else logging.INFO)
     try:
-        log("=" * 60)
-        log("🚀 SoftwareOne Marketplace MCP Server (Stdio Mode)")
-        log("=" * 60)
-        log("\nServer will initialize on first tool call...")
-        log("Available tools: 7 (streamlined interface with caching)")
-        log("\n✓ Starting server on stdio...")
-        log("=" * 60 + "\n")
+        logger.info("=" * 60)
+        logger.info("🚀 SoftwareOne Marketplace MCP Server (Stdio Mode)")
+        logger.info("=" * 60)
+        logger.info("Server will initialize on first tool call...")
+        logger.info("Available tools: 7 (streamlined interface with caching)")
+        logger.info("✓ Starting server on stdio...")
+        logger.info("=" * 60 + "\n")
 
         mcp.run()
 
     except KeyboardInterrupt:
-        log("\n\nShutting down server...")
+        logger.info("Shutting down server...")
         sys.exit(0)
     except Exception as e:
-        log(f"\n❌ Error: {e}")
-        traceback.print_exc(file=sys.stderr)
+        logger.exception(f"❌ Error: {e}")
         sys.exit(1)

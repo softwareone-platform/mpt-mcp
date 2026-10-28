@@ -1,3 +1,4 @@
+import logging
 from dataclasses import dataclass
 
 from fastmcp.dependencies import CurrentRequest
@@ -7,8 +8,9 @@ from starlette.requests import Request  # noqa: TC002
 
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.config import config
-from mpt_mcp.server_context import log, normalize_endpoint_url
 from mpt_mcp.token_validator import normalize_token, parse_token_id, validate_token
+
+logger = logging.getLogger(__name__)
 
 MISSING_TOKEN_ERROR = "Missing X-MPT-Authorization header. Please provide your API token in the X-MPT-Authorization header."
 TRUTHY_HEADER_VALUES = ("1", "true", "yes")
@@ -47,11 +49,11 @@ class CallContext:
     async def _validate_token(self) -> None:
         is_valid, token_info, error = await validate_token(self.token, self.endpoint, use_cache=not self.validate_fresh)
         if not is_valid:
-            log(f"❌ Token validation failed: {error}")
+            logger.warning(f"❌ Token validation failed: {error}")
             raise ValueError(f"Token validation failed: {error}. Please ensure your API token is valid and active.")
 
         account = (token_info or {}).get("account", {})
-        log(f"✅ Token validated for {self.endpoint} - Account: {account.get('name', 'Unknown')} ({account.get('id', 'Unknown')})")
+        logger.info(f"✅ Token validated for {self.endpoint} - Account: {account.get('name', 'Unknown')} ({account.get('id', 'Unknown')})")
 
 
 async def get_call_context(request: Request = CurrentRequest()) -> CallContext:
@@ -72,3 +74,20 @@ async def get_call_context(request: Request = CurrentRequest()) -> CallContext:
         token=normalize_token(raw_token) if raw_token else None,
         validate_fresh=validate_fresh,
     )
+
+
+def normalize_endpoint_url(endpoint: str) -> str:
+    """
+    Normalize a Marketplace API endpoint to its base URL.
+
+    Args:
+        endpoint: Endpoint from the X-MPT-Endpoint header, e.g. https://api.s1.show/public/
+
+    Returns:
+        Endpoint without trailing slashes or /public suffix, e.g. https://api.s1.show
+    """
+    if not endpoint:
+        return endpoint
+
+    endpoint = endpoint.rstrip("/")
+    return endpoint.removesuffix("/public")
