@@ -130,14 +130,12 @@ async def _create_app():
                     scope["path"] = "/mcp"
                 # Health only for GET (POST / is rewritten above and must go to MCP)
                 if request.method == "GET" and request.url.path in ["/", "/health"]:
-                    response = JSONResponse(
-                        {
-                            "status": "healthy",
-                            "service": "mpt-mcp-http",
-                            "transport": "streamable-http",
-                            "endpoint": "/mcp",
-                        }
-                    )
+                    response = JSONResponse({
+                        "status": "healthy",
+                        "service": "mpt-mcp-http",
+                        "transport": "streamable-http",
+                        "endpoint": "/mcp",
+                    })
                     await response(scope, receive, send)
                     return
             await self.app(scope, receive, send)

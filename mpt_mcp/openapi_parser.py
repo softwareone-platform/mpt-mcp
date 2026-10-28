@@ -52,15 +52,13 @@ class OpenAPIParser:
                 continue
 
             get_op = path_item["get"]
-            endpoints.append(
-                {
-                    "path": path,
-                    "summary": get_op.get("summary", f"GET {path}"),
-                    "description": get_op.get("description", ""),
-                    "parameters": get_op.get("parameters", []),
-                    "response": self._extract_response_info(get_op),
-                }
-            )
+            endpoints.append({
+                "path": path,
+                "summary": get_op.get("summary", f"GET {path}"),
+                "description": get_op.get("description", ""),
+                "parameters": get_op.get("parameters", []),
+                "response": self._extract_response_info(get_op),
+            })
 
         return endpoints
 

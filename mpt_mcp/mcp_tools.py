@@ -630,9 +630,11 @@ def execute_marketplace_resources(
             )
 
         # Add search example for resources that likely have name fields
-        if "name" in filterable_fields or resource_name.endswith(
-            (".products", ".items", ".vendors")
-        ):
+        if "name" in filterable_fields or resource_name.endswith((
+            ".products",
+            ".items",
+            ".vendors",
+        )):
             examples.append(
                 f"marketplace_query(resource='{resource_name}', rql='ilike(name,*keyword*)', limit=10)"
             )
@@ -735,9 +737,10 @@ def execute_marketplace_resource_info(
 
         # Child resources: start with current path and go deeper
         if other_path.startswith(resource_path + "/") and other_resource.startswith(resource + "."):
-            related_resources["children"].append(
-                {"resource": other_resource, "summary": other_info["summary"]}
-            )
+            related_resources["children"].append({
+                "resource": other_resource,
+                "summary": other_info["summary"],
+            })
 
         # Parent resource: current path extends parent
         if resource_path.startswith(other_path + "/") and resource.startswith(other_resource + "."):
@@ -758,9 +761,10 @@ def execute_marketplace_resource_info(
             if resource_parts[0] == other_parts[0] and resource_parts[1] == other_parts[1]:
                 # Same subcategory, not self
                 if len(resource_parts) == len(other_parts) and other_resource != resource:
-                    related_resources["siblings"].append(
-                        {"resource": other_resource, "summary": other_info["summary"]}
-                    )
+                    related_resources["siblings"].append({
+                        "resource": other_resource,
+                        "summary": other_info["summary"],
+                    })
 
     # Limit siblings to top 5 most relevant
     if len(related_resources["siblings"]) > 5:

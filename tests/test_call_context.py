@@ -17,27 +17,23 @@ from mpt_mcp.config import config
 def make_request():
     def _make_request(headers):
         raw_headers = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
-        return Request(
-            {
-                "type": "http",
-                "method": "POST",
-                "path": "/mcp",
-                "query_string": b"",
-                "headers": raw_headers,
-            }
-        )
+        return Request({
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": b"",
+            "headers": raw_headers,
+        })
 
     return _make_request
 
 
 async def test_get_call_context_reads_mpt_headers(make_request):
-    request = make_request(
-        {
-            "X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET",
-            "X-MPT-Endpoint": "https://api.s1.show/public/",
-            "X-MPT-Validate-Fresh": "true",
-        }
-    )
+    request = make_request({
+        "X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET",
+        "X-MPT-Endpoint": "https://api.s1.show/public/",
+        "X-MPT-Validate-Fresh": "true",
+    })
 
     result = await get_call_context(request)
 

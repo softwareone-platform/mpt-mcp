@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from fastmcp.dependencies import CurrentRequest
 
 # FastMCP resolves dependency annotations at runtime, so Request cannot be a TYPE_CHECKING import
-from starlette.requests import Request  # noqa: TC002
+from starlette.requests import Request
 
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.config import config

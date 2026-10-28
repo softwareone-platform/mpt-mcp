@@ -346,13 +346,11 @@ class DocumentationCache:
                 for sub_name, count in sorted(section_data["subsections"].items())
             ]
 
-            result["sections"].append(
-                {
-                    "name": section_name,
-                    "total_pages": section_data["total"],
-                    "subsections": subsections_list,
-                }
-            )
+            result["sections"].append({
+                "name": section_name,
+                "total_pages": section_data["total"],
+                "subsections": subsections_list,
+            })
 
         return result
 

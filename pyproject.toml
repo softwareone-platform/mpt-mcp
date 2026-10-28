@@ -23,11 +23,16 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "flake8==7.4.*",
+    "flake8-aaa==0.17.*",
+    "flake8-pyproject==1.2.*",
+    "mypy==2.4.*",
     "pre-commit==4.7.*",
     "pytest==9.0.*",
     "pytest-asyncio==1.3.*",
     "pytest-cov==7.0.*",
     "ruff==0.17.*",
+    "wemake-python-styleguide==1.8.*",
 ]
 
 [tool.pytest.ini_options]
@@ -49,86 +54,301 @@ omit = [
     "*/__init__.py"
 ]
 
-[tool.ruff]
-# Python version
-target-version = "py314"
+[tool.flake8]
+allowed-domain-names = ["data", "result"]
+allowed-module-metadata = ["__all__"]
+aaa_act_block_style = "large"
+doctests = true
+extend-ignore = [
+  "WPS226",
+  "WPS412",
+  # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
+  "AAA01",  # 86
+  "AAA04",  # 8
+  "AAA06",  # 6
+  "WPS110",  # 72
+  "WPS111",  # 122
+  "WPS114",  # 9
+  "WPS118",  # 60
+  "WPS121",  # 10
+  "WPS122",  # 11
+  "WPS201",  # 1
+  "WPS202",  # 4
+  "WPS204",  # 22
+  "WPS210",  # 47
+  "WPS211",  # 8
+  "WPS212",  # 3
+  "WPS213",  # 9
+  "WPS214",  # 6
+  "WPS217",  # 2
+  "WPS218",  # 4
+  "WPS219",  # 2
+  "WPS220",  # 61
+  "WPS221",  # 40
+  "WPS229",  # 36
+  "WPS231",  # 33
+  "WPS232",  # 7
+  "WPS234",  # 6
+  "WPS235",  # 1
+  "WPS237",  # 30
+  "WPS239",  # 1
+  "WPS300",  # 7
+  "WPS301",  # 1
+  "WPS328",  # 1
+  "WPS336",  # 7
+  "WPS338",  # 6
+  "WPS404",  # 7
+  "WPS407",  # 2
+  "WPS410",  # 2
+  "WPS420",  # 12
+  "WPS421",  # 2
+  "WPS430",  # 39
+  "WPS431",  # 2
+  "WPS432",  # 95
+  "WPS441",  # 17
+  "WPS453",  # 11
+  "WPS458",  # 9
+  "WPS473",  # 1
+  "WPS476",  # 4
+  "WPS501",  # 1
+  "WPS504",  # 4
+  "WPS505",  # 6
+  "WPS529",  # 41
+  "WPS602",  # 7
+  "WPS604",  # 1
+]
+extend-exclude = [
+  ".coverage",
+  ".github",
+  ".idea",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  "uv.lock",
+  ".venv",
+]
+format = "wemake"
+max-imports = 17
+max-line-length = 100
+select = ["AAA", "E999", "WPS"]
+show-source = true
+statistics = false
+per-file-ignores = [
+  "*alembic/versions/**:WPS102",
+  "*tests/**:WPS202",
+]
 
-# Line length
+[tool.ruff]
+# Ruff config: https://docs.astral.sh/ruff/settings
+preview = true
+target-version = "py314"
+output-format = "full"
 line-length = 100
 
-# Enable specific rule sets
-lint.select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort (import sorting)
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "SIM", # flake8-simplify
-    "TCH", # flake8-type-checking
-    "PTH", # flake8-use-pathlib
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.ruff.lint]
+select = [
+    "A",    # flake8-builtins
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "C90",  # maccabe
+    "COM",  # flake8-commas
+    "D",    # pydocstyle
+    "DTZ",  # flake8-datetimez
+    "E",    # pycodestyle
+    "ERA",  # flake8-eradicate
+    "EXE",  # flake8-executable
+    "F",    # pyflakes
+    "FBT",  # flake8-boolean-trap
+    "FLY",  # pyflint
+    "FURB", # refurb
+    "G",    # flake8-logging-format
+    "I",    # isort
+    "ICN",  # flake8-import-conventions
+    "ISC",  # flake8-implicit-str-concat
+    "LOG",  # flake8-logging
+    "N",    # pep8-naming
+    "PERF", # perflint
+    "PIE",  # flake8-pie
+    "PL",   # pylint
+    "PT",   # flake8-pytest-style
+    "PTH",  # flake8-use-pathlib
+    "Q",    # flake8-quotes
+    "RET",  # flake8-return
+    "RSE",  # flake8-raise
+    "RUF",  # ruff
+    "S",    # flake8-bandit
+    "SIM",  # flake8-simpify
+    "SLF",  # flake8-self
+    "SLOT", # flake8-slots
+    "debugger", # flake8-debugger
+    "TRY",  # tryceratops
+    "UP",   # pyupgrade
+    "W",    # pycodestyle
+    "YTT",  # flake8-2020
 ]
-
-# Ignore specific rules
-lint.ignore = [
-    "UP017", # the alias on UTC, gives me problems in python 3.12
-    "PTH",    # flake8-use-pathlib - would require extensive refactoring
-    "SIM102", # Use a single if statement instead of nested if statements
-    "SIM108", # Use ternary operator instead of if-else-block
-    "B904",   # Raise from within except - we intentionally create new exceptions
-    "E501",   # TBD: long strings and comments left after moving to 100 columns
+ignore = [
+    "stdlib-module-shadowing",   # allow to shadow stdlib and builtin module names
+    "raise-without-from-inside-except",  # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+    "missing-trailing-comma", # trailing comma, conflicts with `ruff format`
+    # Different doc rules that we don't really care about:
+    "undocumented-public-module",
+    "undocumented-public-package",
+    "undocumented-magic-method", # docstring for magic methods
+    "undocumented-public-nested-class",
+    "undocumented-public-init",
+    "incorrect-blank-line-before-class",
+    "multi-line-summary-first-line",
+    "non-imperative-mood",
+    "docstring-starts-with-this",
+    "non-capitalized-section-name",
+    "single-line-implicit-string-concatenation",  # implicit string concat conflicts with `ruff format`
+    "explicit-string-concatenation",  # prefer explicit string concat over implicit concat
+    "PLR09",   # we have our own complexity rules
+    "magic-value-comparison", # do not report magic numbers
+    "no-self-use", # do not require classmethod / staticmethod when self not used
+    "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
+    "raise-vanilla-args",  # long exception messages from `tryceratops`
+    # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
+    "ambiguous-unicode-character-string",  # 2
+    "banned-import-from",  # 6
+    "blank-line-after-function",  # 2
+    "boolean-default-value-positional-argument",  # 12
+    "boolean-positional-value-in-call",  # 8
+    "boolean-type-hint-positional-argument",  # 12
+    "builtin-open",  # 6
+    "call-datetime-now-without-tzinfo",  # 13
+    "collapsible-if",  # 5
+    "commented-out-code",  # 2
+    "compare-to-empty-string",  # 3
+    "complex-structure",  # 24
+    "datetime-min-max",  # 1
+    "datetime-timezone-utc",  # 4
+    "error-instead-of-exception",  # 16
+    "escape-sequence-in-docstring",  # 1
+    "explicit-f-string-type-conversion",  # 5
+    "global-statement",  # 18
+    "global-variable-not-assigned",  # 1
+    "hardcoded-bind-all-interfaces",  # 3
+    "hardcoded-password-func-arg",  # 24
+    "hardcoded-password-string",  # 3
+    "hashlib-insecure-hash-function",  # 2
+    "if-else-block-instead-of-if-exp",  # 2
+    "if-exp-instead-of-or-operator",  # 2
+    "implicit-optional",  # 3
+    "import-outside-top-level",  # 49
+    "import-private-name",  # 5
+    "in-dict-keys",  # 1
+    "line-too-long",  # 118
+    "literal-membership",  # 5
+    "logging-f-string",  # 129
+    "logging-string-concat",  # 2
+    "manual-list-comprehension",  # 2
+    "missing-blank-line-after-summary",  # 9
+    "missing-terminal-punctuation",  # 167
+    "multiple-starts-ends-with",  # 2
+    "multiple-with-statements",  # 12
+    "new-line-after-last-paragraph",  # 1
+    "private-member-access",  # 33
+    "pytest-composite-assertion",  # 4
+    "pytest-parametrize-names-wrong-type",  # 2
+    "redefined-loop-name",  # 1
+    "repeated-equality-comparison",  # 2
+    "shebang-not-executable",  # 11
+    "signature-in-docstring",  # 4
+    "superfluous-else-return",  # 5
+    "too-many-nested-blocks",  # 6
+    "too-many-statements-in-try-clause",  # 18
+    "try-consider-else",  # 11
+    "undocumented-param",  # 1
+    "undocumented-public-function",  # 5
+    "unnecessary-assign",  # 3
+    "unnecessary-iterable-allocation-for-first-element",  # 2
+    "unnecessary-multiline-docstring",  # 6
+    "unnecessary-placeholder",  # 1
+    "unsorted-dunder-all",  # 1
+    "unsorted-imports",  # 1
+    "unspecified-encoding",  # 6
+    "unused-async",  # 19
+    "unused-noqa",  # 1
+    "unused-unpacked-variable",  # 4
+    "used-dummy-variable",  # 2
+    "verbose-log-message",  # 2
 ]
+external = [ "AAA", "WPS" ]
 
-# Exclude directories
-extend-exclude = [
-    "__pycache__",
-    "*.pyc",
-    ".git",
-    ".pytest_cache",
-    ".ruff_cache",
-    "venv",
-    "env",
-    ".env",
-    "build",
-    "dist",
-]
-
-# Allow autofix for all enabled rules
-lint.fixable = ["ALL"]
-lint.unfixable = []
-
-# Allow unused variables when underscore-prefixed
-lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.lint.per-file-ignores]
-# Test files can have more flexible rules
-"tests/**/*.py" = [
-    "N802",  # Function name should be lowercase (test methods can use mixed case)
-    "N806",  # Variable in function should be lowercase (test fixtures can use mixed case)
-    "SIM",   # Simplify rules (tests can be verbose for clarity)
-]
-
+# Plugin configs:
 [tool.ruff.lint.flake8-bugbear]
 # FastMCP dependency markers are meant to be used as argument defaults
 extend-immutable-calls = ["fastmcp.dependencies.CurrentRequest", "fastmcp.dependencies.Depends"]
 
+[tool.ruff.lint.flake8-import-conventions]
+banned-from = ["ast", "datetime"]
+aliases = { datetime = "dt" }
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+
 [tool.ruff.lint.isort]
-# Import sorting configuration
-combine-as-imports = true
-force-wrap-aliases = true
 known-first-party = ["mpt_mcp"]
 
-[tool.ruff.format]
-# Use double quotes
-quote-style = "double"
+[tool.ruff.lint.mccabe]
+max-complexity = 6
 
-# Indent with 4 spaces
-indent-style = "space"
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = ["property"]
 
-# Unix line endings
-line-ending = "lf"
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "undocumented-public-class", # missing docstring in public class
+  "undocumented-public-method", # missing docstring in public method
+  "undocumented-public-function", # missing docstring in a public function
+  "assert", # asserts
+  "hardcoded-password-string", # hardcoded passwords
+  "suspicious-subprocess-import", # subprocess calls are for tests
+  "subprocess-without-shell-equals-true", # do not require `shell=True`
+  "start-process-with-partial-path", # partial executable paths
+  "pytest-fixture-autouse", # autouse fixtures are an accepted pattern in tests
+]
 
-# Format docstrings
-docstring-code-format = true
+[tool.mypy]
+# The mypy configurations: http://bit.ly/2zEl9WI
+enable_error_code = [
+  "truthy-bool",
+  "truthy-iterable",
+  # TBD: "redundant-expr" (6), enable again once fixed
+  "unused-awaitable",
+  "ignore-without-code",
+  "possibly-undefined",
+  "redundant-self",
+  # TBD: "explicit-override" (6), enable again once fixed
+  "mutable-override",
+  "unimported-reveal",
+  "deprecated",
+]
+exclude = ["tests"]
+exclude_gitignore = true
+ignore_missing_imports = true
+local_partial_types = true
+strict = true
+warn_unreachable = true
+# TBD: existing violations (code: count), fixed in follow-up commits
+disable_error_code = [
+  "arg-type",  # 6
+  "assignment",  # 9
+  "attr-defined",  # 2
+  "call-overload",  # 1
+  "index",  # 6
+  "no-any-return",  # 9
+  "no-untyped-call",  # 27
+  "no-untyped-def",  # 29
+  "operator",  # 1
+  "type-arg",  # 12
+  "union-attr",  # 4
+  "unreachable",  # 2
+  "untyped-decorator",  # 10
+  "var-annotated",  # 3
+]
