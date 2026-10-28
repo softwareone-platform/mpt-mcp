@@ -1,4 +1,3 @@
-import time
 from typing import Any
 
 from fastmcp.dependencies import Depends
@@ -27,70 +26,41 @@ OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
 async def marketplace_docs_list(section: str = None, subsection: str = None, search: str = None, limit: int = 100) -> dict[str, Any]:
     """List documentation resources with optional filters (section, subsection, search)."""
-    analytics = get_analytics_logger()
-    start_time = time.time()
-    try:
-        await server_docs.initialize_documentation_cache()
-        dc = server_docs.documentation_cache
-        if not dc or not dc.is_enabled:
-            result = {
-                "total": 0,
-                "resources": [],
-                "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG,
-            }
-            if analytics and config.analytics_enabled:
-                await analytics.log_tool_call(
-                    tool_name="marketplace_docs_list",
-                    response_time_ms=int((time.time() - start_time) * 1000),
-                    success=False,
-                    error_message="Not initialized",
-                )
-            return result
-        resources = await dc.list_resources(section=section, subsection=subsection, search=search, limit=limit)
-        resources_for_response = []
-        for r in resources:
-            item = dict(r)
-            if r.get("metadata", {}).get("browser_url"):
-                item["browser_url"] = r["metadata"]["browser_url"]
-            resources_for_response.append(item)
-        filters = []
-        if section:
-            filters.append(f"section={section}")
-        if subsection:
-            filters.append(f"subsection={subsection}")
-        if search:
-            filters.append(f"search='{search}'")
-        result = {
-            "total": len(resources_for_response),
-            "resources": resources_for_response,
-            "filters_applied": ", ".join(filters) if filters else "none",
-            "usage": (
-                "Use marketplace_docs_read(uri='docs://path') to read a page. "
-                "Prefer showing users the browser_url (public link) when present; "
-                "do not show internal uri or id to end users."
-            ),
-        }
-        if len(resources) >= limit:
-            result["tip"] = f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
-        elif len(resources) > 50:
-            result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
-        if analytics and config.analytics_enabled:
-            await analytics.log_tool_call(
-                tool_name="marketplace_docs_list",
-                response_time_ms=int((time.time() - start_time) * 1000),
-                success=True,
-                result_count=result.get("total", 0),
-            )
-        return result
-    except Exception as e:
-        if analytics and config.analytics_enabled:
-            await analytics.log_tool_call(
-                tool_name="marketplace_docs_list",
-                response_time_ms=int((time.time() - start_time) * 1000),
-                success=False,
-                error_message=str(e),
-            )
-        raise
+    await server_docs.initialize_documentation_cache()
+    dc = server_docs.documentation_cache
+    if not dc or not dc.is_enabled:
+        return {"total": 0, "resources": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
+
+    resources = await dc.list_resources(section=section, subsection=subsection, search=search, limit=limit)
+    resources_for_response = []
+    for r in resources:
+        item = dict(r)
+        if r.get("metadata", {}).get("browser_url"):
+            item["browser_url"] = r["metadata"]["browser_url"]
+        resources_for_response.append(item)
+    filters = []
+    if section:
+        filters.append(f"section={section}")
+    if subsection:
+        filters.append(f"subsection={subsection}")
+    if search:
+        filters.append(f"search='{search}'")
+    result = {
+        "total": len(resources_for_response),
+        "resources": resources_for_response,
+        "filters_applied": ", ".join(filters) if filters else "none",
+        "usage": (
+            "Use marketplace_docs_read(uri='docs://path') to read a page. "
+            "Prefer showing users the browser_url (public link) when present; "
+            "do not show internal uri or id to end users."
+        ),
+    }
+    if len(resources) >= limit:
+        result["tip"] = f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
+    elif len(resources) > 50:
+        result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
+
+    return result
 
 
 def register_http_tools(mcp):
@@ -211,32 +181,12 @@ def register_http_tools(mcp):
 
     @mcp.tool()
     async def marketplace_docs_index() -> dict[str, Any]:
-        analytics = get_analytics_logger()
-        start_time = time.time()
-        try:
-            await server_docs.initialize_documentation_cache()
-            dc = server_docs.documentation_cache
-            if not dc or not dc.is_enabled:
-                result = {
-                    "total_pages": 0,
-                    "sections": [],
-                    "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG,
-                }
-                if analytics and config.analytics_enabled:
-                    await analytics.log_tool_call(
-                        tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message="Not initialized"
-                    )
-                return result
-            result = await dc.get_documentation_index()
-            if analytics and config.analytics_enabled:
-                await analytics.log_tool_call(
-                    tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=True, result_count=result.get("total_pages", 0)
-                )
-            return result
-        except Exception as e:
-            if analytics and config.analytics_enabled:
-                await analytics.log_tool_call(tool_name="marketplace_docs_index", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message=str(e))
-            raise
+        await server_docs.initialize_documentation_cache()
+        dc = server_docs.documentation_cache
+        if not dc or not dc.is_enabled:
+            return {"total_pages": 0, "sections": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
+
+        return await dc.get_documentation_index()
 
     mcp.tool()(marketplace_docs_list)
 
@@ -245,66 +195,41 @@ def register_http_tools(mcp):
         """Read a documentation page by uri (e.g. docs://help-and-support/contact-support).
         Returns a JSON object: {"text": "<markdown content>", "count": 1}.
         Clients should use the "text" field for the document body and "count" (always 1) for consistency with other tools."""
-        analytics = get_analytics_logger()
-        start_time = time.time()
-        try:
-            await server_docs.initialize_documentation_cache()
-            dc = server_docs.documentation_cache
-            if not dc or not dc.is_enabled:
-                result = {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
-                if analytics and config.analytics_enabled:
-                    await analytics.log_resource_read(
-                        resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation cache not available"
-                    )
-                return result
-            content = await dc.get_resource(uri)
-            if content is None:
-                result = {"text": f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages.", "count": 0}
-                if analytics and config.analytics_enabled:
-                    await analytics.log_resource_read(
-                        resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message="Documentation page not found"
-                    )
-                return result
-            if analytics and config.analytics_enabled:
-                await analytics.log_resource_read(resource_uri=uri, success=True, response_time_ms=int((time.time() - start_time) * 1000), cache_hit=True)
-            return {"text": content, "count": 1}
-        except Exception as e:
-            if analytics and config.analytics_enabled:
-                await analytics.log_resource_read(resource_uri=uri, success=False, response_time_ms=int((time.time() - start_time) * 1000), error_message=str(e))
-            raise
+        await server_docs.initialize_documentation_cache()
+        dc = server_docs.documentation_cache
+        if not dc or not dc.is_enabled:
+            return {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
+
+        content = await dc.get_resource(uri)
+        if content is None:
+            return {"text": f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages.", "count": 0}
+
+        return {"text": content, "count": 1}
 
     @mcp.tool()
     async def marketplace_resources_info() -> dict[str, Any]:
-        analytics = get_analytics_logger()
-        start_time = time.time()
-        try:
-            result = {
-                "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
-                "token_validation": {"enabled": False, "cache_stats": None},
+        result = {
+            "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
+            "token_validation": {"enabled": False, "cache_stats": None},
+        }
+        dc = server_docs.documentation_cache
+        if dc and dc.is_enabled:
+            cache_info = dc.get_cache_info()
+            result["documentation"] = {
+                "enabled": True,
+                "total_pages": cache_info.get("resource_count", 0),
+                "cache_info": cache_info,
             }
-            dc = server_docs.documentation_cache
-            if dc and dc.is_enabled:
-                cache_info = dc.get_cache_info()
-                result["documentation"] = {
-                    "enabled": True,
-                    "total_pages": cache_info.get("resource_count", 0),
-                    "cache_info": cache_info,
-                }
-            try:
-                from mpt_mcp.token_validator import get_token_cache
+        try:
+            from mpt_mcp.token_validator import get_token_cache
 
-                token_cache = get_token_cache()
-                result["token_validation"] = {
-                    "enabled": True,
-                    "cache_stats": token_cache.get_stats(),
-                    "description": "Token validation cache prevents repeated API calls for authentication",
-                }
-            except Exception as e_inner:
-                result["token_validation"] = {"enabled": False, "error": str(e_inner)}
-            if analytics and config.analytics_enabled:
-                await analytics.log_tool_call(tool_name="marketplace_resources_info", response_time_ms=int((time.time() - start_time) * 1000), success=True)
-            return result
-        except Exception as e:
-            if analytics and config.analytics_enabled:
-                await analytics.log_tool_call(tool_name="marketplace_resources_info", response_time_ms=int((time.time() - start_time) * 1000), success=False, error_message=str(e))
-            raise
+            token_cache = get_token_cache()
+            result["token_validation"] = {
+                "enabled": True,
+                "cache_stats": token_cache.get_stats(),
+                "description": "Token validation cache prevents repeated API calls for authentication",
+            }
+        except Exception as e_inner:
+            result["token_validation"] = {"enabled": False, "error": str(e_inner)}
+
+        return result

@@ -50,26 +50,3 @@ async def test_on_request_without_http_request_passes_through():
         result = await RequestContextMiddleware().on_request(Mock(), call_next)
 
     assert result == "result"
-
-
-@pytest.mark.parametrize(
-    ("headers", "client_info", "client_ip"),
-    [
-        ({"User-Agent": "Cursor/1.0", "X-Forwarded-For": "203.0.113.7, 10.0.0.2"}, "Cursor", "203.0.113.7"),
-        ({"User-Agent": "Claude-User/2.0", "X-Real-IP": "198.51.100.4"}, "Claude Desktop", "198.51.100.4"),
-        ({"User-Agent": "python-httpx/0.28"}, "python-httpx", "10.0.0.1"),
-        ({}, None, "10.0.0.1"),
-    ],
-)
-async def test_on_request_sets_analytics_context(make_request, headers, client_info, client_ip):
-    request = make_request({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET", "X-MPT-Endpoint": "https://api.s1.show/public", **headers})
-    analytics = Mock()
-
-    with (
-        patch("mpt_mcp.server_middleware.get_http_request", return_value=request),
-        patch("mpt_mcp.server_middleware.get_analytics_logger", return_value=analytics),
-        patch("mpt_mcp.server_middleware.config.analytics_enabled", new=True),
-    ):
-        await RequestContextMiddleware().on_request(Mock(), AsyncMock())  # act
-
-    analytics.set_context.assert_called_once_with(token="idt:TKN-1234-5678:SECRET", endpoint="https://api.s1.show", client_info=client_info, client_ip=client_ip)

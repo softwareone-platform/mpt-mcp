@@ -23,7 +23,7 @@ async def test_get_openapi_spec_resource_success():
     mock_token_info = {"id": "TKN-123-456", "account": {"id": "ACC-123", "name": "Test Account"}}
 
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
-    with patch("mpt_mcp.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+    with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, mock_token_info, None)
         with patch("mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
             mock_get_spec.return_value = mock_spec
@@ -59,7 +59,7 @@ async def test_get_openapi_spec_resource_fetch_error():
     from mpt_mcp.server_resources import get_openapi_spec
 
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
-    with patch("mpt_mcp.token_validator.validate_token", new_callable=AsyncMock) as mock_validate:
+    with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
         with patch("mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
             mock_get_spec.side_effect = Exception("Failed to fetch OpenAPI spec")

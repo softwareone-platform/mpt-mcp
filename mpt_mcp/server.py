@@ -4,10 +4,11 @@ import asyncio
 import concurrent.futures
 import logging
 import os
+import pathlib
 import sys
+import traceback
 import warnings
 
-import anyio
 import uvicorn
 from alembic.config import Config as AlembicConfig
 from fastmcp import FastMCP
@@ -17,7 +18,8 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from alembic import command
-from mpt_mcp.analytics import get_analytics_logger, initialize_analytics
+from mpt_mcp import server_docs
+from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
 from mpt_mcp.server_context import log
 from mpt_mcp.server_docs import initialize_documentation_cache
@@ -33,21 +35,15 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
 print(f"🌐 Configured for {server_host}:{server_port}", file=sys.stderr, flush=True)
-mcp = FastMCP("softwareone-marketplace", middleware=[RequestContextMiddleware()])
+# RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
+mcp = FastMCP("softwareone-marketplace", lifespan=analytics_lifespan, middleware=[RequestContextMiddleware(), AnalyticsMiddleware()])
 register_http_tools(mcp)
 register_http_resources(mcp)
 
 
 async def _create_app():
     """Build the ASGI app (init + middleware). Used so uvicorn can load via 'mpt_mcp.server:app' for reload."""
-    await initialize_analytics(database_url=config.analytics_database_url)
-    if config.analytics_enabled:
-        log("📊 Analytics enabled - tracking usage metrics")
-    else:
-        log("📊 Analytics disabled (no database configured)")
     await initialize_documentation_cache()
-    from mpt_mcp import server_docs
-
     doc_cache = server_docs.documentation_cache
     doc_resource_count = 0
     if doc_cache and doc_cache.is_enabled:
@@ -135,7 +131,7 @@ async def _create_app():
             await self.app(scope, receive, send)
 
     final_app = HealthCheckMiddleware(starlette_app)
-    print("✅ Middleware added: RequestContextMiddleware, HealthCheckMiddleware", file=sys.stderr, flush=True)
+    print("✅ Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware", file=sys.stderr, flush=True)
 
     class AccessLogFilter(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:
@@ -170,8 +166,6 @@ def run_migrations():
         return
     try:
         log("🔄 Running database migrations...")
-        import pathlib
-
         project_root = pathlib.Path(__file__).parent.parent
         alembic_ini_path = project_root / "alembic.ini"
         alembic_dir = project_root / "alembic"
@@ -235,19 +229,10 @@ def main():
         _run_uvicorn()
     except KeyboardInterrupt:
         log_startup("\n\nShutting down server...")
-        analytics = get_analytics_logger()
-        if analytics:
-            log_startup("📊 Flushing pending analytics events...")
-            anyio.run(analytics.cleanup)
         sys.exit(0)
     except Exception as e:
         log_startup(f"\n❌ Error: {e}")
-        import traceback
-
         traceback.print_exc(file=sys.stderr)
-        analytics = get_analytics_logger()
-        if analytics:
-            anyio.run(analytics.cleanup)
         sys.exit(1)
 
 

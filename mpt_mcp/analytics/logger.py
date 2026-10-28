@@ -8,8 +8,8 @@ from typing import Any
 from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
-from ..token_validator import parse_token_id
-from .models import mcp_events
+from mpt_mcp.analytics.models import mcp_events
+from mpt_mcp.token_validator import parse_token_id
 
 logger = logging.getLogger(__name__)
 
@@ -46,7 +46,7 @@ class AnalyticsLogger:
         self.batch_size = batch_size
         self.flush_interval = flush_interval
         self.engine: AsyncEngine | None = None
-        self.enabled = database_url is not None
+        self.enabled = bool(database_url)
         self._event_queue: list[dict[str, Any]] = []
         self._flush_task: asyncio.Task | None = None
         self._lock = asyncio.Lock()
@@ -102,8 +102,10 @@ class AnalyticsLogger:
     def _normalize_event(self, event: dict[str, Any]) -> dict[str, Any]:
         """Ensure event has all required columns for database insertion."""
         # Define all table columns with default None values
+        timestamp = event.get("timestamp")
         normalized = {
-            "timestamp": event.get("timestamp"),
+            # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware datetimes)
+            "timestamp": timestamp.astimezone(timezone.utc).replace(tzinfo=None) if timestamp else None,
             "response_time_ms": event.get("response_time_ms"),
             "token_id": event.get("token_id"),
             "api_endpoint": event.get("api_endpoint"),

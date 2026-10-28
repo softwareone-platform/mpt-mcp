@@ -2,16 +2,18 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from .query_templates import get_query_templates
+from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX, _get_item_schema, _resolve_schema
+from mpt_mcp.query_templates import get_query_templates
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from .api_client import APIClient
+    from mpt_mcp.api_client import APIClient
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +65,6 @@ def _get_allowed_select_fields(
     """Return the set of top-level property names allowed in select for this resource (from GET response item schema)."""
     if resource not in endpoints_registry or not openapi_spec:
         return set()
-    from .audit_fields import _get_item_schema, _resolve_schema
 
     endpoint_info = endpoints_registry[resource]
     path = endpoint_info.get("path")
@@ -206,8 +207,6 @@ async def execute_marketplace_query(
     Returns:
         API response or error dictionary
     """
-    import time
-
     # Tool-call diagnostics at INFO so they appear in docker logs (log_level=info)
     logger.info(
         "marketplace_query resource=%s rql=%s limit=%s",
@@ -224,311 +223,297 @@ async def execute_marketplace_query(
         # Emit at INFO so tool calls (Query, Params, Result count) show in docker logs
         logger.info("%s", message)
 
+    # Check if resource exists
+    if resource not in endpoints_registry:
+        # Find similar resources to suggest
+        similar_resources = []
+        resource_lower = resource.lower()
+        for r in endpoints_registry:
+            if resource_lower in r.lower() or r.lower() in resource_lower:
+                similar_resources.append(r)
+
+        error_response = {
+            "error": f"Unknown resource: '{resource}'",
+            "hint": "Use marketplace_resources() to see all available resources",
+            "available_categories": list({r.split(".")[0] for r in endpoints_registry}),
+        }
+
+        if similar_resources[:5]:  # Show up to 5 suggestions
+            error_response["did_you_mean"] = similar_resources[:5]
+
+        return error_response
+
+    endpoint_info = endpoints_registry[resource]
+    api_path = endpoint_info["path"]
+
+    # Replace path parameters (e.g., {id}, {productId}, etc.)
+    if path_params:
+        for param_name, param_value in path_params.items():
+            # Replace {param_name} in the path
+            api_path = api_path.replace(f"{{{param_name}}}", str(param_value))
+
+    # Check if there are still unresolved path parameters
+    remaining_params = re.findall(r"\{(\w+)\}", api_path)
+    if remaining_params:
+        # Create example path_params dict with realistic examples
+        example_values = {
+            "id": "PRD-1234-5678",
+            "productId": "PRD-1234-5678",
+            "orderId": "ORD-1234-5678-9012",
+            "agreementId": "AGR-1234-5678-9012",
+            "subscriptionId": "SUB-1234-5678-9012",
+            "accountId": "ACC-1234-5678",
+            "userId": "USR-1234-5678",
+            "lineId": "LIN-1234-5678",
+            "assetId": "AST-1234-5678",
+        }
+
+        example_dict = {p: example_values.get(p, f"<{p}_value>") for p in remaining_params}
+
+        # Build hint string
+        hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
+        hint = f"You must provide path_params dictionary. For example: path_params={{{', '.join(hint_parts)}}}"
+
+        return {
+            "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
+            "resource": resource,
+            "path_template": endpoint_info["path"],
+            "example": f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
+            "hint": hint,
+        }
+
+    # When listing catalog.products without select, default to table-friendly fields to avoid
+    # huge payloads and markdown table breaks (URLs, nested objects with "|" in values).
+    if resource == "catalog.products" and (not select or not select.strip()):
+        select = "+id,+name,+shortDescription"
+        log("   💡 Default select for catalog.products: +id,+name,+shortDescription (omit select for full fields)")
+
+    # Auto-detect audit field usage in RQL and ensure audit is selected
+    # The API requires select=audit when filtering/sorting by audit fields
+    # Use dynamic regex from spec-derived cache if provided, else fallback (includes failed)
+    _audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
+    uses_audit_fields = bool(rql and _audit_pattern.search(rql))
+    uses_audit_in_order = bool(order and "audit" in order.lower())
+
+    # Store original select value for potential retry
+    original_select = select
+    auto_added_audit = False
+
+    # Check if audit is already in select
+    has_audit_in_select = False
+    if select:
+        # Parse select string (e.g., "+id,+name,audit" or "+audit.created.at")
+        select_parts = [s.strip() for s in select.split(",")]
+        has_audit_in_select = any(part == "audit" or part == "+audit" or part.startswith("audit.") or part.startswith("+audit.") for part in select_parts)
+
+    # Auto-add audit to select if needed
+    if (uses_audit_fields or uses_audit_in_order) and not has_audit_in_select:
+        auto_added_audit = True
+        if select:
+            # Append audit to existing select
+            select = f"{select},audit"
+        else:
+            # Create new select with audit
+            select = "audit"
+        log("   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)")
+
+    # Sanitize select: drop fields not in resource schema and ensure id is always included
+    if select:
+        allowed = _get_allowed_select_fields(openapi_spec or {}, endpoints_registry, resource)
+        select = _sanitize_select(select, allowed, log) or select
+
+    # Apply default limit of 10 if not explicitly specified
+    # Cap at 100 to avoid huge responses and context limit errors (platform default is 1000)
+    if limit is None:
+        limit = 10
+        log("   💡 Applied default limit=10 (platform default is 1000, too large for most use cases)")
+    elif limit == 0:
+        # If limit is explicitly set to 0, respect it (might be intentional)
+        log("   ⚠️ Limit is 0, keeping as-is (might be intentional)")
+    elif limit > 100:
+        log(f"   💡 Capped limit {limit} to 100 (max allowed to avoid context overflow)")
+        limit = 100
+
+    # Build query parameters
+    params = {}
+    if rql:
+        # Sanitize RQL: remove spaces after commas in function calls (e.g. "and(..., ilike(..." -> "and(...,ilike(...")
+        # This prevents 400 errors from the API which is strict about RQL syntax
+        rql = re.sub(r",\s+", ",", rql)
+        params["rql"] = rql
+    if limit is not None:
+        params["limit"] = limit
+    if offset is not None:
+        params["offset"] = offset
+    if page is not None:
+        params["page"] = page
+    if select:
+        params["select"] = select
+    if order:
+        params["order"] = order
+
+    log(f"📊 Query: {resource}")
+    log(f"   Path: {api_path}")
+    log(f"   Params: {params}")
+
     try:
-        # Check if resource exists
-        if resource not in endpoints_registry:
-            # Find similar resources to suggest
-            similar_resources = []
-            resource_lower = resource.lower()
-            for r in endpoints_registry:
-                if resource_lower in r.lower() or r.lower() in resource_lower:
-                    similar_resources.append(r)
+        result = await api_client.get(api_path, params=params)
+        result_count = None
+        if KEY_META in result:
+            result_count = result[KEY_META].get("pagination", {}).get("total")
+            log(f"   ✅ Result: {result_count or '?'} total items")
 
-            error_response = {
-                "error": f"Unknown resource: '{resource}'",
-                "hint": "Use marketplace_resources() to see all available resources",
-                "available_categories": list({r.split(".")[0] for r in endpoints_registry}),
-            }
+        # SECURITY: Obfuscate token values if querying API token endpoints
+        # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
+        # This ensures we catch all token-related endpoints regardless of resource name
+        is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
+        if is_token_endpoint:
+            log("   🔒 Obfuscating token values in response (security)")
+            result = obfuscate_token_values(result)
 
-            if similar_resources[:5]:  # Show up to 5 suggestions
-                error_response["did_you_mean"] = similar_resources[:5]
-
-            return error_response
-
-        endpoint_info = endpoints_registry[resource]
-        api_path = endpoint_info["path"]
-
-        # Replace path parameters (e.g., {id}, {productId}, etc.)
-        if path_params:
-            for param_name, param_value in path_params.items():
-                # Replace {param_name} in the path
-                api_path = api_path.replace(f"{{{param_name}}}", str(param_value))
-
-        # Check if there are still unresolved path parameters
-        remaining_params = re.findall(r"\{(\w+)\}", api_path)
-        if remaining_params:
-            # Create example path_params dict with realistic examples
-            example_values = {
-                "id": "PRD-1234-5678",
-                "productId": "PRD-1234-5678",
-                "orderId": "ORD-1234-5678-9012",
-                "agreementId": "AGR-1234-5678-9012",
-                "subscriptionId": "SUB-1234-5678-9012",
-                "accountId": "ACC-1234-5678",
-                "userId": "USR-1234-5678",
-                "lineId": "LIN-1234-5678",
-                "assetId": "AST-1234-5678",
-            }
-
-            example_dict = {p: example_values.get(p, f"<{p}_value>") for p in remaining_params}
-
-            # Build hint string
-            hint_parts = [f"'{p}': '{example_values.get(p, 'value')}'" for p in remaining_params]
-            hint = f"You must provide path_params dictionary. For example: path_params={{{', '.join(hint_parts)}}}"
-
-            return {
-                "error": f"This resource requires path parameters: {', '.join(remaining_params)}",
-                "resource": resource,
-                "path_template": endpoint_info["path"],
-                "example": f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
-                "hint": hint,
-            }
-
-        # When listing catalog.products without select, default to table-friendly fields to avoid
-        # huge payloads and markdown table breaks (URLs, nested objects with "|" in values).
-        if resource == "catalog.products" and (not select or not select.strip()):
-            select = "+id,+name,+shortDescription"
-            log("   💡 Default select for catalog.products: +id,+name,+shortDescription (omit select for full fields)")
-
-        # Auto-detect audit field usage in RQL and ensure audit is selected
-        # The API requires select=audit when filtering/sorting by audit fields
-        # Use dynamic regex from spec-derived cache if provided, else fallback (includes failed)
-        from .audit_fields import FALLBACK_STATIC_REGEX
-
-        _audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
-        uses_audit_fields = bool(rql and _audit_pattern.search(rql))
-        uses_audit_in_order = bool(order and "audit" in order.lower())
-
-        # Store original select value for potential retry
-        original_select = select
-        auto_added_audit = False
-
-        # Check if audit is already in select
-        has_audit_in_select = False
-        if select:
-            # Parse select string (e.g., "+id,+name,audit" or "+audit.created.at")
-            select_parts = [s.strip() for s in select.split(",")]
-            has_audit_in_select = any(part == "audit" or part == "+audit" or part.startswith("audit.") or part.startswith("+audit.") for part in select_parts)
-
-        # Auto-add audit to select if needed
-        if (uses_audit_fields or uses_audit_in_order) and not has_audit_in_select:
-            auto_added_audit = True
-            if select:
-                # Append audit to existing select
-                select = f"{select},audit"
-            else:
-                # Create new select with audit
-                select = "audit"
-            log("   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)")
-
-        # Sanitize select: drop fields not in resource schema and ensure id is always included
-        if select:
-            allowed = _get_allowed_select_fields(openapi_spec or {}, endpoints_registry, resource)
-            select = _sanitize_select(select, allowed, log) or select
-
-        # Apply default limit of 10 if not explicitly specified
-        # Cap at 100 to avoid huge responses and context limit errors (platform default is 1000)
-        if limit is None:
-            limit = 10
-            log("   💡 Applied default limit=10 (platform default is 1000, too large for most use cases)")
-        elif limit == 0:
-            # If limit is explicitly set to 0, respect it (might be intentional)
-            log("   ⚠️ Limit is 0, keeping as-is (might be intentional)")
-        elif limit > 100:
-            log(f"   💡 Capped limit {limit} to 100 (max allowed to avoid context overflow)")
-            limit = 100
-
-        # Build query parameters
-        params = {}
-        if rql:
-            # Sanitize RQL: remove spaces after commas in function calls (e.g. "and(..., ilike(..." -> "and(...,ilike(...")
-            # This prevents 400 errors from the API which is strict about RQL syntax
-            rql = re.sub(r",\s+", ",", rql)
-            params["rql"] = rql
-        if limit is not None:
-            params["limit"] = limit
-        if offset is not None:
-            params["offset"] = offset
-        if page is not None:
-            params["page"] = page
-        if select:
-            params["select"] = select
-        if order:
-            params["order"] = order
-
-        log(f"📊 Query: {resource}")
-        log(f"   Path: {api_path}")
-        log(f"   Params: {params}")
-
-        try:
-            result = await api_client.get(api_path, params=params)
-            result_count = None
-            if KEY_META in result:
-                result_count = result[KEY_META].get("pagination", {}).get("total")
-                log(f"   ✅ Result: {result_count or '?'} total items")
-
-            # SECURITY: Obfuscate token values if querying API token endpoints
-            # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
-            # This ensures we catch all token-related endpoints regardless of resource name
-            is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
-            if is_token_endpoint:
-                log("   🔒 Obfuscating token values in response (security)")
-                result = obfuscate_token_values(result)
-
-            # Log successful API query
-            if analytics_logger and config and config.analytics_enabled:
-                await analytics_logger.log_api_query(
-                    api_resource=resource,
-                    api_path=api_path,
-                    api_method="GET",
-                    api_status_code=200,
-                    api_response_time_ms=int((time.time() - start_time) * 1000),
-                    result_count=result_count,
-                    rql_filter=rql,
-                    limit_value=limit,
-                    offset_value=offset,
-                    order_by=order,
-                    select_fields=select,
-                    tool_name="marketplace_query",
-                )
-
-            # Log what we return so agent-side can verify $meta/omitted are present
-            data_list = result.get("data") if isinstance(result.get("data"), list) else []
-            meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
-            omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
-            log(f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
-
-            return result
-        except Exception as e:
-            log(f"   ❌ Error: {e}")
-
-            error_response = {"error": str(e), "resource": resource, "path": api_path}
-            response_code = None
-            should_retry_without_audit = False
-
-            # If it's an HTTP error, try to include response body
-            if isinstance(e, httpx.HTTPStatusError):
-                error_response["status_code"] = e.response.status_code
-                error_response["request_url"] = str(e.request.url)
-                response_code = e.response.status_code
-                try:
-                    # Try to parse error response body
-                    error_body = e.response.json()
-                    error_response["api_error_details"] = error_body
-
-                    # If we auto-added audit and got a 400, retry without it
-                    if response_code == 400 and auto_added_audit:
-                        log("   🔄 400 error after auto-adding 'audit' - retrying without it...")
-                        should_retry_without_audit = True
-                    # Check for audit field filtering errors and provide helpful hint
-                    elif response_code == 400 and error_body.get("errors"):
-                        errors = error_body.get("errors", {})
-                        # Check if any error mentions "Unknown expression group" for audit fields
-                        for field, error_list in errors.items():
-                            if isinstance(error_list, list) and any("Unknown expression group" in str(err) for err in error_list):
-                                if "audit" in field.lower() or any("audit" in str(err).lower() for err in error_list):
-                                    error_response["hint"] = (
-                                        "When filtering or sorting by audit fields (e.g., audit.created.at), "
-                                        "you must include 'audit' in the select parameter. "
-                                        "Example: select='audit' or select='+id,+name,audit'"
-                                    )
-                                    break
-                except Exception:
-                    # If not JSON, include raw text
-                    error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
-                    # If we auto-added audit and got a 400, still try retry
-                    if response_code == 400 and auto_added_audit:
-                        log("   🔄 400 error after auto-adding 'audit' - retrying without it...")
-                        should_retry_without_audit = True
-
-            # Retry without auto-added audit if we got a 400
-            if should_retry_without_audit:
-                log(f"   🔄 Retrying query without auto-added 'audit' (using original select: {original_select or 'None'})")
-                retry_params = {}
-                if rql:
-                    retry_params["rql"] = rql
-                if limit is not None:
-                    retry_params["limit"] = limit
-                if offset is not None:
-                    retry_params["offset"] = offset
-                if page is not None:
-                    retry_params["page"] = page
-                if original_select:
-                    retry_params["select"] = original_select
-                if order:
-                    retry_params["order"] = order
-
-                try:
-                    result = await api_client.get(api_path, params=retry_params)
-                    result_count = None
-                    if KEY_META in result:
-                        result_count = result[KEY_META].get("pagination", {}).get("total")
-                        log(f"   ✅ Retry successful: {result_count or '?'} total items")
-
-                    # SECURITY: Obfuscate token values if querying API token endpoints
-                    # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
-                    # This ensures we catch all token-related endpoints regardless of resource name
-                    is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
-                    if is_token_endpoint:
-                        log("   🔒 Obfuscating token values in response (security)")
-                        result = obfuscate_token_values(result)
-
-                    # Log successful API query after retry
-                    if analytics_logger and config and config.analytics_enabled:
-                        await analytics_logger.log_api_query(
-                            api_resource=resource,
-                            api_path=api_path,
-                            api_method="GET",
-                            api_status_code=200,
-                            api_response_time_ms=int((time.time() - start_time) * 1000),
-                            result_count=result_count,
-                            rql_filter=rql,
-                            limit_value=limit,
-                            offset_value=offset,
-                            order_by=order,
-                            select_fields=original_select,
-                            tool_name="marketplace_query",
-                        )
-
-                    # Log what we return so agent-side can verify $meta/omitted are present
-                    data_list = result.get("data") if isinstance(result.get("data"), list) else []
-                    meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
-                    omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
-                    log(f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
-
-                    return result
-                except Exception as retry_e:
-                    log(f"   ❌ Retry also failed: {retry_e}")
-                    # Fall through to return original error
-
-            # Log failed API query
-            if analytics_logger and config and config.analytics_enabled:
-                await analytics_logger.log_api_query(
-                    api_resource=resource,
-                    api_path=api_path,
-                    api_method="GET",
-                    api_status_code=response_code or 500,
-                    api_response_time_ms=int((time.time() - start_time) * 1000),
-                    rql_filter=rql,
-                    limit_value=limit,
-                    offset_value=offset,
-                    order_by=order,
-                    select_fields=select,
-                    tool_name="marketplace_query",
-                )
-
-            return error_response
-    except Exception as outer_e:
-        # Log catastrophic failures at tool call level (shouldn't happen, but just in case)
+        # Log successful API query
         if analytics_logger and config and config.analytics_enabled:
-            await analytics_logger.log_tool_call(
+            await analytics_logger.log_api_query(
+                api_resource=resource,
+                api_path=api_path,
+                api_method="GET",
+                api_status_code=200,
+                api_response_time_ms=int((time.time() - start_time) * 1000),
+                result_count=result_count,
+                rql_filter=rql,
+                limit_value=limit,
+                offset_value=offset,
+                order_by=order,
+                select_fields=select,
                 tool_name="marketplace_query",
-                response_time_ms=int((time.time() - start_time) * 1000),
-                success=False,
-                error_type="exception",
-                error_message=str(outer_e),
             )
-        raise
+
+        # Log what we return so agent-side can verify $meta/omitted are present
+        data_list = result.get("data") if isinstance(result.get("data"), list) else []
+        meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
+        omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
+        log(f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
+
+        return result
+    except Exception as e:
+        log(f"   ❌ Error: {e}")
+
+        error_response = {"error": str(e), "resource": resource, "path": api_path}
+        response_code = None
+        should_retry_without_audit = False
+
+        # If it's an HTTP error, try to include response body
+        if isinstance(e, httpx.HTTPStatusError):
+            error_response["status_code"] = e.response.status_code
+            error_response["request_url"] = str(e.request.url)
+            response_code = e.response.status_code
+            try:
+                # Try to parse error response body
+                error_body = e.response.json()
+                error_response["api_error_details"] = error_body
+
+                # If we auto-added audit and got a 400, retry without it
+                if response_code == 400 and auto_added_audit:
+                    log("   🔄 400 error after auto-adding 'audit' - retrying without it...")
+                    should_retry_without_audit = True
+                # Check for audit field filtering errors and provide helpful hint
+                elif response_code == 400 and error_body.get("errors"):
+                    errors = error_body.get("errors", {})
+                    # Check if any error mentions "Unknown expression group" for audit fields
+                    for field, error_list in errors.items():
+                        if isinstance(error_list, list) and any("Unknown expression group" in str(err) for err in error_list):
+                            if "audit" in field.lower() or any("audit" in str(err).lower() for err in error_list):
+                                error_response["hint"] = (
+                                    "When filtering or sorting by audit fields (e.g., audit.created.at), "
+                                    "you must include 'audit' in the select parameter. "
+                                    "Example: select='audit' or select='+id,+name,audit'"
+                                )
+                                break
+            except Exception:
+                # If not JSON, include raw text
+                error_response["api_error_text"] = e.response.text[:500]  # Limit to 500 chars
+                # If we auto-added audit and got a 400, still try retry
+                if response_code == 400 and auto_added_audit:
+                    log("   🔄 400 error after auto-adding 'audit' - retrying without it...")
+                    should_retry_without_audit = True
+
+        # Retry without auto-added audit if we got a 400
+        if should_retry_without_audit:
+            log(f"   🔄 Retrying query without auto-added 'audit' (using original select: {original_select or 'None'})")
+            retry_params = {}
+            if rql:
+                retry_params["rql"] = rql
+            if limit is not None:
+                retry_params["limit"] = limit
+            if offset is not None:
+                retry_params["offset"] = offset
+            if page is not None:
+                retry_params["page"] = page
+            if original_select:
+                retry_params["select"] = original_select
+            if order:
+                retry_params["order"] = order
+
+            try:
+                result = await api_client.get(api_path, params=retry_params)
+                result_count = None
+                if KEY_META in result:
+                    result_count = result[KEY_META].get("pagination", {}).get("total")
+                    log(f"   ✅ Retry successful: {result_count or '?'} total items")
+
+                # SECURITY: Obfuscate token values if querying API token endpoints
+                # Check the actual API path to catch /public/v1/accounts/api-tokens and /public/v1/accounts/api-tokens/{id}
+                # This ensures we catch all token-related endpoints regardless of resource name
+                is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
+                if is_token_endpoint:
+                    log("   🔒 Obfuscating token values in response (security)")
+                    result = obfuscate_token_values(result)
+
+                # Log successful API query after retry
+                if analytics_logger and config and config.analytics_enabled:
+                    await analytics_logger.log_api_query(
+                        api_resource=resource,
+                        api_path=api_path,
+                        api_method="GET",
+                        api_status_code=200,
+                        api_response_time_ms=int((time.time() - start_time) * 1000),
+                        result_count=result_count,
+                        rql_filter=rql,
+                        limit_value=limit,
+                        offset_value=offset,
+                        order_by=order,
+                        select_fields=original_select,
+                        tool_name="marketplace_query",
+                    )
+
+                # Log what we return so agent-side can verify $meta/omitted are present
+                data_list = result.get("data") if isinstance(result.get("data"), list) else []
+                meta = result.get(KEY_META) if isinstance(result.get(KEY_META), dict) else {}
+                omitted = meta.get("omitted") if isinstance(meta.get("omitted"), list) else []
+                log(f"   📤 Returning: data len={len(data_list)}, {KEY_META}={'yes' if meta else 'no'}, omitted={omitted if omitted else 'none'}")
+
+                return result
+            except Exception as retry_e:
+                log(f"   ❌ Retry also failed: {retry_e}")
+                # Fall through to return original error
+
+        # Log failed API query
+        if analytics_logger and config and config.analytics_enabled:
+            await analytics_logger.log_api_query(
+                api_resource=resource,
+                api_path=api_path,
+                api_method="GET",
+                api_status_code=response_code or 500,
+                api_response_time_ms=int((time.time() - start_time) * 1000),
+                rql_filter=rql,
+                limit_value=limit,
+                offset_value=offset,
+                order_by=order,
+                select_fields=select,
+                tool_name="marketplace_query",
+            )
+
+        return error_response
 
 
 # ============================================================================
