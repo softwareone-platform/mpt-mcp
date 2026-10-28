@@ -38,7 +38,7 @@ class Config:
     request_timeout: float = float(os.getenv("REQUEST_TIMEOUT", "30"))
 
     # SSE Server Configuration (for cloud deployment)
-    sse_host: str = os.getenv("SSE_HOST", "0.0.0.0")
+    sse_host: str = os.getenv("SSE_HOST", "0.0.0.0")  # ruff: ignore[hardcoded-bind-all-interfaces]
     # Railway/Render use PORT, fallback to SSE_PORT (default 8000)
     sse_port: int = int(os.getenv("PORT", os.getenv("SSE_PORT", "8000")))
     sse_cors_origins: list[str] = field(default_factory=_parse_cors_origins)

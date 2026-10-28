@@ -208,10 +208,6 @@ ignore = [
     "complex-structure",  # 22
     "datetime-min-max",  # 1
     "global-statement",  # 18
-    "hardcoded-bind-all-interfaces",  # 3
-    "hardcoded-password-func-arg",  # 21
-    "hardcoded-password-string",  # 3
-    "hashlib-insecure-hash-function",  # 2
     "signature-in-docstring",  # 4
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 18
@@ -254,6 +250,7 @@ ignore-decorators = ["property"]
   "undocumented-public-function", # missing docstring in a public function
   "assert", # asserts
   "hardcoded-password-string", # hardcoded passwords
+  "hardcoded-password-func-arg", # fake tokens passed to clients and contexts
   "suspicious-subprocess-import", # subprocess calls are for tests
   "subprocess-without-shell-equals-true", # do not require `shell=True`
   "start-process-with-partial-path", # partial executable paths

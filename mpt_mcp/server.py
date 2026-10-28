@@ -32,7 +32,8 @@ logging.getLogger("fastmcp").setLevel(logging.WARNING)
 logging.getLogger("mcp").setLevel(logging.WARNING)
 
 server_port = int(os.getenv("PORT", "8080"))
-server_host = "0.0.0.0"
+# Listen on every interface: the server runs in a container (Cloud Run)
+server_host = "0.0.0.0"  # ruff: ignore[hardcoded-bind-all-interfaces]
 logger.info("🌐 Configured for %s:%s", server_host, server_port)
 # RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
 mcp = FastMCP(

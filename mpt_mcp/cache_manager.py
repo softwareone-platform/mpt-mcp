@@ -37,12 +37,12 @@ class CacheManager:
     def get_cache_path(self, key: str) -> Path:
         """Get cache file path for a given key."""
         # Hash the key to create a safe filename
-        key_hash = hashlib.md5(key.encode()).hexdigest()
+        key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
         return self.cache_dir / f"{key_hash}.json"
 
     def _get_metadata_path(self, key: str) -> Path:
         """Get metadata file path for a given key."""
-        key_hash = hashlib.md5(key.encode()).hexdigest()
+        key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
         return self.cache_dir / f"{key_hash}.meta.json"
 
     def _is_cache_valid(self, key: str) -> bool:

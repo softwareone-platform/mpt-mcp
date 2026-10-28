@@ -12,7 +12,7 @@ from mpt_mcp.token_validator import normalize_token, parse_token_id, validate_to
 
 logger = logging.getLogger(__name__)
 
-MISSING_TOKEN_ERROR = (
+MISSING_AUTH_HEADER_ERROR = (
     "Missing X-MPT-Authorization header. Please provide your API token in the "
     "X-MPT-Authorization header."
 )
@@ -43,7 +43,7 @@ class CallContext:
             ValueError: If the token is missing or fails validation
         """
         if not self.token:
-            raise ValueError(MISSING_TOKEN_ERROR)
+            raise ValueError(MISSING_AUTH_HEADER_ERROR)
 
         await self._validate_token()
 

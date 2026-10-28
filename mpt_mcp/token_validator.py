@@ -10,6 +10,7 @@ import jwt
 
 from mpt_mcp.config import config
 
+ACTIVE_STATUS = "Active"
 # Algorithms we accept for JWT signature verification (never trust token's alg header alone)
 JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
 
@@ -508,7 +509,7 @@ async def validate_token(
                         )
 
                     # Check if user is active
-                    if user_status != "Active":
+                    if user_status != ACTIVE_STATUS:
                         error = f"User exists but is not active (status: {user_status})"
                         logger.warning("❌ User %s: %s", user_id, error)
 
@@ -636,7 +637,7 @@ async def validate_token(
                     token_status = token_info.get("status", "Unknown")
 
                     # Check if token is active
-                    if token_status != "Active":
+                    if token_status != ACTIVE_STATUS:
                         error = f"Token exists but is not active (status: {token_status})"
                         logger.warning("❌ Token %s: %s", token_id, error)
 

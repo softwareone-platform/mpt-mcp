@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
     "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 )
-AUTH_HINT_HEADER_TOKEN = "Provide X-MPT-Authorization header with your API token"
+AUTH_HEADER_HINT = "Provide X-MPT-Authorization header with your API token"
 OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
 
@@ -97,7 +97,7 @@ def register_http_tools(mcp):
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
+            return {"error": str(e), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         logger.info("🔍 Using API endpoint: %s", api_base_url)
         try:
@@ -139,7 +139,7 @@ def register_http_tools(mcp):
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
+            return {"error": str(e), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
@@ -158,7 +158,7 @@ def register_http_tools(mcp):
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
+            return {"error": str(e), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
@@ -176,7 +176,7 @@ def register_http_tools(mcp):
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
+            return {"error": str(e), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             spec = await endpoint_registry.get_openapi_spec(api_base_url)
@@ -196,7 +196,7 @@ def register_http_tools(mcp):
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
-            return {"error": str(e), "hint": AUTH_HINT_HEADER_TOKEN}
+            return {"error": str(e), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
         try:
             await endpoint_registry.get_endpoints_registry(api_base_url)

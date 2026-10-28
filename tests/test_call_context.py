@@ -5,7 +5,7 @@ from starlette.requests import Request
 
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.call_context import (
-    MISSING_TOKEN_ERROR,
+    MISSING_AUTH_HEADER_ERROR,
     CallContext,
     get_call_context,
     normalize_endpoint_url,
@@ -79,7 +79,7 @@ def test_user_id_from_token(token, expected):
 async def test_create_api_client_without_token_raises():
     call_context = CallContext(endpoint="https://api.test.com", token=None)
 
-    with pytest.raises(ValueError, match=MISSING_TOKEN_ERROR):
+    with pytest.raises(ValueError, match=MISSING_AUTH_HEADER_ERROR):
         await call_context.create_api_client()
 
 
