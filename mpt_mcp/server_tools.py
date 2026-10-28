@@ -18,6 +18,7 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resources,
 )
 from mpt_mcp.server_context import log
+from mpt_mcp.token_validator import get_token_cache
 
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 AUTH_HINT_HEADER_TOKEN = "Provide X-MPT-Authorization header with your API token"
@@ -206,6 +207,7 @@ def register_http_tools(mcp):
 
         return {"text": content, "count": 1}
 
+    # TBD: decide whether this is a debug tool (it only reports cache statistics); if so, tag it "debug" so it is hidden in production
     @mcp.tool()
     async def marketplace_resources_info() -> dict[str, Any]:
         result = {
@@ -221,8 +223,6 @@ def register_http_tools(mcp):
                 "cache_info": cache_info,
             }
         try:
-            from mpt_mcp.token_validator import get_token_cache
-
             token_cache = get_token_cache()
             result["token_validation"] = {
                 "enabled": True,

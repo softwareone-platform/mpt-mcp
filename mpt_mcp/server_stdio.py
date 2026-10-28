@@ -1,21 +1,25 @@
 #!/usr/bin/env python3
 
 import sys
+import traceback
 from typing import Any
 
 from fastmcp import FastMCP
 
-from .api_client import APIClient
-from .cache_manager import CacheManager, fetch_with_cache
-from .config import config
-from .mcp_tools import (
+from mpt_mcp import audit_fields
+from mpt_mcp.api_client import APIClient
+from mpt_mcp.cache_manager import CacheManager, fetch_with_cache
+from mpt_mcp.config import config
+from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
     execute_marketplace_quick_queries,
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
 )
-from .openapi_parser import OpenAPIParser
+from mpt_mcp.openapi_parser import OpenAPIParser
+
+DEBUG_TAG = "debug"
 
 mcp = FastMCP("softwareone-marketplace")
 
@@ -37,8 +41,6 @@ async def initialize_server(force_refresh: bool = False):
 
     if _initialized and not force_refresh:
         return
-
-    import sys
 
     def log(message):
         print(message, file=sys.stderr, flush=True)
@@ -77,8 +79,6 @@ async def initialize_server(force_refresh: bool = False):
         log(f"✓ Stored in memory registry with {len(endpoints_registry)} resource IDs")
 
         try:
-            from . import audit_fields
-
             audit_fields.update_cache(config.marketplace_api_base_url, spec, _path_to_resource_id)
             log("✓ Audit fields cache updated")
         except Exception as audit_err:
@@ -166,8 +166,6 @@ async def marketplace_query(
     if not api_client:
         return {"error": "Server not initialized"}
 
-    from . import audit_fields
-
     _audit_regex = audit_fields.get_audit_regex(config.marketplace_api_base_url)
     return await execute_marketplace_query(
         resource=resource,
@@ -225,7 +223,7 @@ async def marketplace_resources() -> dict[str, Any]:
     )
 
 
-@mcp.tool()
+@mcp.tool(tags={DEBUG_TAG})
 async def marketplace_cache_info() -> dict[str, Any]:
     """
     Get information about the OpenAPI spec cache.
@@ -247,26 +245,18 @@ async def marketplace_cache_info() -> dict[str, Any]:
     }
 
 
-@mcp.tool()
+@mcp.tool(tags={DEBUG_TAG})
 async def marketplace_refresh_cache() -> dict[str, Any]:
     """
     Force refresh the OpenAPI spec cache.
 
-    ⚠️  DEVELOPMENT ONLY - Not available in production for security reasons.
+    Only listed and callable when DEBUG=true.
 
     Use this to manually update the endpoint registry if you know the API has changed.
 
     Returns:
         Status message indicating cache refresh result
     """
-    # Security: Only allow cache refresh in development mode
-    if not config.debug:
-        return {
-            "error": "Access denied",
-            "message": "Cache refresh is only available in development mode (DEBUG=true).",
-            "hint": "This tool is disabled in production for security reasons.",
-        }
-
     if not cache_manager:
         return {"error": "Cache manager not initialized"}
 
@@ -354,14 +344,16 @@ async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any
     """
     if not _initialized:
         await initialize_server()
-    from . import audit_fields
 
     return audit_fields.get_audit_fields(config.marketplace_api_base_url, resource)
 
 
-if __name__ == "__main__":
-    import sys
+# Debug tools are only listed and callable in development
+if not config.debug:
+    mcp.disable(tags={DEBUG_TAG})
 
+
+if __name__ == "__main__":
     # Send all logs to stderr (stdout is for JSON-RPC only!)
     def log(message):
         print(message, file=sys.stderr, flush=True)
@@ -382,7 +374,5 @@ if __name__ == "__main__":
         sys.exit(0)
     except Exception as e:
         log(f"\n❌ Error: {e}")
-        import traceback
-
         traceback.print_exc(file=sys.stderr)
         sys.exit(1)
