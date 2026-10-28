@@ -1,5 +1,3 @@
-"""Pytest config: patch server tool/resource callables for tests."""
-
 import asyncio
 
 

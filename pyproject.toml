@@ -63,34 +63,31 @@ extend-ignore = [
   "WPS226",
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "AAA01",  # 86
-  "AAA04",  # 8
-  "AAA06",  # 6
-  "WPS110",  # 72
-  "WPS111",  # 122
+  "WPS110",  # 66
+  "WPS111",  # 111
   "WPS114",  # 9
-  "WPS118",  # 60
+  "WPS118",  # 55
   "WPS121",  # 10
   "WPS122",  # 11
   "WPS201",  # 1
   "WPS202",  # 4
-  "WPS204",  # 22
-  "WPS210",  # 47
+  "WPS204",  # 24
+  "WPS210",  # 45
   "WPS211",  # 8
   "WPS212",  # 3
   "WPS213",  # 9
-  "WPS214",  # 6
+  "WPS214",  # 4
   "WPS217",  # 2
-  "WPS218",  # 4
-  "WPS219",  # 2
+  "WPS218",  # 2
+  "WPS219",  # 3
   "WPS220",  # 61
-  "WPS221",  # 40
+  "WPS221",  # 45
   "WPS229",  # 36
-  "WPS231",  # 33
+  "WPS231",  # 32
   "WPS232",  # 7
-  "WPS234",  # 6
+  "WPS234",  # 2
   "WPS235",  # 1
-  "WPS237",  # 30
+  "WPS237",  # 25
   "WPS239",  # 1
   "WPS300",  # 7
   "WPS301",  # 1
@@ -98,22 +95,22 @@ extend-ignore = [
   "WPS336",  # 7
   "WPS338",  # 6
   "WPS404",  # 7
-  "WPS407",  # 2
+  "WPS407",  # 6
   "WPS410",  # 2
-  "WPS420",  # 12
+  "WPS420",  # 11
   "WPS421",  # 2
-  "WPS430",  # 39
+  "WPS430",  # 32
   "WPS431",  # 2
-  "WPS432",  # 95
+  "WPS432",  # 89
   "WPS441",  # 17
-  "WPS453",  # 11
-  "WPS458",  # 9
-  "WPS473",  # 1
+  "WPS453",  # 2
+  "WPS458",  # 12
+  "WPS473",  # 3
   "WPS476",  # 4
   "WPS501",  # 1
   "WPS504",  # 4
   "WPS505",  # 6
-  "WPS529",  # 41
+  "WPS529",  # 40
   "WPS602",  # 7
   "WPS604",  # 1
 ]
@@ -214,15 +211,13 @@ ignore = [
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
     "ambiguous-unicode-character-string",  # 2
     "banned-import-from",  # 6
-    "blank-line-after-function",  # 2
-    "boolean-default-value-positional-argument",  # 12
+    "boolean-default-value-positional-argument",  # 11
     "boolean-positional-value-in-call",  # 8
     "boolean-type-hint-positional-argument",  # 12
     "builtin-open",  # 6
     "call-datetime-now-without-tzinfo",  # 13
-    "collapsible-if",  # 5
+    "collapsible-if",  # 4
     "commented-out-code",  # 2
-    "compare-to-empty-string",  # 3
     "complex-structure",  # 24
     "datetime-min-max",  # 1
     "datetime-timezone-utc",  # 4
@@ -232,33 +227,30 @@ ignore = [
     "global-statement",  # 18
     "global-variable-not-assigned",  # 1
     "hardcoded-bind-all-interfaces",  # 3
-    "hardcoded-password-func-arg",  # 24
+    "hardcoded-password-func-arg",  # 21
     "hardcoded-password-string",  # 3
     "hashlib-insecure-hash-function",  # 2
     "if-else-block-instead-of-if-exp",  # 2
     "if-exp-instead-of-or-operator",  # 2
     "implicit-optional",  # 3
-    "import-outside-top-level",  # 49
-    "import-private-name",  # 5
+    "import-outside-top-level",  # 37
     "in-dict-keys",  # 1
-    "line-too-long",  # 118
-    "literal-membership",  # 5
+    "line-too-long",  # 113
+    "literal-membership",  # 4
     "logging-f-string",  # 129
     "logging-string-concat",  # 2
     "manual-list-comprehension",  # 2
-    "missing-blank-line-after-summary",  # 9
-    "missing-terminal-punctuation",  # 167
+    "missing-blank-line-after-summary",  # 8
+    "missing-terminal-punctuation",  # 63
     "multiple-starts-ends-with",  # 2
     "multiple-with-statements",  # 12
     "new-line-after-last-paragraph",  # 1
-    "private-member-access",  # 33
-    "pytest-composite-assertion",  # 4
-    "pytest-parametrize-names-wrong-type",  # 2
+    "private-member-access",  # 1
     "redefined-loop-name",  # 1
     "repeated-equality-comparison",  # 2
-    "shebang-not-executable",  # 11
+    "shebang-not-executable",  # 2
     "signature-in-docstring",  # 4
-    "superfluous-else-return",  # 5
+    "superfluous-else-return",  # 4
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 18
     "try-consider-else",  # 11
@@ -266,13 +258,12 @@ ignore = [
     "undocumented-public-function",  # 5
     "unnecessary-assign",  # 3
     "unnecessary-iterable-allocation-for-first-element",  # 2
-    "unnecessary-multiline-docstring",  # 6
+    "unnecessary-multiline-docstring",  # 1
     "unnecessary-placeholder",  # 1
     "unsorted-dunder-all",  # 1
     "unsorted-imports",  # 1
     "unspecified-encoding",  # 6
-    "unused-async",  # 19
-    "unused-noqa",  # 1
+    "unused-async",  # 13
     "unused-unpacked-variable",  # 4
     "used-dummy-variable",  # 2
     "verbose-log-message",  # 2

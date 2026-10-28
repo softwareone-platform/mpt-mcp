@@ -157,3 +157,29 @@ def test_normalize_endpoint_url(endpoint, expected):
     result = normalize_endpoint_url(endpoint)
 
     assert result == expected
+
+
+@pytest.mark.asyncio
+async def test_missing_authorization_header():
+    from mpt_mcp.call_context import CallContext
+
+    with pytest.raises(ValueError) as exc_info:
+        await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
+
+    error_message = str(exc_info.value)
+    assert "Missing X-MPT-Authorization header" in error_message or "Missing" in error_message
+
+
+@pytest.mark.asyncio
+async def test_missing_auth_error_message_is_clear():
+    from mpt_mcp.call_context import CallContext
+
+    with pytest.raises(ValueError) as exc_info:
+        await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
+
+    error_message = str(exc_info.value)
+
+    # Should contain key information
+    assert "Missing" in error_message
+    assert "X-MPT-Authorization" in error_message
+    assert "header" in error_message.lower()

@@ -21,7 +21,6 @@ API_BASE_URL = "https://api.test.com"
 JWT_USER_ID = "USR-1234-5678"
 
 
-@pytest.mark.unit
 def test_cache_initialization():
     cache = TokenValidationCache(ttl_minutes=30)
 
@@ -30,7 +29,6 @@ def test_cache_initialization():
     assert (result["total_entries"], result["ttl_minutes"]) == (0, 30)
 
 
-@pytest.mark.unit
 async def test_cache_set_and_get():
     cache = TokenValidationCache(ttl_minutes=60)
     token_info = {"account": {"id": "ACC-123", "name": "Test"}}
@@ -41,7 +39,6 @@ async def test_cache_set_and_get():
     assert result == (True, token_info)
 
 
-@pytest.mark.unit
 @pytest.mark.parametrize(
     ("token", "endpoint"),
     [
@@ -58,7 +55,6 @@ async def test_cache_keys_differ_per_token_and_endpoint(token, endpoint):
     assert result is None
 
 
-@pytest.mark.unit
 async def test_cache_miss():
     cache = TokenValidationCache()
 
@@ -67,7 +63,6 @@ async def test_cache_miss():
     assert result is None
 
 
-@pytest.mark.unit
 async def test_cache_expiry():
     cache = TokenValidationCache(ttl_minutes=0)
     await cache.set(
@@ -82,7 +77,6 @@ async def test_cache_expiry():
     assert result is None
 
 
-@pytest.mark.unit
 async def test_cache_stores_invalid_tokens():
     cache = TokenValidationCache()
     await cache.set("idt:TKN-INVALID-TOKEN", API_BASE_URL, is_valid=False, token_info=None)
@@ -92,7 +86,6 @@ async def test_cache_stores_invalid_tokens():
     assert result == (False, None)
 
 
-@pytest.mark.unit
 async def test_cache_invalidate():
     cache = TokenValidationCache()
     await cache.set("idt:TKN-1234-5678-SECRET", API_BASE_URL, is_valid=True, token_info={})
@@ -102,7 +95,6 @@ async def test_cache_invalidate():
     assert await cache.get("idt:TKN-1234-5678-SECRET", API_BASE_URL) is None
 
 
-@pytest.mark.unit
 async def test_cache_get_stats():
     cache = TokenValidationCache()
     await cache.set("idt:TKN-1234-5678-SECRET1", API_BASE_URL, is_valid=True, token_info={})
@@ -118,87 +110,49 @@ async def test_cache_get_stats():
     }
 
 
-@pytest.mark.unit
-def test_parse_tkn_token():
-    token = "idt:TKN-1234-5678:SECRET"
-    token_id = parse_token_id(token)
-    assert token_id == "TKN-1234-5678"
+@pytest.mark.parametrize(
+    ("token", "expected_token_id"),
+    [
+        ("idt:TKN-1234-5678:SECRET", "TKN-1234-5678"),
+        ("Bearer idt:TKN-1234-5678:SECRET", "TKN-1234-5678"),
+        ("idt:TKN-1234-5678", "TKN-1234-5678"),
+        ("idt:IDT-USR-9999-8888:SECRET", None),  # user tokens are not API tokens
+        ("TKN-1234-5678:SECRET", None),  # missing the idt: prefix
+        ("INVALID-TOKEN", None),
+        (
+            "eyJhbGciOiJSUzI1NiJ9.eyJ1c2VyIjoiVVNSIn0.sig",
+            None,
+        ),  # JWTs are only read after verification
+    ],
+)
+def test_parse_token_id(token, expected_token_id):
+    result = parse_token_id(token)
+
+    assert result == expected_token_id
 
 
-@pytest.mark.unit
-def test_parse_bearer_tkn_token():
-    token = "Bearer idt:TKN-1234-5678:SECRET"
-    token_id = parse_token_id(token)
-    assert token_id == "TKN-1234-5678"
-
-
-@pytest.mark.unit
-def test_parse_idt_user_token():
-    token = "idt:IDT-USR-9999-8888:SECRET"
-    token_id = parse_token_id(token)
-    # IDT tokens are user tokens, not API tokens, so parse_token_id returns None
-    assert token_id is None
-
-
-@pytest.mark.unit
-def test_parse_api_token_without_idt_prefix():
-    token = "TKN-1234-5678:SECRET"
-    token_id = parse_token_id(token)
-    # Without idt: prefix, parsing fails
-    assert token_id is None
-
-
-@pytest.mark.unit
-def test_parse_malformed_token():
-    token = "INVALID-TOKEN"
-    token_id = parse_token_id(token)
-    assert token_id is None
-
-
-@pytest.mark.unit
-def test_parse_token_without_secret():
-    token = "idt:TKN-1234-5678"
-    token_id = parse_token_id(token)
-    # parse_token_id extracts the TKN part
-    assert token_id == "TKN-1234-5678"
-
-
-@pytest.mark.unit
-def test_parse_token_id_jwt_returns_none():
-    import base64
-    import json
-
-    payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}
-    payload_b64 = base64.urlsafe_b64encode(json.dumps(payload).encode()).decode().rstrip("=")
-    token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
-    token_id = parse_token_id(token)
-    assert token_id is None
-
-
-@pytest.mark.unit
 def test_parse_jwt_claims_always_returns_none():
-    out = parse_jwt_claims("header.payload.signature")
-    assert out == (None, None)
+    result = parse_jwt_claims("header.payload.signature")
+
+    assert result == (None, None)
 
 
-@pytest.mark.unit
-def test_normalize_strips_bearer_prefix():
-    assert normalize_token("Bearer idt:TKN-1234-5678:SECRET") == "idt:TKN-1234-5678:SECRET"
-    assert normalize_token("bearer idt:TKN-X:Y") == "idt:TKN-X:Y"
+@pytest.mark.parametrize(
+    ("token", "expected"),
+    [
+        ("Bearer idt:TKN-1234-5678:SECRET", "idt:TKN-1234-5678:SECRET"),
+        ("bearer idt:TKN-X:Y", "idt:TKN-X:Y"),
+        ("  idt:TKN-A:B  ", "idt:TKN-A:B"),
+        ("  Bearer idt:TKN-A:B  ", "idt:TKN-A:B"),
+        ("", ""),
+        ("   ", ""),
+        ("  Bearer   ", "Bearer"),  # only "Bearer " with a trailing space is a prefix
+    ],
+)
+def test_normalize_token(token, expected):
+    result = normalize_token(token)
 
-
-@pytest.mark.unit
-def test_normalize_strips_whitespace():
-    assert normalize_token("  idt:TKN-A:B  ") == "idt:TKN-A:B"
-    assert normalize_token("  Bearer idt:TKN-A:B  ") == "idt:TKN-A:B"
-
-
-@pytest.mark.unit
-def test_normalize_empty_returns_empty():
-    assert normalize_token("") == ""
-    assert normalize_token("   ") == ""
-    # Only "Bearer " (with trailing space) is stripped; "Bearer" alone has no trailing space so stays
-    assert normalize_token("  Bearer   ") == "Bearer"
+    assert result == expected
 
 
 @pytest.mark.asyncio

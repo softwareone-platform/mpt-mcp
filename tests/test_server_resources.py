@@ -1,8 +1,8 @@
-#!/usr/bin/env python3
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
+from mpt_mcp import server_docs, server_resources
 from mpt_mcp.call_context import CallContext
 
 
@@ -74,43 +74,6 @@ async def test_get_openapi_spec_resource_fetch_error():
 
 
 @pytest.mark.asyncio
-async def test_openapi_spec_cached_per_endpoint():
-    from mpt_mcp.endpoint_registry import get_openapi_spec
-
-    mock_spec1 = {
-        "openapi": "3.0.0",
-        "info": {"title": "API 1", "version": "1.0.0"},
-    }
-    mock_spec2 = {
-        "openapi": "3.0.0",
-        "info": {"title": "API 2", "version": "1.0.0"},
-    }
-
-    with patch(
-        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
-    ) as mock_fetch:
-        # Configure mock to return different specs
-        async def side_effect(endpoint, force_refresh=False):
-            if "api1" in endpoint:
-                return mock_spec1
-            else:
-                return mock_spec2
-
-        mock_fetch.side_effect = side_effect
-
-        # Get spec for first endpoint
-        spec1_first = await get_openapi_spec("https://api1.test.com")
-        assert spec1_first == mock_spec1
-
-        # Get spec for different endpoint
-        spec2 = await get_openapi_spec("https://api2.test.com")
-        assert spec2 == mock_spec2
-
-        # Both specs should be cached now
-        assert mock_fetch.call_count == 2
-
-
-@pytest.mark.asyncio
 async def test_openapi_resource_listed_in_resources():
     from mpt_mcp.server import mcp
 
@@ -147,87 +110,45 @@ async def test_openapi_resource_mime_type():
     assert openapi_resource.mime_type == "application/json"
 
 
-@pytest.mark.asyncio
-async def test_registry_initializes_empty():
-    from mpt_mcp.endpoint_registry import _openapi_specs
+@pytest.fixture
+def docs_cache(monkeypatch):
+    def _docs_cache(content_by_uri):
+        cache = Mock(is_enabled=True)
+        cache.get_resource = AsyncMock(side_effect=content_by_uri.get)
 
-    # The global registry should exist (may or may not be empty)
-    assert isinstance(_openapi_specs, dict)
+        async def install_cache():
+            server_docs.documentation_cache = cache
 
+        # The resource must read the cache that initialize_documentation_cache sets, not a stale import
+        monkeypatch.setattr(server_docs, "documentation_cache", None)
+        monkeypatch.setattr(
+            server_docs, "initialize_documentation_cache", AsyncMock(side_effect=install_cache)
+        )
+        return cache
 
-@pytest.mark.asyncio
-async def test_registry_caches_spec_after_fetch():
-    from mpt_mcp.endpoint_registry import _openapi_specs, get_openapi_spec
-
-    mock_spec = {
-        "openapi": "3.0.0",
-        "info": {"title": "Test API", "version": "1.0.0"},
-    }
-
-    with patch(
-        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
-    ) as mock_fetch:
-        mock_fetch.return_value = mock_spec
-
-        endpoint = "https://api.test.com"
-        spec = await get_openapi_spec(endpoint)
-
-        assert spec == mock_spec
-        # Spec should be cached
-        assert endpoint in _openapi_specs
-        assert _openapi_specs[endpoint] == mock_spec
+    return _docs_cache
 
 
-@pytest.mark.asyncio
-async def test_registry_normalizes_endpoint():
-    from mpt_mcp.endpoint_registry import get_openapi_spec
-
-    mock_spec = {
-        "openapi": "3.0.0",
-        "info": {"title": "Test API", "version": "1.0.0"},
-    }
-
-    with patch(
-        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
-    ) as mock_fetch:
-        mock_fetch.return_value = mock_spec
-
-        # Request with trailing slash
-        endpoint1 = "https://api.test.com/"
-        spec1 = await get_openapi_spec(endpoint1)
-
-        # Request without trailing slash
-        endpoint2 = "https://api.test.com"
-        spec2 = await get_openapi_spec(endpoint2)
-
-        # Should use the same cache entry (normalized)
-        assert spec1 == spec2
-        # Should have only fetched once due to normalization
-        assert mock_fetch.call_count == 1
+@pytest.fixture
+def http_resources():
+    mcp = Mock()
+    server_resources.register_http_resources(mcp)
+    uris = [call.args[0] for call in mcp.resource.call_args_list]
+    handlers = [call.args[0] for call in mcp.resource.return_value.call_args_list]
+    return dict(zip(uris, handlers, strict=True))
 
 
-@pytest.mark.asyncio
-async def test_get_openapi_spec_function():
-    from mpt_mcp.endpoint_registry import _openapi_specs, get_openapi_spec
+async def test_docs_resource_reads_from_live_docs_cache(docs_cache, http_resources):
+    docs_cache({"docs://readme": "# Home\n\nHello"})
 
-    mock_spec = {
-        "openapi": "3.0.0",
-        "info": {"title": "Test API", "version": "1.0.0"},
-    }
+    result = await http_resources["docs://{path}"]("readme")
 
-    # Use a unique endpoint to avoid cache interference
-    endpoint = "https://api.unique-test-endpoint-12345.com"
+    assert result == "# Home\n\nHello"
 
-    # Clear cache for this endpoint if it exists
-    if endpoint in _openapi_specs:
-        del _openapi_specs[endpoint]
 
-    with patch(
-        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
-    ) as mock_fetch:
-        mock_fetch.return_value = mock_spec
+async def test_docs_resource_returns_not_found_when_missing(docs_cache, http_resources):
+    docs_cache({})
 
-        spec = await get_openapi_spec(endpoint)
+    result = await http_resources["docs://{path}"]("readme")
 
-        assert spec == mock_spec
-        mock_fetch.assert_called_once()
+    assert result == "Documentation page not found: docs://readme"

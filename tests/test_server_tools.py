@@ -1,9 +1,9 @@
-#!/usr/bin/env python3
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
 
+from mpt_mcp import server_docs, server_tools
 from mpt_mcp.call_context import CallContext
 
 
@@ -403,3 +403,177 @@ async def test_api_error_includes_request_url(call_context):
             # Should include request URL
             assert "request_url" in result
             assert "api.test.com" in result["request_url"]
+
+
+@pytest.mark.asyncio
+async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
+    mock_resources = [
+        {
+            "uri": "docs://help-and-support/contact-support",
+            "name": "Contact Support",
+            "description": "Documentation page: Contact Support",
+            "mimeType": "text/markdown",
+            "metadata": {
+                "id": "7qHvpiUID0CAu2h8cXUr",
+                "path": "help-and-support/contact-support",
+                "title": "Contact Support",
+                "browser_url": "https://docs.example.com/help-and-support/contact-support",
+            },
+        },
+    ]
+    mock_cache = Mock()
+    mock_cache.is_enabled = True
+    mock_cache.list_resources = AsyncMock(return_value=mock_resources)
+
+    with patch("mpt_mcp.server_docs.documentation_cache", mock_cache):
+        with patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()):
+            from mpt_mcp.server_tools import marketplace_docs_list
+
+            result = await marketplace_docs_list(search="contact support")
+
+    assert result["total"] == 1
+    assert len(result["resources"]) == 1
+    assert (
+        result["resources"][0]["browser_url"]
+        == "https://docs.example.com/help-and-support/contact-support"
+    )
+    assert "Prefer showing users the browser_url" in result["usage"]
+    assert "do not show internal uri or id" in result["usage"]
+
+
+@pytest.mark.asyncio
+async def test_marketplace_docs_list_no_browser_url_when_metadata_missing():
+    mock_resources = [
+        {
+            "uri": "docs://some/page",
+            "name": "Some Page",
+            "description": "A page",
+            "mimeType": "text/markdown",
+            "metadata": {"id": "abc", "path": "some/page", "title": "Some Page"},
+        },
+    ]
+    mock_cache = Mock()
+    mock_cache.is_enabled = True
+    mock_cache.list_resources = AsyncMock(return_value=mock_resources)
+
+    with patch("mpt_mcp.server_docs.documentation_cache", mock_cache):
+        with patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()):
+            from mpt_mcp.server_tools import marketplace_docs_list
+
+            result = await marketplace_docs_list(search="some")
+
+    assert result["total"] == 1
+    assert "browser_url" not in result["resources"][0]
+    assert "Prefer showing users the browser_url" in result["usage"]
+
+
+@pytest.fixture
+def docs_cache(monkeypatch):
+    def _docs_cache(resources=(), index=None, content_by_uri=None):
+        cache = Mock(is_enabled=True)
+        cache.list_resources = AsyncMock(return_value=list(resources))
+        cache.get_documentation_index = AsyncMock(
+            return_value=index or {"total_pages": 0, "sections": []}
+        )
+        cache.get_resource = AsyncMock(side_effect=(content_by_uri or {}).get)
+        cache.get_cache_info.return_value = {
+            "resource_count": len(resources),
+            "last_refresh": "now",
+            "enabled": True,
+        }
+
+        async def install_cache():
+            server_docs.documentation_cache = cache
+
+        # Tools must read the cache that initialize_documentation_cache sets, not a stale import
+        monkeypatch.setattr(server_docs, "documentation_cache", None)
+        monkeypatch.setattr(
+            server_docs, "initialize_documentation_cache", AsyncMock(side_effect=install_cache)
+        )
+        return cache
+
+    return _docs_cache
+
+
+@pytest.fixture
+def http_tools():
+    mcp = Mock()
+    server_tools.register_http_tools(mcp)
+    return {call.args[0].__name__: call.args[0] for call in mcp.tool.return_value.call_args_list}
+
+
+async def test_marketplace_docs_index_returns_cache_index(docs_cache, http_tools):
+    index = {
+        "total_pages": 1,
+        "sections": [{"name": "readme", "total_pages": 1, "subsections": []}],
+    }
+    docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}], index=index)
+
+    result = await http_tools["marketplace_docs_index"]()
+
+    assert result == index
+
+
+async def test_marketplace_docs_list_includes_browser_url_and_usage(docs_cache):
+    docs_cache(
+        resources=[
+            {
+                "uri": "docs://help-and-support/contact-support",
+                "name": "Contact Support",
+                "metadata": {"browser_url": "https://example.test/contact-support"},
+            }
+        ]
+    )
+
+    result = await server_tools.marketplace_docs_list(search="contact", limit=100)
+
+    assert (result["total"], result["resources"][0]["browser_url"]) == (
+        1,
+        "https://example.test/contact-support",
+    )
+    assert "Prefer showing users the browser_url" in result["usage"]
+
+
+async def test_marketplace_docs_list_tip_when_limited(docs_cache):
+    docs_cache(resources=[{"uri": f"docs://p/{index}", "metadata": {}} for index in range(10)])
+
+    result = await server_tools.marketplace_docs_list(limit=5)
+
+    assert "tip" in result
+
+
+async def test_marketplace_docs_list_uses_live_docs_cache(docs_cache):
+    docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
+
+    result = await server_tools.marketplace_docs_list(limit=5)
+
+    assert (result["total"], result["resources"][0]["uri"]) == (1, "docs://readme")
+
+
+async def test_marketplace_docs_read_returns_text_and_count(docs_cache, http_tools):
+    docs_cache(
+        content_by_uri={"docs://help-and-support/contact-support": "# Contact\n\nHello from docs."}
+    )
+
+    result = await http_tools["marketplace_docs_read"](
+        uri="docs://help-and-support/contact-support"
+    )
+
+    assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
+
+
+async def test_marketplace_docs_read_not_found_returns_count_zero(docs_cache, http_tools):
+    docs_cache()
+
+    result = await http_tools["marketplace_docs_read"](uri="docs://missing/page")
+
+    assert (result["count"], "not found" in result["text"].lower()) == (0, True)
+
+
+async def test_marketplace_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
+    cache = docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
+    monkeypatch.setattr(server_docs, "documentation_cache", cache)
+
+    result = await http_tools["marketplace_resources_info"]()
+
+    assert (result["documentation"]["enabled"], result["documentation"]["total_pages"]) == (True, 1)
