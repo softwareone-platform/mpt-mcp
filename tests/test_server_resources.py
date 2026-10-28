@@ -9,7 +9,6 @@ from mpt_mcp.server import mcp
 from mpt_mcp.server_resources import get_openapi_spec, register_http_resources
 
 
-@pytest.mark.asyncio
 async def test_get_openapi_spec_resource_success():
 
     mock_spec = {
@@ -41,7 +40,6 @@ async def test_get_openapi_spec_resource_success():
             mock_get_spec.assert_called_once_with("https://api.test.com", force_refresh=False)
 
 
-@pytest.mark.asyncio
 async def test_get_openapi_spec_resource_no_token():
 
     call_context = CallContext(endpoint="https://api.test.com", token=None)
@@ -51,7 +49,6 @@ async def test_get_openapi_spec_resource_no_token():
     assert result_dict["error"] == "Authentication required"
 
 
-@pytest.mark.asyncio
 async def test_get_openapi_spec_resource_fetch_error():
 
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
@@ -67,7 +64,6 @@ async def test_get_openapi_spec_resource_fetch_error():
             assert "error" in result_dict
 
 
-@pytest.mark.asyncio
 async def test_openapi_resource_listed_in_resources():
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}
@@ -76,7 +72,6 @@ async def test_openapi_resource_listed_in_resources():
     assert "api://openapi.json" in resource_uris
 
 
-@pytest.mark.asyncio
 async def test_openapi_resource_has_correct_metadata():
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}
@@ -91,7 +86,6 @@ async def test_openapi_resource_has_correct_metadata():
         )
 
 
-@pytest.mark.asyncio
 async def test_openapi_resource_mime_type():
 
     resources = {str(r.uri): r for r in (await mcp.list_resources())}

@@ -24,7 +24,6 @@ def test_client_initialization():
     )
 
 
-@pytest.mark.asyncio
 async def test_fetch_space_content_sends_auth_headers(client):
     response = Mock(status_code=200)
     response.json.return_value = {"pages": []}
@@ -41,7 +40,6 @@ async def test_fetch_space_content_sends_auth_headers(client):
     )
 
 
-@pytest.mark.asyncio
 async def test_fetch_space_content(client):
     mock_response = Mock()
     mock_response.status_code = 200
@@ -64,7 +62,6 @@ async def test_fetch_space_content(client):
         assert len(content["pages"]) == 2
 
 
-@pytest.mark.asyncio
 async def test_fetch_page_by_path(client):
     mock_response = Mock()
     mock_response.status_code = 200
@@ -88,7 +85,6 @@ async def test_fetch_page_by_path(client):
         assert "markdown" in page
 
 
-@pytest.mark.asyncio
 async def test_validate_credentials_success(client):
     mock_response = Mock()
     mock_response.status_code = 200
@@ -104,7 +100,6 @@ async def test_validate_credentials_success(client):
         assert is_valid is True
 
 
-@pytest.mark.asyncio
 async def test_validate_credentials_failure(client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_context = AsyncMock()

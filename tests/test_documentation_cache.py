@@ -36,25 +36,24 @@ def mock_gitbook_client():
 
 
 def test_cache_initialization_with_client(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=24)  # act
+    result = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=24)
 
-    assert cache.is_enabled is True
-    assert cache.refresh_interval == dt.timedelta(hours=24)
+    assert result.is_enabled is True
+    assert result.refresh_interval == dt.timedelta(hours=24)
 
 
 def test_cache_initialization_without_client():
-    cache = DocumentationCache(gitbook_client=None)  # act
+    result = DocumentationCache(gitbook_client=None)
 
-    assert cache.is_enabled is False
+    assert result.is_enabled is False
 
 
 def test_needs_refresh_when_empty(mock_gitbook_client):
-    cache = DocumentationCache(gitbook_client=mock_gitbook_client)  # act
+    result = DocumentationCache(gitbook_client=mock_gitbook_client)
 
-    assert cache.needs_refresh is True
+    assert result.needs_refresh is True
 
 
-@pytest.mark.asyncio
 async def test_refresh_success(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
 
@@ -65,7 +64,6 @@ async def test_refresh_success(mock_gitbook_client):
     assert info["last_refresh"] is not None
 
 
-@pytest.mark.asyncio
 async def test_refresh_builds_resource_index(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
 
@@ -79,7 +77,6 @@ async def test_refresh_builds_resource_index(mock_gitbook_client):
     ) == ("Getting Started", "text/markdown")
 
 
-@pytest.mark.asyncio
 async def test_refresh_builds_resource_index_with_nested_pages():
     # Mock client with nested page structure
     client = Mock(spec=GitBookClient)
@@ -127,7 +124,6 @@ async def test_refresh_builds_resource_index_with_nested_pages():
     }
 
 
-@pytest.mark.asyncio
 async def test_refresh_disabled_cache():
     cache = DocumentationCache(gitbook_client=None)
 
@@ -136,7 +132,6 @@ async def test_refresh_disabled_cache():
     assert success is False
 
 
-@pytest.mark.asyncio
 async def test_list_resources(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
     await cache.refresh()
@@ -147,7 +142,6 @@ async def test_list_resources(mock_gitbook_client):
     assert any(r["uri"] == "docs://getting-started" for r in resources)
 
 
-@pytest.mark.asyncio
 async def test_list_resources_with_section_filter():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -178,7 +172,6 @@ async def test_list_resources_with_section_filter():
     assert all("developer-resources" in r["uri"] for r in resources)
 
 
-@pytest.mark.asyncio
 async def test_list_resources_with_subsection_filter():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -213,7 +206,6 @@ async def test_list_resources_with_subsection_filter():
     assert all("rest-api" in r["uri"] for r in resources)
 
 
-@pytest.mark.asyncio
 async def test_list_resources_with_search():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -240,7 +232,6 @@ async def test_list_resources_with_search():
     assert all("billing" in r["name"].lower() or "billing" in r["uri"].lower() for r in resources)
 
 
-@pytest.mark.asyncio
 async def test_list_resources_with_limit():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -261,7 +252,6 @@ async def test_list_resources_with_limit():
     assert len(resources) == 5
 
 
-@pytest.mark.asyncio
 async def test_list_resources_combined_filters():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -296,7 +286,6 @@ async def test_list_resources_combined_filters():
     assert resources[0]["name"] == "Billing API"
 
 
-@pytest.mark.asyncio
 async def test_list_resources_includes_browser_url_when_public_url_set():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -334,7 +323,6 @@ async def test_list_resources_includes_browser_url_when_public_url_set():
     )
 
 
-@pytest.mark.asyncio
 async def test_get_documentation_index():
     client = Mock(spec=GitBookClient)
     client.fetch_space_content = AsyncMock(
@@ -377,7 +365,6 @@ async def test_get_documentation_index():
     assert len(help_section["subsections"]) == 2
 
 
-@pytest.mark.asyncio
 async def test_get_resource_success(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
     await cache.refresh()
@@ -388,7 +375,6 @@ async def test_get_resource_success(mock_gitbook_client):
     assert "Getting Started" in content
 
 
-@pytest.mark.asyncio
 async def test_get_resource_not_found(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
     await cache.refresh()
@@ -398,7 +384,6 @@ async def test_get_resource_not_found(mock_gitbook_client):
     assert content is None
 
 
-@pytest.mark.asyncio
 async def test_ensure_cached_refreshes_if_needed(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
 
@@ -411,16 +396,15 @@ async def test_ensure_cached_refreshes_if_needed(mock_gitbook_client):
 def test_get_cache_info(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client)
 
-    info = cache.get_cache_info()  # act
+    result = cache.get_cache_info()
 
-    assert info["enabled"] is True
-    assert info["has_content"] is False
-    assert info["needs_refresh"] is True
-    assert info["resource_count"] == 0
-    assert info["refresh_interval_hours"] == 24
+    assert result["enabled"] is True
+    assert result["has_content"] is False
+    assert result["needs_refresh"] is True
+    assert result["resource_count"] == 0
+    assert result["refresh_interval_hours"] == 24
 
 
-@pytest.mark.asyncio
 async def test_needs_refresh_false_right_after_refresh(mock_gitbook_client):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=1)
     await cache.refresh()
@@ -430,7 +414,6 @@ async def test_needs_refresh_false_right_after_refresh(mock_gitbook_client):
     assert result is False
 
 
-@pytest.mark.asyncio
 async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeypatch):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=1)
     await cache.refresh()
@@ -445,7 +428,6 @@ async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeyp
     assert result is True
 
 
-@pytest.mark.asyncio
 async def test_get_resource_extracts_text_when_page_has_no_markdown(mock_gitbook_client):
     document = {
         "nodes": [

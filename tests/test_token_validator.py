@@ -155,7 +155,6 @@ def test_normalize_token(token, expected):
     assert result == expected
 
 
-@pytest.mark.asyncio
 async def test_validate_token_success():
     token = "idt:TKN-1234-5678:SECRET"
     api_base_url = "https://api.test.com"
@@ -187,7 +186,6 @@ async def test_validate_token_success():
         assert error is None
 
 
-@pytest.mark.asyncio
 async def test_validate_token_inactive():
     token = "idt:TKN-1234-5678:SECRET"
     api_base_url = "https://api.test.com"
@@ -218,7 +216,6 @@ async def test_validate_token_inactive():
         assert "Inactive" in error
 
 
-@pytest.mark.asyncio
 async def test_validate_token_not_found():
     token = "idt:TKN-9999-9999:SECRET"
     api_base_url = "https://api.test.com"
@@ -235,7 +232,6 @@ async def test_validate_token_not_found():
         assert "404" in error or "not found" in error.lower()
 
 
-@pytest.mark.asyncio
 async def test_validate_token_unauthorized():
     token = "idt:TKN-8888-8888:SECRET"
     api_base_url = "https://api.test.com"
@@ -252,7 +248,6 @@ async def test_validate_token_unauthorized():
         assert "401" in error or "unauthorized" in error.lower()
 
 
-@pytest.mark.asyncio
 async def test_validate_token_uses_cache():
     token = "idt:TKN-5555-5555:SECRET"
     api_base_url = "https://api.test.com"
@@ -286,7 +281,6 @@ async def test_validate_token_uses_cache():
         assert mock_client.get.call_count == 1
 
 
-@pytest.mark.asyncio
 async def test_validate_token_bypass_cache():
     token = "idt:TKN-6666-6666:SECRET"
     api_base_url = "https://api.test.com"
@@ -316,7 +310,6 @@ async def test_validate_token_bypass_cache():
         assert mock_client.get.call_count == 2
 
 
-@pytest.mark.asyncio
 async def test_validate_token_with_normalized_token():
     token = "idt:TKN-7777-7777:SECRET"
     api_base_url = "https://api.test.com"
@@ -346,7 +339,6 @@ async def test_validate_token_with_normalized_token():
         assert call_args[1]["headers"]["Authorization"] == "Bearer idt:TKN-7777-7777:SECRET"
 
 
-@pytest.mark.asyncio
 async def test_validate_token_jwt_requires_jwks_url_or_iss():
 
     payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss

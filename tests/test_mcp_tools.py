@@ -59,7 +59,6 @@ def orders_with_audit_response():
     }
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_created_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -87,7 +86,6 @@ async def test_auto_adds_audit_when_filtering_by_created_at(
     assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_updated_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -114,7 +112,6 @@ async def test_auto_adds_audit_when_filtering_by_updated_at(
     assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_completed_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -141,7 +138,6 @@ async def test_auto_adds_audit_when_filtering_by_completed_at(
     assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_processing_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -168,7 +164,6 @@ async def test_auto_adds_audit_when_filtering_by_processing_at(
     assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_quoted_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -195,7 +190,6 @@ async def test_auto_adds_audit_when_filtering_by_quoted_at(
     assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_failed_at(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -224,7 +218,6 @@ async def test_auto_adds_audit_when_filtering_by_failed_at(
     )
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_filtering_by_created_by(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -251,7 +244,6 @@ async def test_auto_adds_audit_when_filtering_by_created_by(
     assert "audit" in params.get("select", ""), "select parameter should include 'audit'"
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_ordering_by_audit_field(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -279,7 +271,6 @@ async def test_auto_adds_audit_when_ordering_by_audit_field(
     )
 
 
-@pytest.mark.asyncio
 async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -307,7 +298,6 @@ async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(
     )
 
 
-@pytest.mark.asyncio
 async def test_does_not_add_audit_when_already_in_select(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -338,7 +328,6 @@ async def test_does_not_add_audit_when_already_in_select(
     )
 
 
-@pytest.mark.asyncio
 async def test_does_not_add_audit_when_using_plus_prefix(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -368,7 +357,6 @@ async def test_does_not_add_audit_when_using_plus_prefix(
     )
 
 
-@pytest.mark.asyncio
 async def test_does_not_add_audit_when_using_audit_dot_notation(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -402,7 +390,6 @@ async def test_does_not_add_audit_when_using_audit_dot_notation(
     )
 
 
-@pytest.mark.asyncio
 async def test_complex_rql_with_audit_fields(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -434,7 +421,6 @@ async def test_complex_rql_with_audit_fields(
     )
 
 
-@pytest.mark.asyncio
 async def test_does_not_add_audit_when_no_audit_fields_used(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -463,7 +449,6 @@ async def test_does_not_add_audit_when_no_audit_fields_used(
     )
 
 
-@pytest.mark.asyncio
 async def test_appends_audit_to_existing_select(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -493,7 +478,6 @@ async def test_appends_audit_to_existing_select(
     assert "status" in select_value, "select should still include original fields"
 
 
-@pytest.mark.asyncio
 async def test_creates_select_with_audit_when_no_select_provided(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -521,7 +505,6 @@ async def test_creates_select_with_audit_when_no_select_provided(
     assert "id" in select_value, "select should include id (always added by sanitization)"
 
 
-@pytest.mark.asyncio
 async def test_creates_select_with_audit_when_no_select_provided_exact(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -571,7 +554,6 @@ def test_fallback_audit_regex_matches_audit_fields(field, expected):
     assert result is expected
 
 
-@pytest.mark.asyncio
 async def test_real_world_date_range_query(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -610,7 +592,6 @@ async def test_real_world_date_range_query(
     assert params.get("order") == "-audit.created.at"
 
 
-@pytest.mark.asyncio
 async def test_real_world_recent_orders_query(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -643,7 +624,6 @@ async def test_real_world_recent_orders_query(
     assert "+product.name" in select_value or "product.name" in select_value
 
 
-@pytest.mark.asyncio
 async def test_retries_without_audit_on_400_error(
     api_client, orders_with_audit_response, endpoints_registry
 ):
@@ -701,7 +681,6 @@ def products_page_response():
     }
 
 
-@pytest.mark.asyncio
 async def test_applies_default_limit_when_none(
     api_client, products_page_response, endpoints_registry
 ):
@@ -734,7 +713,6 @@ async def test_applies_default_limit_when_none(
     assert "$meta" in result
 
 
-@pytest.mark.asyncio
 async def test_respects_explicit_limit(api_client, products_page_response, endpoints_registry):
     api_client.get.return_value = products_page_response
 
@@ -761,7 +739,6 @@ async def test_respects_explicit_limit(api_client, products_page_response, endpo
     assert "data" in result
 
 
-@pytest.mark.asyncio
 async def test_respects_limit_zero(api_client, products_page_response, endpoints_registry):
     api_client.get.return_value = products_page_response
 
@@ -785,7 +762,6 @@ async def test_respects_limit_zero(api_client, products_page_response, endpoints
     assert "data" in result
 
 
-@pytest.mark.asyncio
 async def test_default_limit_with_rql(api_client, products_page_response, endpoints_registry):
     api_client.get.return_value = products_page_response
 
@@ -810,7 +786,6 @@ async def test_default_limit_with_rql(api_client, products_page_response, endpoi
     assert "data" in result
 
 
-@pytest.mark.asyncio
 async def test_default_limit_with_other_params(
     api_client, products_page_response, endpoints_registry
 ):
@@ -838,7 +813,6 @@ async def test_default_limit_with_other_params(
     assert "data" in result
 
 
-@pytest.mark.asyncio
 async def test_default_limit_logs_message(
     api_client, products_page_response, endpoints_registry, caplog
 ):
@@ -861,7 +835,6 @@ async def test_default_limit_logs_message(
     assert "default limit=10" in caplog.text.lower()
 
 
-@pytest.mark.asyncio
 async def test_catalog_products_default_select_when_omit(
     api_client, products_page_response, endpoints_registry
 ):
@@ -931,7 +904,6 @@ def orders_response():
     }
 
 
-@pytest.mark.asyncio
 async def test_sanitizes_select_drops_invalid_adds_id(
     api_client, endpoints_registry, openapi_spec, orders_response
 ):
@@ -961,7 +933,6 @@ async def test_sanitizes_select_drops_invalid_adds_id(
     assert "status" in params["select"]
 
 
-@pytest.mark.asyncio
 async def test_select_without_openapi_spec_adds_id(api_client, endpoints_registry, orders_response):
     api_client.get.return_value = orders_response
 

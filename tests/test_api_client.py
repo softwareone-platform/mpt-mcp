@@ -7,39 +7,39 @@ from mpt_mcp.api_client import APIClient
 
 
 def test_api_client_strips_public_path():
-    client = APIClient(base_url="https://api.s1.show/public", token="test-token")  # act
+    result = APIClient(base_url="https://api.s1.show/public", token="test-token")
 
-    assert client.base_url == "https://api.s1.show"
+    assert result.base_url == "https://api.s1.show"
 
 
 def test_api_client_strips_trailing_slash():
-    client = APIClient(base_url="https://api.platform.softwareone.com/", token="test-token")  # act
+    result = APIClient(base_url="https://api.platform.softwareone.com/", token="test-token")
 
-    assert client.base_url == "https://api.platform.softwareone.com"
+    assert result.base_url == "https://api.platform.softwareone.com"
 
 
 def test_api_client_strips_any_path():
-    client = APIClient(base_url="https://api.s1.show/v1/api/anything", token="test-token")  # act
+    result = APIClient(base_url="https://api.s1.show/v1/api/anything", token="test-token")
 
-    assert client.base_url == "https://api.s1.show"
+    assert result.base_url == "https://api.s1.show"
 
 
 def test_api_client_preserves_hostname_only_url():
-    client = APIClient(base_url="https://api.platform.softwareone.com", token="test-token")  # act
+    result = APIClient(base_url="https://api.platform.softwareone.com", token="test-token")
 
-    assert client.base_url == "https://api.platform.softwareone.com"
+    assert result.base_url == "https://api.platform.softwareone.com"
 
 
 def test_api_client_preserves_port():
-    client = APIClient(base_url="http://localhost:8080/some/path", token="test-token")  # act
+    result = APIClient(base_url="http://localhost:8080/some/path", token="test-token")
 
-    assert client.base_url == "http://localhost:8080"
+    assert result.base_url == "http://localhost:8080"
 
 
 def test_api_client_handles_http_protocol():
-    client = APIClient(base_url="http://api.example.com/path", token="test-token")  # act
+    result = APIClient(base_url="http://api.example.com/path", token="test-token")
 
-    assert client.base_url == "http://api.example.com"
+    assert result.base_url == "http://api.example.com"
 
 
 def test_api_client_constructs_correct_url():
@@ -48,11 +48,11 @@ def test_api_client_constructs_correct_url():
     # Simulate URL construction (same logic as in get method)
     endpoint = "/public/v1/catalog/products"
 
-    url = f"{client.base_url}{endpoint}"  # act
+    result = f"{client.base_url}{endpoint}"
 
     # Should not have double /public
-    assert url == "https://api.s1.show/public/v1/catalog/products"
-    assert "/public/public/" not in url
+    assert result == "https://api.s1.show/public/v1/catalog/products"
+    assert "/public/public/" not in result
 
 
 @pytest.mark.parametrize(
@@ -68,37 +68,37 @@ def test_api_client_prevents_path_duplication(base_url):
 
 
 def test_api_client_handles_subdomain():
-    client = APIClient(
+    result = APIClient(
         base_url="https://api.staging.platform.softwareone.com/public/v1", token="test-token"
-    )  # act
+    )
 
-    assert client.base_url == "https://api.staging.platform.softwareone.com"
+    assert result.base_url == "https://api.staging.platform.softwareone.com"
 
 
 def test_token_without_bearer_gets_prefix_added():
-    client = APIClient(base_url="https://api.example.com", token="my-token-value")  # act
+    result = APIClient(base_url="https://api.example.com", token="my-token-value")
 
-    assert client.token == "Bearer my-token-value"
+    assert result.token == "Bearer my-token-value"
 
 
 def test_token_with_bearer_stays_unchanged():
-    client = APIClient(base_url="https://api.example.com", token="Bearer my-token-value")  # act
+    result = APIClient(base_url="https://api.example.com", token="Bearer my-token-value")
 
-    assert client.token == "Bearer my-token-value"
+    assert result.token == "Bearer my-token-value"
 
 
 def test_lowercase_bearer_gets_bearer_prefix_added():
-    client = APIClient(base_url="https://api.example.com", token="bearer my-token")  # act
+    result = APIClient(base_url="https://api.example.com", token="bearer my-token")
 
-    assert client.token == "Bearer bearer my-token"
+    assert result.token == "Bearer bearer my-token"
 
 
 def test_token_with_special_characters():
     token = "idt:TKN-1234-5678:abc123XYZ_-."
 
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
-    assert client.token == f"Bearer {token}"
+    assert result.token == f"Bearer {token}"
 
 
 @pytest.fixture
@@ -130,17 +130,17 @@ async def test_get_sends_normalized_bearer_token(http_get, token, expected_autho
 def test_extract_user_id_from_idt_token():
     token = "idt:TKN-0291-1452:4l6Fq7jrGSfZVjDYHabJkxTuv4nynuj5f8qVTbbHJS5rFXpetnvRYfvwiaRjGzrF"
 
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
-    assert client.user_id == "TKN-0291-1452"
+    assert result.user_id == "TKN-0291-1452"
 
 
 def test_extract_user_id_from_token_with_bearer():
     token = "Bearer idt:TKN-1234-5678:abc123"
 
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
-    assert client.user_id == "TKN-1234-5678"
+    assert result.user_id == "TKN-1234-5678"
 
 
 @pytest.mark.parametrize(
@@ -152,9 +152,9 @@ def test_extract_user_id_from_token_with_bearer():
     ],
 )
 def test_extract_user_id_with_different_tkn_format(token, expected_user_id):
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
-    assert client.user_id == expected_user_id
+    assert result.user_id == expected_user_id
 
 
 @pytest.mark.parametrize(
@@ -162,9 +162,9 @@ def test_extract_user_id_with_different_tkn_format(token, expected_user_id):
     ["simple-token", "Bearer simple-token", "jwt.token.here", "api-key-12345"],
 )
 def test_no_user_id_for_non_idt_token(token):
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
-    assert client.user_id is None
+    assert result.user_id is None
 
 
 @pytest.mark.parametrize(
@@ -177,9 +177,9 @@ def test_no_user_id_for_non_idt_token(token):
     ],
 )
 def test_no_user_id_for_malformed_idt_token(token):
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
-    assert client.user_id is None
+    assert result.user_id is None
 
 
 @pytest.mark.parametrize(
@@ -203,36 +203,36 @@ def test_user_id_from_token(token, expected_user_id):
 def test_idt_token_without_bearer_gets_prefix_and_user_id():
     token = "idt:TKN-1234-5678:secret"
 
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
     # Should have Bearer prefix added
-    assert client.token == f"Bearer {token}"
+    assert result.token == f"Bearer {token}"
 
     # Should have user_id extracted
-    assert client.user_id == "TKN-1234-5678"
+    assert result.user_id == "TKN-1234-5678"
 
 
 def test_idt_token_with_bearer_keeps_prefix_and_extracts_user_id():
     token = "Bearer idt:TKN-1234-5678:secret"
 
-    client = APIClient(base_url="https://api.example.com", token=token)  # act
+    result = APIClient(base_url="https://api.example.com", token=token)
 
     # Should keep Bearer prefix
-    assert client.token == token
+    assert result.token == token
 
     # Should have user_id extracted
-    assert client.user_id == "TKN-1234-5678"
+    assert result.user_id == "TKN-1234-5678"
 
 
 def test_real_world_token_example():
     token = "idt:TKN-0291-1452:4l6Fq7jrGSfZVjDYHabJkxTuv4nynuj5f8qVTbbHJS5rFXpetnvRYfvwiaRjGzrF"
 
-    client = APIClient(base_url="https://api.s1.show/public", token=token)  # act
+    result = APIClient(base_url="https://api.s1.show/public", token=token)
 
     # Verify all features work together
-    assert client.base_url == "https://api.s1.show"  # URL normalized
-    assert client.token.startswith("Bearer ")  # Bearer added
-    assert client.user_id == "TKN-0291-1452"  # User ID extracted
+    assert result.base_url == "https://api.s1.show"  # URL normalized
+    assert result.token.startswith("Bearer ")  # Bearer added
+    assert result.user_id == "TKN-0291-1452"  # User ID extracted
 
 
 @pytest.fixture
@@ -255,7 +255,6 @@ def mock_product_response():
     }
 
 
-@pytest.mark.asyncio
 async def test_simple_pagination(api_client, mock_product_response):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -274,7 +273,6 @@ async def test_simple_pagination(api_client, mock_product_response):
         assert result["$meta"]["pagination"]["limit"] == 1
 
 
-@pytest.mark.asyncio
 async def test_rql_filter_by_status(api_client, mock_product_response):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -296,7 +294,6 @@ async def test_rql_filter_by_status(api_client, mock_product_response):
         assert "eq(status,Published)" in str(call_args)
 
 
-@pytest.mark.asyncio
 async def test_rql_search_with_ilike(api_client, mock_product_response):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -315,7 +312,6 @@ async def test_rql_search_with_ilike(api_client, mock_product_response):
             assert "Microsoft" in product["name"]
 
 
-@pytest.mark.asyncio
 async def test_rql_ordering_in_query_string(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -346,7 +342,6 @@ async def test_rql_ordering_in_query_string(api_client):
         assert "order=-id" in str(call_args)
 
 
-@pytest.mark.asyncio
 async def test_rql_select_fields(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -368,7 +363,6 @@ async def test_rql_select_fields(api_client):
         assert "name" in product
 
 
-@pytest.mark.asyncio
 async def test_rql_complex_query(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -394,7 +388,6 @@ async def test_rql_complex_query(api_client):
             assert "AWS" in product["name"]
 
 
-@pytest.mark.asyncio
 async def test_rql_pagination_offset(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         # Mock responses for two pages
@@ -431,7 +424,6 @@ async def test_rql_pagination_offset(api_client):
         assert page1_ids != page2_ids
 
 
-@pytest.mark.asyncio
 async def test_401_unauthorized_error():
 
     with patch("httpx.AsyncClient") as mock_client:
@@ -454,7 +446,6 @@ async def test_401_unauthorized_error():
         assert exc_info.value.response.status_code == 401
 
 
-@pytest.mark.asyncio
 async def test_403_forbidden_error():
 
     with patch("httpx.AsyncClient") as mock_client:
@@ -477,7 +468,6 @@ async def test_403_forbidden_error():
         assert exc_info.value.response.status_code == 403
 
 
-@pytest.mark.asyncio
 async def test_404_not_found_error():
 
     with patch("httpx.AsyncClient") as mock_client:
@@ -500,7 +490,6 @@ async def test_404_not_found_error():
         assert exc_info.value.response.status_code == 404
 
 
-@pytest.mark.asyncio
 async def test_429_rate_limit_error():
 
     with patch("httpx.AsyncClient") as mock_client:
@@ -523,7 +512,6 @@ async def test_429_rate_limit_error():
         assert exc_info.value.response.status_code == 429
 
 
-@pytest.mark.asyncio
 async def test_500_server_error():
 
     with patch("httpx.AsyncClient") as mock_client:
@@ -546,7 +534,6 @@ async def test_500_server_error():
         assert exc_info.value.response.status_code == 500
 
 
-@pytest.mark.asyncio
 async def test_logs_omitted_fields_in_response(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -584,7 +571,6 @@ async def test_logs_omitted_fields_in_response(api_client):
             assert omitted_logged, "Omitted fields should be logged"
 
 
-@pytest.mark.asyncio
 async def test_handles_response_without_omitted_fields(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -609,7 +595,6 @@ async def test_handles_response_without_omitted_fields(api_client):
         assert "omitted" not in result["$meta"] or result["$meta"].get("omitted") is None
 
 
-@pytest.mark.asyncio
 async def test_handles_empty_omitted_fields_list(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         mock_response = Mock()
@@ -633,7 +618,6 @@ async def test_handles_empty_omitted_fields_list(api_client):
         assert result["$meta"]["omitted"] == []
 
 
-@pytest.mark.asyncio
 async def test_select_parameter_includes_omitted_fields(api_client):
     with patch("httpx.AsyncClient") as mock_client:
         # First response: fields omitted

@@ -4,7 +4,6 @@ from starlette.testclient import TestClient
 from mpt_mcp.server import app, mcp
 
 
-@pytest.mark.asyncio
 async def test_production_tools_only():
 
     tools_dict = {t.name: t for t in (await mcp.list_tools())}
@@ -30,7 +29,6 @@ async def test_production_tools_only():
     )
 
 
-@pytest.mark.asyncio
 async def test_tool_functions_exist():
 
     tools_dict = {t.name: t for t in (await mcp.list_tools())}
@@ -48,7 +46,6 @@ async def test_tool_functions_exist():
         assert tool_name in tool_names, f"Missing production tool: {tool_name}"
 
 
-@pytest.mark.asyncio
 async def test_debug_tools_not_in_production():
 
     tools_dict = {t.name: t for t in (await mcp.list_tools())}

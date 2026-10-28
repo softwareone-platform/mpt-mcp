@@ -159,7 +159,6 @@ def test_normalize_endpoint_url(endpoint, expected):
     assert result == expected
 
 
-@pytest.mark.asyncio
 async def test_missing_authorization_header():
 
     with pytest.raises(ValueError) as exc_info:
@@ -169,7 +168,6 @@ async def test_missing_authorization_header():
     assert "Missing X-MPT-Authorization header" in error_message or "Missing" in error_message
 
 
-@pytest.mark.asyncio
 async def test_missing_auth_error_message_is_clear():
 
     with pytest.raises(ValueError) as exc_info:

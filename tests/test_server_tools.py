@@ -12,7 +12,6 @@ def call_context():
     return CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
 
-@pytest.mark.asyncio
 async def test_unknown_resource_suggests_similar(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     # Mock the endpoint registry with some sample resources
@@ -60,7 +59,6 @@ async def test_unknown_resource_suggests_similar(call_context, http_tools):
         assert "catalog.products" in result["did_you_mean"]
 
 
-@pytest.mark.asyncio
 async def test_unknown_resource_shows_categories(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
@@ -94,7 +92,6 @@ async def test_unknown_resource_shows_categories(call_context, http_tools):
         assert "commerce" in result["available_categories"]
 
 
-@pytest.mark.asyncio
 async def test_missing_path_params_shows_example(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
@@ -128,7 +125,6 @@ async def test_missing_path_params_shows_example(call_context, http_tools):
         assert "hint" in result
 
 
-@pytest.mark.asyncio
 async def test_path_params_error_includes_realistic_values(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
@@ -156,7 +152,6 @@ async def test_path_params_error_includes_realistic_values(call_context, http_to
         assert "ORD-" in result["example"]  # Realistic order ID format
 
 
-@pytest.mark.asyncio
 async def test_resource_info_shows_children(call_context, http_tools):
     marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
@@ -197,7 +192,6 @@ async def test_resource_info_shows_children(call_context, http_tools):
         assert "catalog.products.by_id" in child_resources
 
 
-@pytest.mark.asyncio
 async def test_resource_info_shows_parent(call_context, http_tools):
     marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
@@ -234,7 +228,6 @@ async def test_resource_info_shows_parent(call_context, http_tools):
         assert result["related_resources"]["parent"]["resource"] == "catalog.products"
 
 
-@pytest.mark.asyncio
 async def test_resource_info_shows_multiple_examples(call_context, http_tools):
     marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
@@ -273,7 +266,6 @@ async def test_resource_info_shows_multiple_examples(call_context, http_tools):
         assert "Active" in example_strings or "Completed" in example_strings
 
 
-@pytest.mark.asyncio
 async def test_resource_info_shows_filtering_tips(call_context, http_tools):
     marketplace_resource_info = http_tools["marketplace_resource_info"]
     mock_registry = {
@@ -304,7 +296,6 @@ async def test_resource_info_shows_filtering_tips(call_context, http_tools):
         assert "status" in result["filtering_tips"]
 
 
-@pytest.mark.asyncio
 async def test_api_error_includes_status_code(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
@@ -351,7 +342,6 @@ async def test_api_error_includes_status_code(call_context, http_tools):
         assert "Invalid RQL" in result["api_error_details"]["message"]
 
 
-@pytest.mark.asyncio
 async def test_api_error_includes_request_url(call_context, http_tools):
     marketplace_query = http_tools["marketplace_query"]
     mock_registry = {
@@ -395,7 +385,6 @@ async def test_api_error_includes_request_url(call_context, http_tools):
         assert "api.test.com" in result["request_url"]
 
 
-@pytest.mark.asyncio
 async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
     mock_resources = [
         {
@@ -431,7 +420,6 @@ async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
     assert "do not show internal uri or id" in result["usage"]
 
 
-@pytest.mark.asyncio
 async def test_marketplace_docs_list_no_browser_url_when_metadata_missing():
     mock_resources = [
         {
