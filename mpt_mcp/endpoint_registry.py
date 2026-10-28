@@ -61,7 +61,7 @@ def get_openapi_spec_url(api_base_url: str) -> str:
     return f"{api_base_url}/public/v1/openapi.json"
 
 
-async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> dict[str, Any]:
+async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) -> dict[str, Any]:
     """
     Fetch OpenAPI spec for a given API base URL with fallback.
 
@@ -140,7 +140,7 @@ def _path_to_resource_id(path: str) -> str:
 
 
 async def get_endpoints_registry(
-    api_base_url: str, force_refresh: bool = False
+    api_base_url: str, *, force_refresh: bool = False
 ) -> dict[str, dict[str, Any]]:
     """
     Get or initialize the endpoints registry for a given API base URL.
@@ -200,7 +200,7 @@ async def get_endpoints_registry(
         return {}
 
 
-async def get_openapi_spec(api_base_url: str, force_refresh: bool = False) -> dict[str, Any]:
+async def get_openapi_spec(api_base_url: str, *, force_refresh: bool = False) -> dict[str, Any]:
     """
     Get the OpenAPI specification for a given API base URL.
 

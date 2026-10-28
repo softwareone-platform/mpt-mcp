@@ -88,7 +88,7 @@ class TokenValidationCache:
             return None
 
     async def set(
-        self, token: str, api_base_url: str, is_valid: bool, token_info: dict | None = None
+        self, token: str, api_base_url: str, *, is_valid: bool, token_info: dict | None = None
     ):
         """
         Cache validation result for a token.
@@ -378,7 +378,7 @@ def normalize_token(token: str) -> str:
 
 
 async def validate_token(
-    token: str, api_base_url: str, use_cache: bool = True
+    token: str, api_base_url: str, *, use_cache: bool = True
 ) -> tuple[bool, dict | None, str | None]:
     """
     Validate an API token against the Marketplace Platform.
@@ -530,7 +530,7 @@ async def validate_token(
                         }
 
                         # Cache inactive user as invalid
-                        await cache.set(token, api_base_url, False, token_info)
+                        await cache.set(token, api_base_url, is_valid=False, token_info=token_info)
 
                         return (False, token_info, error)
 
@@ -563,7 +563,7 @@ async def validate_token(
                     }
 
                     # Cache successful validation
-                    await cache.set(token, api_base_url, True, token_info)
+                    await cache.set(token, api_base_url, is_valid=True, token_info=token_info)
 
                     return (True, token_info, None)
 
@@ -572,7 +572,7 @@ async def validate_token(
                     logger.warning("❌ %s", error)
 
                     # Cache failed validation
-                    await cache.set(token, api_base_url, False, None)
+                    await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
 
@@ -581,7 +581,7 @@ async def validate_token(
                     logger.warning("❌ %s", error)
 
                     # Cache failed validation
-                    await cache.set(token, api_base_url, False, None)
+                    await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
 
@@ -641,7 +641,7 @@ async def validate_token(
                         logger.warning("❌ Token %s: %s", token_id, error)
 
                         # Cache inactive token as invalid
-                        await cache.set(token, api_base_url, False, token_info)
+                        await cache.set(token, api_base_url, is_valid=False, token_info=token_info)
 
                         return (False, token_info, error)
 
@@ -657,7 +657,7 @@ async def validate_token(
                     )
 
                     # Cache successful validation
-                    await cache.set(token, api_base_url, True, token_info)
+                    await cache.set(token, api_base_url, is_valid=True, token_info=token_info)
 
                     return (True, token_info, None)
 
@@ -666,7 +666,7 @@ async def validate_token(
                     logger.warning("❌ %s", error)
 
                     # Cache failed validation (but with shorter TTL)
-                    await cache.set(token, api_base_url, False, None)
+                    await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
 
@@ -675,7 +675,7 @@ async def validate_token(
                     logger.warning("❌ %s", error)
 
                     # Cache failed validation
-                    await cache.set(token, api_base_url, False, None)
+                    await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
 

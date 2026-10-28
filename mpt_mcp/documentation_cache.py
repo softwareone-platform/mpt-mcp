@@ -61,7 +61,7 @@ class DocumentationCache:
 
         return dt.datetime.now() - self._last_refresh > self.refresh_interval
 
-    async def refresh(self, force: bool = False) -> bool:
+    async def refresh(self, *, force: bool = False) -> bool:
         """
         Refresh the documentation cache.
 

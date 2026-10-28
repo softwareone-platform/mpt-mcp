@@ -33,7 +33,7 @@ cache_manager: CacheManager | None = None
 _initialized: bool = False
 
 
-async def initialize_server(force_refresh: bool = False):
+async def initialize_server(*, force_refresh: bool = False):
     """
     Initialize the server with API client and discover endpoints.
 

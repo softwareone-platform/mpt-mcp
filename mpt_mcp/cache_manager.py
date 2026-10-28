@@ -173,6 +173,7 @@ class CacheManager:
 async def fetch_with_cache(
     url: str,
     cache_manager: CacheManager,
+    *,
     force_refresh: bool = False,
 ) -> dict[str, Any]:
     """

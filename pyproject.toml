@@ -204,9 +204,6 @@ ignore = [
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "boolean-default-value-positional-argument",  # 11
-    "boolean-positional-value-in-call",  # 8
-    "boolean-type-hint-positional-argument",  # 12
     "call-datetime-now-without-tzinfo",  # 13
     "complex-structure",  # 22
     "datetime-min-max",  # 1
