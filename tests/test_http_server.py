@@ -86,8 +86,12 @@ async def test_production_tools_only():
         assert tool_name in tool_names, f"Missing production tool: {tool_name}"
 
     # Debug tool should NOT exist in production server
-    assert "marketplace_cache_info" not in tool_names, "Debug tool marketplace_cache_info should not be in production server"
-    assert "marketplace_refresh_cache" not in tool_names, "Debug tool marketplace_refresh_cache should not be in production server"
+    assert "marketplace_cache_info" not in tool_names, (
+        "Debug tool marketplace_cache_info should not be in production server"
+    )
+    assert "marketplace_refresh_cache" not in tool_names, (
+        "Debug tool marketplace_refresh_cache should not be in production server"
+    )
 
 
 @pytest.mark.unit
@@ -122,7 +126,9 @@ async def test_debug_tools_not_in_production():
     debug_tools = ["marketplace_cache_info", "marketplace_refresh_cache"]
 
     for tool_name in debug_tools:
-        assert tool_name not in tool_names, f"Debug tool {tool_name} should not be in production server"
+        assert tool_name not in tool_names, (
+            f"Debug tool {tool_name} should not be in production server"
+        )
 
 
 @pytest.mark.unit
@@ -154,7 +160,10 @@ async def test_marketplace_docs_list_exposes_browser_url_and_usage_note():
 
     assert result["total"] == 1
     assert len(result["resources"]) == 1
-    assert result["resources"][0]["browser_url"] == "https://docs.example.com/help-and-support/contact-support"
+    assert (
+        result["resources"][0]["browser_url"]
+        == "https://docs.example.com/help-and-support/contact-support"
+    )
     assert "Prefer showing users the browser_url" in result["usage"]
     assert "do not show internal uri or id" in result["usage"]
 
@@ -204,7 +213,9 @@ def test_health_404_hint_and_mcp_trailing_slash():
         assert "POST /mcp" in data["hint"]
 
         # 3. Wrong path (POST) returns 404 with same hint
-        r = client.post("/wrong", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}})
+        r = client.post(
+            "/wrong", json={"jsonrpc": "2.0", "id": 1, "method": "tools/list", "params": {}}
+        )
         assert r.status_code == 404
         data = r.json()
         assert "hint" in data
@@ -217,7 +228,11 @@ def test_health_404_hint_and_mcp_trailing_slash():
                 "jsonrpc": "2.0",
                 "id": 0,
                 "method": "initialize",
-                "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}},
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
             },
         )
         assert r.status_code != 404, "POST /mcp/ should be rewritten to /mcp and not return 404"
@@ -229,7 +244,11 @@ def test_health_404_hint_and_mcp_trailing_slash():
                 "jsonrpc": "2.0",
                 "id": 0,
                 "method": "initialize",
-                "params": {"protocolVersion": "2024-11-05", "capabilities": {}, "clientInfo": {"name": "test", "version": "1.0"}},
+                "params": {
+                    "protocolVersion": "2024-11-05",
+                    "capabilities": {},
+                    "clientInfo": {"name": "test", "version": "1.0"},
+                },
             },
         )
         assert r.status_code != 404, "POST / should be rewritten to /mcp when platform strips path"

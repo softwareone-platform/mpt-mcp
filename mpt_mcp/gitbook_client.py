@@ -43,7 +43,9 @@ class GitBookClient:
         self._semaphore = asyncio.Semaphore(max_concurrent_requests)
         self.timeout = timeout
 
-        logger.info(f"📚 GitBook client initialized for space: {space_id} (max concurrent: {max_concurrent_requests})")
+        logger.info(
+            f"📚 GitBook client initialized for space: {space_id} (max concurrent: {max_concurrent_requests})"
+        )
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication"""
@@ -64,12 +66,16 @@ class GitBookClient:
                 try:
                     timeout_config = httpx.Timeout(self.timeout, connect=30.0)
                     async with asyncio.timeout(self.timeout):
-                        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
+                        async with httpx.AsyncClient(
+                            follow_redirects=True, http2=True, timeout=timeout_config
+                        ) as client:
                             response = await client.get(url, headers=self._get_headers())
                 except TimeoutError:
                     if attempt < MAX_RETRIES - 1:
                         wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
-                        logger.warning(f"📚 GitBook request timed out, retry in {wait_sec:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                        logger.warning(
+                            f"📚 GitBook request timed out, retry in {wait_sec:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                        )
                         await asyncio.sleep(wait_sec)
                         continue
                     raise
@@ -80,7 +86,9 @@ class GitBookClient:
                             wait_sec = float(retry_after)
                         else:
                             wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
-                        logger.warning(f"📚 GitBook rate limit/unavailable ({response.status_code}), retry in {wait_sec:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})")
+                        logger.warning(
+                            f"📚 GitBook rate limit/unavailable ({response.status_code}), retry in {wait_sec:.1f}s (attempt {attempt + 1}/{MAX_RETRIES})"
+                        )
                         await asyncio.sleep(wait_sec)
                         continue
                     response.raise_for_status()

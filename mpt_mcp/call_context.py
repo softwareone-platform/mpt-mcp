@@ -47,13 +47,19 @@ class CallContext:
         return APIClient(base_url=self.endpoint, token=self.token)
 
     async def _validate_token(self) -> None:
-        is_valid, token_info, error = await validate_token(self.token, self.endpoint, use_cache=not self.validate_fresh)
+        is_valid, token_info, error = await validate_token(
+            self.token, self.endpoint, use_cache=not self.validate_fresh
+        )
         if not is_valid:
             logger.warning(f"❌ Token validation failed: {error}")
-            raise ValueError(f"Token validation failed: {error}. Please ensure your API token is valid and active.")
+            raise ValueError(
+                f"Token validation failed: {error}. Please ensure your API token is valid and active."
+            )
 
         account = (token_info or {}).get("account", {})
-        logger.info(f"✅ Token validated for {self.endpoint} - Account: {account.get('name', 'Unknown')} ({account.get('id', 'Unknown')})")
+        logger.info(
+            f"✅ Token validated for {self.endpoint} - Account: {account.get('name', 'Unknown')} ({account.get('id', 'Unknown')})"
+        )
 
 
 async def get_call_context(request: Request = CurrentRequest()) -> CallContext:
@@ -68,7 +74,9 @@ async def get_call_context(request: Request = CurrentRequest()) -> CallContext:
     """
     raw_token = request.headers.get("x-mpt-authorization")
     endpoint = request.headers.get("x-mpt-endpoint") or config.sse_default_base_url
-    validate_fresh = request.headers.get("x-mpt-validate-fresh", "").strip().lower() in TRUTHY_HEADER_VALUES
+    validate_fresh = (
+        request.headers.get("x-mpt-validate-fresh", "").strip().lower() in TRUTHY_HEADER_VALUES
+    )
     return CallContext(
         endpoint=normalize_endpoint_url(endpoint),
         token=normalize_token(raw_token) if raw_token else None,

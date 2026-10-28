@@ -190,7 +190,9 @@ def mock_api_response():
 
 
 @pytest.mark.asyncio
-async def test_sanitizes_select_drops_invalid_adds_id(api_client, endpoints_registry, openapi_spec, mock_api_response):
+async def test_sanitizes_select_drops_invalid_adds_id(
+    api_client, endpoints_registry, openapi_spec, mock_api_response
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -218,7 +220,9 @@ async def test_sanitizes_select_drops_invalid_adds_id(api_client, endpoints_regi
 
 
 @pytest.mark.asyncio
-async def test_select_without_openapi_spec_adds_id(api_client, endpoints_registry, mock_api_response):
+async def test_select_without_openapi_spec_adds_id(
+    api_client, endpoints_registry, mock_api_response
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(

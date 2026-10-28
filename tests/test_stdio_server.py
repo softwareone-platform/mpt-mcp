@@ -33,7 +33,13 @@ def test_stdio_server_exposes_mcp_instance():
 
 
 async def test_production_tools_exist():
-    expected_tools = {"marketplace_query", "marketplace_resources", "marketplace_resource_info", "marketplace_resource_schema", "marketplace_audit_fields"}
+    expected_tools = {
+        "marketplace_query",
+        "marketplace_resources",
+        "marketplace_resource_info",
+        "marketplace_resource_schema",
+        "marketplace_audit_fields",
+    }
 
     result = {tool.name for tool in await mcp.list_tools()}
 

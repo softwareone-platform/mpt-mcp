@@ -44,7 +44,10 @@ async def test_cache_set_and_get():
 @pytest.mark.unit
 @pytest.mark.parametrize(
     ("token", "endpoint"),
-    [("idt:TKN-1234-5678-SECRET2", API_BASE_URL), ("idt:TKN-1234-5678-SECRET1", "https://api.other.com")],
+    [
+        ("idt:TKN-1234-5678-SECRET2", API_BASE_URL),
+        ("idt:TKN-1234-5678-SECRET1", "https://api.other.com"),
+    ],
 )
 async def test_cache_keys_differ_per_token_and_endpoint(token, endpoint):
     cache = TokenValidationCache()
@@ -67,7 +70,12 @@ async def test_cache_miss():
 @pytest.mark.unit
 async def test_cache_expiry():
     cache = TokenValidationCache(ttl_minutes=0)
-    await cache.set("idt:TKN-1234-5678-SECRET", API_BASE_URL, is_valid=True, token_info={"account": {"id": "ACC-123"}})
+    await cache.set(
+        "idt:TKN-1234-5678-SECRET",
+        API_BASE_URL,
+        is_valid=True,
+        token_info={"account": {"id": "ACC-123"}},
+    )
 
     result = await cache.get("idt:TKN-1234-5678-SECRET", API_BASE_URL)
 
@@ -102,7 +110,12 @@ async def test_cache_get_stats():
 
     result = cache.get_stats()
 
-    assert result == {"total_entries": 2, "valid_entries": 2, "expired_entries": 0, "ttl_minutes": 10}
+    assert result == {
+        "total_entries": 2,
+        "valid_entries": 2,
+        "expired_entries": 0,
+        "ttl_minutes": 10,
+    }
 
 
 @pytest.mark.unit
@@ -384,7 +397,9 @@ async def test_validate_token_jwt_requires_jwks_url_or_iss():
     import base64
 
     payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
-    payload_b64 = base64.urlsafe_b64encode(__import__("json").dumps(payload).encode()).decode().rstrip("=")
+    payload_b64 = (
+        base64.urlsafe_b64encode(__import__("json").dumps(payload).encode()).decode().rstrip("=")
+    )
     token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
     api_base_url = "https://api.test.com"
 
@@ -415,7 +430,11 @@ def jwks(rsa_private_key):
 def mock_auth_http(jwks):
     def _response(url, **kwargs):
         response = Mock(status_code=200)
-        payload = mock_auth_http_state["jwks"] if url.endswith("/.well-known/jwks.json") else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
+        payload = (
+            mock_auth_http_state["jwks"]
+            if url.endswith("/.well-known/jwks.json")
+            else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
+        )
         response.json.return_value = payload
         return response
 
@@ -442,8 +461,14 @@ def rsa_private_key():
 def sign_jwt(rsa_private_key, issuer):
     def _sign_jwt(claims, *, kid="test-key", private_key=None, algorithm="RS256"):
         headers = {"kid": kid} if kid else None
-        full_claims = {"iss": issuer, "https://claims.softwareone.com/userId": JWT_USER_ID, **claims}
-        return jwt.encode(full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers)
+        full_claims = {
+            "iss": issuer,
+            "https://claims.softwareone.com/userId": JWT_USER_ID,
+            **claims,
+        }
+        return jwt.encode(
+            full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers
+        )
 
     return _sign_jwt
 
@@ -484,7 +509,9 @@ async def test_validate_jwt_without_exp_accepted(sign_jwt, mock_auth_http):
     assert (is_valid, error) == (True, None)
 
 
-async def test_validate_jwt_without_kid_tries_every_key(sign_jwt, jwks, other_private_key, mock_auth_http):
+async def test_validate_jwt_without_kid_tries_every_key(
+    sign_jwt, jwks, other_private_key, mock_auth_http
+):
     other_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(other_private_key.public_key()))
     mock_auth_http.jwks_state["jwks"] = {"keys": [{**other_jwk, "kid": "other-key"}, *jwks["keys"]]}
     token = sign_jwt({}, kid=None)
@@ -494,7 +521,9 @@ async def test_validate_jwt_without_kid_tries_every_key(sign_jwt, jwks, other_pr
     assert (is_valid, error) == (True, None)
 
 
-async def test_validate_jwt_signed_by_unknown_key_rejected(sign_jwt, other_private_key, mock_auth_http):
+async def test_validate_jwt_signed_by_unknown_key_rejected(
+    sign_jwt, other_private_key, mock_auth_http
+):
     token = sign_jwt({}, private_key=other_private_key)
 
     result = await validate_token(token, API_BASE_URL, use_cache=False)
@@ -504,7 +533,10 @@ async def test_validate_jwt_signed_by_unknown_key_rejected(sign_jwt, other_priva
 
 @pytest.mark.parametrize(
     "sign_kwargs",
-    [{"kid": "missing-key"}, {"private_key": "a-shared-secret-of-at-least-32-bytes", "algorithm": "HS256"}],
+    [
+        {"kid": "missing-key"},
+        {"private_key": "a-shared-secret-of-at-least-32-bytes", "algorithm": "HS256"},
+    ],
     ids=["unknown-kid", "hs256"],
 )
 async def test_validate_jwt_with_untrusted_header_rejected(sign_jwt, mock_auth_http, sign_kwargs):

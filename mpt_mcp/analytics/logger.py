@@ -33,7 +33,9 @@ class AnalyticsLogger:
     - Privacy-safe (no account data)
     """
 
-    def __init__(self, database_url: str | None = None, batch_size: int = 50, flush_interval: float = 5.0):
+    def __init__(
+        self, database_url: str | None = None, batch_size: int = 50, flush_interval: float = 5.0
+    ):
         """
         Initialize analytics logger.
 
@@ -59,7 +61,9 @@ class AnalyticsLogger:
             return
 
         try:
-            self.engine = create_async_engine(self.database_url, pool_size=5, max_overflow=10, echo=False)
+            self.engine = create_async_engine(
+                self.database_url, pool_size=5, max_overflow=10, echo=False
+            )
 
             # Test connection
             async with self.engine.begin() as conn:
@@ -105,7 +109,9 @@ class AnalyticsLogger:
         timestamp = event.get("timestamp")
         normalized = {
             # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware datetimes)
-            "timestamp": timestamp.astimezone(timezone.utc).replace(tzinfo=None) if timestamp else None,
+            "timestamp": timestamp.astimezone(timezone.utc).replace(tzinfo=None)
+            if timestamp
+            else None,
             "response_time_ms": event.get("response_time_ms"),
             "token_id": event.get("token_id"),
             "api_endpoint": event.get("api_endpoint"),
@@ -293,7 +299,9 @@ class AnalyticsLogger:
         # Console logging for visibility
         token_id = event.get("token_id", "unknown")
         if api_status_code >= 200 and api_status_code < 300:
-            logger.info(f"📊 API: {api_resource} | Token: {token_id} | {api_status_code} | {api_response_time_ms:.0f}ms")
+            logger.info(
+                f"📊 API: {api_resource} | Token: {token_id} | {api_status_code} | {api_response_time_ms:.0f}ms"
+            )
         else:
             logger.warning(f"📊 API: {api_resource} | Token: {token_id} | {api_status_code}")
 
@@ -346,9 +354,13 @@ class AnalyticsLogger:
         token_id = event.get("token_id", "unknown")
         cache_str = " [cached]" if cache_hit else ""
         if success:
-            logger.info(f"📊 Resource: {resource_uri} | Token: {token_id} | {response_time_ms:.0f}ms{cache_str}")
+            logger.info(
+                f"📊 Resource: {resource_uri} | Token: {token_id} | {response_time_ms:.0f}ms{cache_str}"
+            )
         else:
-            logger.warning(f"📊 Resource: {resource_uri} | Token: {token_id} | Error: {error_message}")
+            logger.warning(
+                f"📊 Resource: {resource_uri} | Token: {token_id} | Error: {error_message}"
+            )
 
         # Error patterns are tracked in mcp_events table
 
@@ -384,7 +396,13 @@ class AnalyticsLogger:
         return parse_token_id(token_value)
 
     @staticmethod
-    def set_context(token: str | None = None, endpoint: str | None = None, client_info: str | None = None, session_id: str | None = None, client_ip: str | None = None):
+    def set_context(
+        token: str | None = None,
+        endpoint: str | None = None,
+        client_info: str | None = None,
+        session_id: str | None = None,
+        client_ip: str | None = None,
+    ):
         """
         Set context variables for analytics tracking.
 

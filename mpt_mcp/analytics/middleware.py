@@ -29,7 +29,11 @@ class AnalyticsMiddleware(Middleware):
         """
         self._clock = clock
 
-    async def on_call_tool(self, context: MiddlewareContext[CallToolRequestParams], call_next: CallNext[CallToolRequestParams, ToolResult]) -> ToolResult:
+    async def on_call_tool(
+        self,
+        context: MiddlewareContext[CallToolRequestParams],
+        call_next: CallNext[CallToolRequestParams, ToolResult],
+    ) -> ToolResult:
         """Record the tool call with its response time and outcome."""
         analytics = get_analytics_logger()
         if not analytics or not analytics.enabled:
@@ -58,7 +62,11 @@ class AnalyticsMiddleware(Middleware):
 
         return result
 
-    async def on_read_resource(self, context: MiddlewareContext[ReadResourceRequestParams], call_next: CallNext[ReadResourceRequestParams, ResourceResult]) -> ResourceResult:
+    async def on_read_resource(
+        self,
+        context: MiddlewareContext[ReadResourceRequestParams],
+        call_next: CallNext[ReadResourceRequestParams, ResourceResult],
+    ) -> ResourceResult:
         """Record the resource read with its response time and outcome."""
         analytics = get_analytics_logger()
         if not analytics or not analytics.enabled:
@@ -86,7 +94,9 @@ class AnalyticsMiddleware(Middleware):
 
         return result
 
-    async def on_request(self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]) -> Any:
+    async def on_request(
+        self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]
+    ) -> Any:
         """Bind the caller's token, endpoint and client to the analytics events of the request."""
         analytics = get_analytics_logger()
         if not analytics or not analytics.enabled:

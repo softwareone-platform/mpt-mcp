@@ -19,7 +19,9 @@ class RequestContextMiddleware(Middleware):
     def __init__(self) -> None:
         self._last_activity_log: dict[str, datetime] = {}
 
-    async def on_request(self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]) -> Any:
+    async def on_request(
+        self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]
+    ) -> Any:
         """Bind the caller's user and session ID to the logs for the duration of the request."""
         try:
             request = get_http_request()

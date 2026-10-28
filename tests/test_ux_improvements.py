@@ -18,18 +18,34 @@ async def test_unknown_resource_suggests_similar(call_context):
 
     # Mock the endpoint registry with some sample resources
     mock_registry = {
-        "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "Products",
+            "parameters": [],
+        },
         "catalog.products.by_id": {
             "path": "/public/v1/catalog/products/{id}",
             "summary": "Product by ID",
             "parameters": [],
         },
-        "commerce.orders": {"path": "/public/v1/commerce/orders", "summary": "Orders", "parameters": []},
-        "accounts.buyers": {"path": "/public/v1/accounts/buyers", "summary": "Buyers", "parameters": []},
+        "commerce.orders": {
+            "path": "/public/v1/commerce/orders",
+            "summary": "Orders",
+            "parameters": [],
+        },
+        "accounts.buyers": {
+            "path": "/public/v1/accounts/buyers",
+            "summary": "Buyers",
+            "parameters": [],
+        },
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -50,12 +66,24 @@ async def test_unknown_resource_shows_categories(call_context):
     from mpt_mcp.server import marketplace_query
 
     mock_registry = {
-        "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
-        "commerce.orders": {"path": "/public/v1/commerce/orders", "summary": "Orders", "parameters": []},
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "Products",
+            "parameters": [],
+        },
+        "commerce.orders": {
+            "path": "/public/v1/commerce/orders",
+            "summary": "Orders",
+            "parameters": [],
+        },
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -80,8 +108,12 @@ async def test_missing_path_params_shows_example(call_context):
         }
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -111,8 +143,12 @@ async def test_path_params_error_includes_realistic_values(call_context):
         }
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -129,7 +165,11 @@ async def test_resource_info_shows_children(call_context):
     from mpt_mcp.server import marketplace_resource_info
 
     mock_registry = {
-        "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "Products",
+            "parameters": [],
+        },
         "catalog.products.by_id": {
             "path": "/public/v1/catalog/products/{id}",
             "summary": "Product by ID",
@@ -142,8 +182,12 @@ async def test_resource_info_shows_children(call_context):
         },
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -163,7 +207,11 @@ async def test_resource_info_shows_parent(call_context):
     from mpt_mcp.server import marketplace_resource_info
 
     mock_registry = {
-        "catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []},
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "Products",
+            "parameters": [],
+        },
         "catalog.products.by_id": {
             "path": "/public/v1/catalog/products/{id}",
             "summary": "Product by ID",
@@ -171,14 +219,20 @@ async def test_resource_info_shows_parent(call_context):
         },
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
             mock_get_client.return_value = mock_client
 
-            result = await marketplace_resource_info("catalog.products.by_id", call_context=call_context)
+            result = await marketplace_resource_info(
+                "catalog.products.by_id", call_context=call_context
+            )
 
             # Should include parent resource
             assert "related_resources" in result
@@ -204,8 +258,12 @@ async def test_resource_info_shows_multiple_examples(call_context):
         }
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -230,12 +288,18 @@ async def test_resource_info_shows_filtering_tips(call_context):
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
             "summary": "Orders",
-            "parameters": [{"name": "status", "in": "query", "schema": {"enum": ["Active", "Completed"]}}],
+            "parameters": [
+                {"name": "status", "in": "query", "schema": {"enum": ["Active", "Completed"]}}
+            ],
         }
     }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -252,10 +316,20 @@ async def test_resource_info_shows_filtering_tips(call_context):
 async def test_api_error_includes_status_code(call_context):
     from mpt_mcp.server import marketplace_query
 
-    mock_registry = {"catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []}}
+    mock_registry = {
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "Products",
+            "parameters": [],
+        }
+    }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -269,7 +343,9 @@ async def test_api_error_includes_status_code(call_context):
             mock_request = Mock()
             mock_request.url = "https://api.test.com/public/v1/catalog/products"
 
-            http_error = httpx.HTTPStatusError("400 Bad Request", request=mock_request, response=mock_response)
+            http_error = httpx.HTTPStatusError(
+                "400 Bad Request", request=mock_request, response=mock_response
+            )
 
             mock_client.get = AsyncMock(side_effect=http_error)
             mock_get_client.return_value = mock_client
@@ -288,10 +364,20 @@ async def test_api_error_includes_status_code(call_context):
 async def test_api_error_includes_request_url(call_context):
     from mpt_mcp.server import marketplace_query
 
-    mock_registry = {"catalog.products": {"path": "/public/v1/catalog/products", "summary": "Products", "parameters": []}}
+    mock_registry = {
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "Products",
+            "parameters": [],
+        }
+    }
 
-    with patch("mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock) as mock_get_registry:
-        with patch.object(CallContext, "create_api_client", new_callable=AsyncMock) as mock_get_client:
+    with patch(
+        "mpt_mcp.server_tools.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+    ) as mock_get_registry:
+        with patch.object(
+            CallContext, "create_api_client", new_callable=AsyncMock
+        ) as mock_get_client:
             mock_get_registry.return_value = mock_registry
             mock_client = Mock()
             mock_client.base_url = "https://api.test.com"
@@ -305,7 +391,9 @@ async def test_api_error_includes_request_url(call_context):
             mock_request = Mock()
             mock_request.url = "https://api.test.com/public/v1/catalog/products"
 
-            http_error = httpx.HTTPStatusError("404 Not Found", request=mock_request, response=mock_response)
+            http_error = httpx.HTTPStatusError(
+                "404 Not Found", request=mock_request, response=mock_response
+            )
 
             mock_client.get = AsyncMock(side_effect=http_error)
             mock_get_client.return_value = mock_client

@@ -55,7 +55,11 @@ async def initialize_server(force_refresh: bool = False):
             logger.info(f"  - {error}")
         raise ValueError("Invalid configuration")
 
-    api_client = APIClient(base_url=config.marketplace_api_base_url, token=config.marketplace_api_token, timeout=config.request_timeout)
+    api_client = APIClient(
+        base_url=config.marketplace_api_base_url,
+        token=config.marketplace_api_token,
+        timeout=config.request_timeout,
+    )
 
     cache_manager = CacheManager(cache_dir=".cache", ttl_hours=24)
 
@@ -64,7 +68,9 @@ async def initialize_server(force_refresh: bool = False):
     try:
         logger.info(f"📡 Loading OpenAPI spec from: {config.openapi_spec_url}")
 
-        spec = await fetch_with_cache(url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh)
+        spec = await fetch_with_cache(
+            url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh
+        )
 
         openapi_spec = spec
 
@@ -272,7 +278,11 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
             "endpoints_count": len(endpoints_registry),
         }
     except Exception as e:
-        return {"success": False, "error": str(e), "message": "Failed to refresh cache. Check network connection."}
+        return {
+            "success": False,
+            "error": str(e),
+            "message": "Failed to refresh cache. Check network connection.",
+        }
 
 
 @mcp.tool()

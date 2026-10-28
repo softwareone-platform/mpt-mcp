@@ -15,7 +15,12 @@ class DocumentationCache:
     Manages cached documentation from GitBook with automatic TTL-based refresh
     """
 
-    def __init__(self, gitbook_client: GitBookClient | None = None, refresh_interval_hours: int = 24, public_url: str = ""):
+    def __init__(
+        self,
+        gitbook_client: GitBookClient | None = None,
+        refresh_interval_hours: int = 24,
+        public_url: str = "",
+    ):
         """
         Initialize documentation cache
 
@@ -35,7 +40,9 @@ class DocumentationCache:
         self._resources: dict[str, dict[str, Any]] = {}
 
         if gitbook_client:
-            logger.info(f"📚 Documentation cache initialized (refresh interval: {refresh_interval_hours}h)")
+            logger.info(
+                f"📚 Documentation cache initialized (refresh interval: {refresh_interval_hours}h)"
+            )
         else:
             logger.info("📚 Documentation cache disabled (no GitBook client configured)")
 
@@ -88,7 +95,9 @@ class DocumentationCache:
 
             self._build_resource_index()
 
-            logger.info(f"✅ Documentation cache refreshed successfully ({len(self._resources)} resources)")
+            logger.info(
+                f"✅ Documentation cache refreshed successfully ({len(self._resources)} resources)"
+            )
             return True
 
         except Exception as e:
@@ -188,7 +197,11 @@ class DocumentationCache:
 
         if search:
             search_lower = search.lower()
-            resources = [r for r in resources if search_lower in r["name"].lower() or search_lower in r["uri"].lower()]
+            resources = [
+                r
+                for r in resources
+                if search_lower in r["name"].lower() or search_lower in r["uri"].lower()
+            ]
 
         if limit and limit > 0:
             resources = resources[:limit]
@@ -328,9 +341,18 @@ class DocumentationCache:
 
         for section_name in sorted(sections.keys()):
             section_data = sections[section_name]
-            subsections_list = [{"name": sub_name, "pages": count} for sub_name, count in sorted(section_data["subsections"].items())]
+            subsections_list = [
+                {"name": sub_name, "pages": count}
+                for sub_name, count in sorted(section_data["subsections"].items())
+            ]
 
-            result["sections"].append({"name": section_name, "total_pages": section_data["total"], "subsections": subsections_list})
+            result["sections"].append(
+                {
+                    "name": section_name,
+                    "total_pages": section_data["total"],
+                    "subsections": subsections_list,
+                }
+            )
 
         return result
 

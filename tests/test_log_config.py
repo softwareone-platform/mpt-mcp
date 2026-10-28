@@ -32,7 +32,9 @@ def request_context():
         (None, None, ""),
     ],
 )
-def test_filter_adds_request_context_prefix(log_record, request_context, session_id, user_id, expected):
+def test_filter_adds_request_context_prefix(
+    log_record, request_context, session_id, user_id, expected
+):
     request_context(session_id, user_id)
 
     RequestContextFilter().filter(log_record)  # act

@@ -67,7 +67,11 @@ Index("idx_events_token_id", mcp_events.c.token_id)
 Index("idx_events_tool_name", mcp_events.c.tool_name)
 Index("idx_events_api_resource", mcp_events.c.api_resource)
 Index("idx_events_event_type", mcp_events.c.event_type)
-Index("idx_events_error_type", mcp_events.c.error_type, postgresql_where=mcp_events.c.error_type.isnot(None))
+Index(
+    "idx_events_error_type",
+    mcp_events.c.error_type,
+    postgresql_where=mcp_events.c.error_type.isnot(None),
+)
 Index("idx_events_date_token", func.date(mcp_events.c.timestamp), mcp_events.c.token_id)
 Index("idx_events_date_tool", func.date(mcp_events.c.timestamp), mcp_events.c.tool_name)
 Index("idx_events_client_ip", mcp_events.c.client_ip)

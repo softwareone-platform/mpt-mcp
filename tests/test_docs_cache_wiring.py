@@ -25,7 +25,11 @@ class _StubDocsCache:
                     "name": "Home",
                     "description": "Documentation page: Home",
                     "mimeType": "text/markdown",
-                    "metadata": {"path": "readme", "title": "Home", "browser_url": "https://example.test/readme"},
+                    "metadata": {
+                        "path": "readme",
+                        "title": "Home",
+                        "browser_url": "https://example.test/readme",
+                    },
                     "content": None,
                 }
             ]
@@ -33,7 +37,11 @@ class _StubDocsCache:
             self.content_by_uri = {"docs://readme": "# Home\n\nHello"}
 
         # Used by `server_resources.get_documentation_resource` for cache-hit checks
-        self._resources: dict[str, dict[str, Any]] = {r["uri"]: {"content": self.content_by_uri.get(r["uri"])} for r in self.resources if "uri" in r}
+        self._resources: dict[str, dict[str, Any]] = {
+            r["uri"]: {"content": self.content_by_uri.get(r["uri"])}
+            for r in self.resources
+            if "uri" in r
+        }
 
     @property
     def is_enabled(self) -> bool:
@@ -52,8 +60,14 @@ class _FakeMCP:
     def __init__(self) -> None:
         self._resources_by_uri: dict[str, Callable[..., Coroutine[Any, Any, str]]] = {}
 
-    def resource(self, uri: str, **_: Any) -> Callable[[Callable[..., Coroutine[Any, Any, str]]], Callable[..., Coroutine[Any, Any, str]]]:
-        def _decorator(fn: Callable[..., Coroutine[Any, Any, str]]) -> Callable[..., Coroutine[Any, Any, str]]:
+    def resource(
+        self, uri: str, **_: Any
+    ) -> Callable[
+        [Callable[..., Coroutine[Any, Any, str]]], Callable[..., Coroutine[Any, Any, str]]
+    ]:
+        def _decorator(
+            fn: Callable[..., Coroutine[Any, Any, str]],
+        ) -> Callable[..., Coroutine[Any, Any, str]]:
             self._resources_by_uri[uri] = fn
             return fn
 
@@ -62,7 +76,9 @@ class _FakeMCP:
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_marketplace_docs_list_uses_live_server_docs_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_marketplace_docs_list_uses_live_server_docs_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     Regression test for a subtle Python import bug:
 
@@ -87,7 +103,9 @@ async def test_marketplace_docs_list_uses_live_server_docs_cache(monkeypatch: py
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_docs_resource_reader_uses_live_server_docs_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_docs_resource_reader_uses_live_server_docs_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """
     Ensures the `docs://{path}` resource handler reads the live `server_docs.documentation_cache`.
     """

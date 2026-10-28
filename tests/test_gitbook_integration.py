@@ -17,7 +17,9 @@ class TestGitBookClient:
     @pytest.fixture
     def client(self):
         """Create a GitBook client instance"""
-        return GitBookClient(api_key="test_api_key", space_id="test_space_id", base_url="https://api.gitbook.com/v1")
+        return GitBookClient(
+            api_key="test_api_key", space_id="test_space_id", base_url="https://api.gitbook.com/v1"
+        )
 
     def test_client_initialization(self, client):
         """Test client initializes correctly"""
@@ -99,7 +101,9 @@ class TestGitBookClient:
         """Test credential validation fails"""
         with patch("httpx.AsyncClient") as mock_client:
             mock_context = AsyncMock()
-            mock_context.__aenter__.return_value.get = AsyncMock(side_effect=Exception("Unauthorized"))
+            mock_context.__aenter__.return_value.get = AsyncMock(
+                side_effect=Exception("Unauthorized")
+            )
             mock_client.return_value = mock_context
 
             is_valid = await client.validate_credentials()
@@ -122,8 +126,20 @@ class TestDocumentationCache:
                 ]
             }
         )
-        client.fetch_page_by_path = AsyncMock(return_value={"id": "page1", "title": "Getting Started", "markdown": "# Getting Started\n\nWelcome!"})
-        client.fetch_page_by_id = AsyncMock(return_value={"id": "page1", "title": "Getting Started", "markdown": "# Getting Started\n\nWelcome!"})
+        client.fetch_page_by_path = AsyncMock(
+            return_value={
+                "id": "page1",
+                "title": "Getting Started",
+                "markdown": "# Getting Started\n\nWelcome!",
+            }
+        )
+        client.fetch_page_by_id = AsyncMock(
+            return_value={
+                "id": "page1",
+                "title": "Getting Started",
+                "markdown": "# Getting Started\n\nWelcome!",
+            }
+        )
         return client
 
     def test_cache_initialization_with_client(self, mock_gitbook_client):
@@ -184,15 +200,25 @@ class TestDocumentationCache:
                         "title": "Getting Started",
                         "path": "getting-started",
                         "pages": [
-                            {"id": "page1-1", "title": "Installation", "path": "getting-started/installation"},
-                            {"id": "page1-2", "title": "Configuration", "path": "getting-started/configuration"},
+                            {
+                                "id": "page1-1",
+                                "title": "Installation",
+                                "path": "getting-started/installation",
+                            },
+                            {
+                                "id": "page1-2",
+                                "title": "Configuration",
+                                "path": "getting-started/configuration",
+                            },
                         ],
                     },
                     {
                         "id": "page2",
                         "title": "API Reference",
                         "path": "api-reference",
-                        "pages": [{"id": "page2-1", "title": "Orders", "path": "api-reference/orders"}],
+                        "pages": [
+                            {"id": "page2-1", "title": "Orders", "path": "api-reference/orders"}
+                        ],
                     },
                 ]
             }
@@ -236,8 +262,16 @@ class TestDocumentationCache:
         client.fetch_space_content = AsyncMock(
             return_value={
                 "pages": [
-                    {"id": "page1", "title": "Orders API", "path": "developer-resources/rest-api/orders"},
-                    {"id": "page2", "title": "Billing API", "path": "developer-resources/rest-api/billing"},
+                    {
+                        "id": "page1",
+                        "title": "Orders API",
+                        "path": "developer-resources/rest-api/orders",
+                    },
+                    {
+                        "id": "page2",
+                        "title": "Billing API",
+                        "path": "developer-resources/rest-api/billing",
+                    },
                     {"id": "page3", "title": "FAQ", "path": "help-and-support/faqs"},
                 ]
             }
@@ -259,9 +293,21 @@ class TestDocumentationCache:
         client.fetch_space_content = AsyncMock(
             return_value={
                 "pages": [
-                    {"id": "page1", "title": "Orders API", "path": "developer-resources/rest-api/orders"},
-                    {"id": "page2", "title": "Billing API", "path": "developer-resources/rest-api/billing"},
-                    {"id": "page3", "title": "Design System", "path": "developer-resources/design-system/colors"},
+                    {
+                        "id": "page1",
+                        "title": "Orders API",
+                        "path": "developer-resources/rest-api/orders",
+                    },
+                    {
+                        "id": "page2",
+                        "title": "Billing API",
+                        "path": "developer-resources/rest-api/billing",
+                    },
+                    {
+                        "id": "page3",
+                        "title": "Design System",
+                        "path": "developer-resources/design-system/colors",
+                    },
                 ]
             }
         )
@@ -282,7 +328,11 @@ class TestDocumentationCache:
         client.fetch_space_content = AsyncMock(
             return_value={
                 "pages": [
-                    {"id": "page1", "title": "Billing Overview", "path": "modules/billing/overview"},
+                    {
+                        "id": "page1",
+                        "title": "Billing Overview",
+                        "path": "modules/billing/overview",
+                    },
                     {"id": "page2", "title": "Invoices", "path": "modules/billing/invoices"},
                     {"id": "page3", "title": "Orders", "path": "modules/commerce/orders"},
                 ]
@@ -296,13 +346,22 @@ class TestDocumentationCache:
         resources = await cache.list_resources(search="billing")
 
         assert len(resources) == 2
-        assert all("billing" in r["name"].lower() or "billing" in r["uri"].lower() for r in resources)
+        assert all(
+            "billing" in r["name"].lower() or "billing" in r["uri"].lower() for r in resources
+        )
 
     @pytest.mark.asyncio
     async def test_list_resources_with_limit(self):
         """Test limiting number of results"""
         client = Mock(spec=GitBookClient)
-        client.fetch_space_content = AsyncMock(return_value={"pages": [{"id": f"page{i}", "title": f"Page {i}", "path": f"section/page-{i}"} for i in range(10)]})
+        client.fetch_space_content = AsyncMock(
+            return_value={
+                "pages": [
+                    {"id": f"page{i}", "title": f"Page {i}", "path": f"section/page-{i}"}
+                    for i in range(10)
+                ]
+            }
+        )
 
         cache = DocumentationCache(gitbook_client=client)
         await cache.refresh()
@@ -319,9 +378,21 @@ class TestDocumentationCache:
         client.fetch_space_content = AsyncMock(
             return_value={
                 "pages": [
-                    {"id": "page1", "title": "Billing API", "path": "developer-resources/rest-api/billing"},
-                    {"id": "page2", "title": "Orders API", "path": "developer-resources/rest-api/orders"},
-                    {"id": "page3", "title": "Billing FAQ", "path": "help-and-support/faqs/billing"},
+                    {
+                        "id": "page1",
+                        "title": "Billing API",
+                        "path": "developer-resources/rest-api/billing",
+                    },
+                    {
+                        "id": "page2",
+                        "title": "Orders API",
+                        "path": "developer-resources/rest-api/orders",
+                    },
+                    {
+                        "id": "page3",
+                        "title": "Billing FAQ",
+                        "path": "help-and-support/faqs/billing",
+                    },
                 ]
             }
         )
@@ -342,7 +413,11 @@ class TestDocumentationCache:
         client.fetch_space_content = AsyncMock(
             return_value={
                 "pages": [
-                    {"id": "page1", "title": "Contact Support", "path": "help-and-support/contact-support"},
+                    {
+                        "id": "page1",
+                        "title": "Contact Support",
+                        "path": "help-and-support/contact-support",
+                    },
                     {"id": "page2", "title": "Billing", "path": "developer-resources/billing"},
                 ]
             }
@@ -360,8 +435,14 @@ class TestDocumentationCache:
             assert "metadata" in r
             assert "browser_url" in r["metadata"], f"Expected metadata.browser_url for {r['uri']}"
         uris_to_browser_url = {r["uri"]: r["metadata"]["browser_url"] for r in resources}
-        assert uris_to_browser_url.get("docs://help-and-support/contact-support") == "https://docs.example.com/help-and-support/contact-support"
-        assert uris_to_browser_url.get("docs://developer-resources/billing") == "https://docs.example.com/developer-resources/billing"
+        assert (
+            uris_to_browser_url.get("docs://help-and-support/contact-support")
+            == "https://docs.example.com/help-and-support/contact-support"
+        )
+        assert (
+            uris_to_browser_url.get("docs://developer-resources/billing")
+            == "https://docs.example.com/developer-resources/billing"
+        )
 
     @pytest.mark.asyncio
     async def test_get_documentation_index(self):
@@ -370,8 +451,16 @@ class TestDocumentationCache:
         client.fetch_space_content = AsyncMock(
             return_value={
                 "pages": [
-                    {"id": "page1", "title": "Orders API", "path": "developer-resources/rest-api/orders"},
-                    {"id": "page2", "title": "Billing API", "path": "developer-resources/rest-api/billing"},
+                    {
+                        "id": "page1",
+                        "title": "Orders API",
+                        "path": "developer-resources/rest-api/orders",
+                    },
+                    {
+                        "id": "page2",
+                        "title": "Billing API",
+                        "path": "developer-resources/rest-api/billing",
+                    },
                     {"id": "page3", "title": "FAQ", "path": "help-and-support/faqs/general"},
                     {"id": "page4", "title": "Contact", "path": "help-and-support/contact-support"},
                 ]
@@ -461,11 +550,20 @@ class TestDocumentationCache:
 
         document = {
             "nodes": [
-                {"type": "paragraph", "nodes": [{"object": "text", "leaves": [{"text": "Header text"}]}]},
-                {"type": "paragraph", "nodes": [{"object": "text", "leaves": [{"text": "Paragraph 1"}]}]},
                 {
                     "type": "paragraph",
-                    "nodes": [{"object": "text", "leaves": [{"text": "Paragraph 2"}]}, {"text": "Nested text"}],
+                    "nodes": [{"object": "text", "leaves": [{"text": "Header text"}]}],
+                },
+                {
+                    "type": "paragraph",
+                    "nodes": [{"object": "text", "leaves": [{"text": "Paragraph 1"}]}],
+                },
+                {
+                    "type": "paragraph",
+                    "nodes": [
+                        {"object": "text", "leaves": [{"text": "Paragraph 2"}]},
+                        {"text": "Nested text"},
+                    ],
                 },
             ]
         }

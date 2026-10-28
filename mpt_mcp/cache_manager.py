@@ -103,7 +103,11 @@ class CacheManager:
             json.dump(data, f, indent=2)
 
         # Write metadata
-        metadata = {"cached_at": datetime.now().isoformat(), "key": key, "size": len(json.dumps(data))}
+        metadata = {
+            "cached_at": datetime.now().isoformat(),
+            "key": key,
+            "size": len(json.dumps(data)),
+        }
         with open(meta_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
@@ -197,14 +201,18 @@ async def fetch_with_cache(
     try:
         timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=30.0)
         async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
-            async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
+            async with httpx.AsyncClient(
+                follow_redirects=True, http2=True, timeout=timeout_config
+            ) as client:
                 response = await client.get(url)
 
             # Log if redirects occurred
             if len(response.history) > 0:
                 logger.info(f"🔄 Followed {len(response.history)} redirect(s)")
                 for i, redirect in enumerate(response.history, 1):
-                    logger.info(f"   {i}. {redirect.status_code} → {redirect.headers.get('Location', 'unknown')}")
+                    logger.info(
+                        f"   {i}. {redirect.status_code} → {redirect.headers.get('Location', 'unknown')}"
+                    )
                 logger.info(f"   Final: {response.url}")
 
             response.raise_for_status()

@@ -160,14 +160,18 @@ async def test_default_limit_with_other_params(api_client, mock_api_response, en
     # Verify API was called with all parameters including default limit
     call_args = api_client.get.call_args
     params = call_args.kwargs.get("params", {})
-    assert "id" in params["select"] and "name" in params["select"], "Select should include id and name (sanitization may reorder to canonical id,name,...)"
+    assert "id" in params["select"] and "name" in params["select"], (
+        "Select should include id and name (sanitization may reorder to canonical id,name,...)"
+    )
     assert params["order"] == "-created", "Order should be preserved"
     assert params["limit"] == 10, "Default limit should be applied"
     assert "data" in result
 
 
 @pytest.mark.asyncio
-async def test_default_limit_logs_message(api_client, mock_api_response, endpoints_registry, caplog):
+async def test_default_limit_logs_message(
+    api_client, mock_api_response, endpoints_registry, caplog
+):
     api_client.get.return_value = mock_api_response
 
     with caplog.at_level(logging.INFO, logger="mpt_mcp.mcp_tools"):
@@ -188,7 +192,9 @@ async def test_default_limit_logs_message(api_client, mock_api_response, endpoin
 
 
 @pytest.mark.asyncio
-async def test_catalog_products_default_select_when_omit(api_client, mock_api_response, endpoints_registry):
+async def test_catalog_products_default_select_when_omit(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     result = await execute_marketplace_query(
@@ -206,5 +212,7 @@ async def test_catalog_products_default_select_when_omit(api_client, mock_api_re
 
     params = api_client.get.call_args.kwargs.get("params", {})
     sel = params.get("select") or ""
-    assert "id" in sel and "name" in sel and "shortDescription" in sel, f"Expected default select for catalog.products to include id, name, shortDescription, got: {sel}"
+    assert "id" in sel and "name" in sel and "shortDescription" in sel, (
+        f"Expected default select for catalog.products to include id, name, shortDescription, got: {sel}"
+    )
     assert "data" in result

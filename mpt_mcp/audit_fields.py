@@ -13,7 +13,9 @@ logger = logging.getLogger(__name__)
 _audit_cache: dict[str, dict[str, Any]] = {}
 
 # Fallback when spec not available: include "failed" so audit.failed.at triggers auto-add
-FALLBACK_STATIC_REGEX = re.compile(r"audit\.(created|updated|completed|processing|quoted|failed)\.(at|by)")
+FALLBACK_STATIC_REGEX = re.compile(
+    r"audit\.(created|updated|completed|processing|quoted|failed)\.(at|by)"
+)
 
 
 def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
@@ -98,7 +100,9 @@ def _collect_audit_events_and_paths_from_props(
             if not isinstance(event_schema, dict):
                 continue
             event_schema = _resolve_schema(spec, event_schema)
-            event_props = (event_schema.get("properties") or {}) if isinstance(event_schema, dict) else {}
+            event_props = (
+                (event_schema.get("properties") or {}) if isinstance(event_schema, dict) else {}
+            )
             # .at = when (spec may use "at", "timestamp", or "date"), .by = who (spec may use "by", "actor", or "user")
             has_when = "at" in event_props or "timestamp" in event_props or "date" in event_props
             has_who = "by" in event_props or "actor" in event_props or "user" in event_props
@@ -159,15 +163,25 @@ def get_audit_data_from_spec(
         logger.debug("audit_fields: %s has audit-like props: %s", path, audit_like)
         events, _ = _collect_audit_events_and_paths_from_props(spec, properties)
         if not events:
-            logger.debug("audit_fields: %s audit-like %s resolved to 0 events (check nested .at/.by)", path, audit_like)
+            logger.debug(
+                "audit_fields: %s audit-like %s resolved to 0 events (check nested .at/.by)",
+                path,
+                audit_like,
+            )
             continue
         all_events |= events
         resource_id = path_to_resource_id(path)
         existing_events = set(by_resource.get(resource_id) or [])
         existing_events |= events
         by_resource[resource_id] = sorted(existing_events)
-        logger.debug("audit_fields: %s -> %s: events %s", path, resource_id, by_resource[resource_id])
-    logger.info("audit_fields: total resources with audit: %d, events: %s", len(by_resource), sorted(all_events))
+        logger.debug(
+            "audit_fields: %s -> %s: events %s", path, resource_id, by_resource[resource_id]
+        )
+    logger.info(
+        "audit_fields: total resources with audit: %d, events: %s",
+        len(by_resource),
+        sorted(all_events),
+    )
     return {"events": all_events, "by_resource": by_resource}
 
 
@@ -179,7 +193,9 @@ def build_audit_regex(events: set[str]) -> re.Pattern[str]:
     return re.compile(rf"audit\.({part})\.(at|by)")
 
 
-def update_cache(cache_key: str, spec: dict[str, Any], path_to_resource_id: Callable[[str], str]) -> None:
+def update_cache(
+    cache_key: str, spec: dict[str, Any], path_to_resource_id: Callable[[str], str]
+) -> None:
     """
     Compute audit data from spec and store in cache under cache_key.
     Call this when the spec is loaded (endpoint_registry or server_stdio init).
@@ -220,6 +236,10 @@ def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict
     by_resource = _audit_cache[cache_key]["by_resource"]
     if resource is not None:
         if resource not in by_resource:
-            return {"resource": resource, "events": [], "hint": "No audit fields found for this resource"}
+            return {
+                "resource": resource,
+                "events": [],
+                "hint": "No audit fields found for this resource",
+            }
         return {"resource": resource, "events": by_resource[resource]}
     return {"by_resource": by_resource}

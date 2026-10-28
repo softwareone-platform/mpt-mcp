@@ -39,8 +39,14 @@ class _FakeMCP:
     def __init__(self) -> None:
         self._resources_by_uri: dict[str, Callable[..., Coroutine[Any, Any, str]]] = {}
 
-    def resource(self, uri: str, **_: Any) -> Callable[[Callable[..., Coroutine[Any, Any, str]]], Callable[..., Coroutine[Any, Any, str]]]:
-        def _decorator(fn: Callable[..., Coroutine[Any, Any, str]]) -> Callable[..., Coroutine[Any, Any, str]]:
+    def resource(
+        self, uri: str, **_: Any
+    ) -> Callable[
+        [Callable[..., Coroutine[Any, Any, str]]], Callable[..., Coroutine[Any, Any, str]]
+    ]:
+        def _decorator(
+            fn: Callable[..., Coroutine[Any, Any, str]],
+        ) -> Callable[..., Coroutine[Any, Any, str]]:
             self._resources_by_uri[uri] = fn
             return fn
 
@@ -63,8 +69,13 @@ class _FakeToolMCP:
 @pytest.mark.asyncio
 async def test_marketplace_docs_index_returns_cache_index(monkeypatch: pytest.MonkeyPatch) -> None:
     stub = _StubEnabledDocsCache(
-        resources=[{"uri": "docs://readme", "metadata": {"browser_url": "https://example.test/readme"}}],
-        index={"total_pages": 1, "sections": [{"name": "readme", "total_pages": 1, "subsections": []}]},
+        resources=[
+            {"uri": "docs://readme", "metadata": {"browser_url": "https://example.test/readme"}}
+        ],
+        index={
+            "total_pages": 1,
+            "sections": [{"name": "readme", "total_pages": 1, "subsections": []}],
+        },
         content_by_uri={"docs://readme": "hi"},
     )
 
@@ -84,7 +95,9 @@ async def test_marketplace_docs_index_returns_cache_index(monkeypatch: pytest.Mo
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_marketplace_docs_list_happy_path_includes_browser_url(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_marketplace_docs_list_happy_path_includes_browser_url(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     stub = _StubEnabledDocsCache(
         resources=[
             {
@@ -127,7 +140,9 @@ async def test_marketplace_docs_list_tip_when_limited(monkeypatch: pytest.Monkey
     monkeypatch.setattr(server_docs, "documentation_cache", None, raising=False)
 
     result = await server_tools.marketplace_docs_list(limit=5)
-    assert result["total"] == 10  # list_resources returns all, tool reports returned count (not capped here)
+    assert (
+        result["total"] == 10
+    )  # list_resources returns all, tool reports returned count (not capped here)
     assert "tip" in result
 
 
@@ -160,7 +175,9 @@ async def test_marketplace_docs_read_returns_json_shape(monkeypatch: pytest.Monk
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_marketplace_docs_read_not_found_returns_count_zero(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_marketplace_docs_read_not_found_returns_count_zero(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     stub = _StubEnabledDocsCache(
         resources=[],
         index={"total_pages": 0, "sections": []},
@@ -184,7 +201,9 @@ async def test_marketplace_docs_read_not_found_returns_count_zero(monkeypatch: p
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_marketplace_resources_info_reflects_docs_cache(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_marketplace_resources_info_reflects_docs_cache(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     stub = _StubEnabledDocsCache(
         resources=[{"uri": "docs://readme", "metadata": {}}],
         index={"total_pages": 1, "sections": []},
@@ -233,7 +252,9 @@ async def test_docs_resource_handler_reads_from_live_cache(monkeypatch: pytest.M
 
 @pytest.mark.unit
 @pytest.mark.asyncio
-async def test_docs_resource_handler_returns_not_found_when_missing(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_docs_resource_handler_returns_not_found_when_missing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     stub = _StubEnabledDocsCache(
         resources=[{"uri": "docs://readme", "metadata": {}}],
         index={"total_pages": 1, "sections": []},

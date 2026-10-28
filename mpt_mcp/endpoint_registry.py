@@ -89,7 +89,9 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
 
     try:
         # Try to fetch from the endpoint-specific URL
-        spec = await fetch_with_cache(url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh)
+        spec = await fetch_with_cache(
+            url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh
+        )
         logger.info(f"✓ Loaded OpenAPI spec from {api_base_url}")
         return spec
 
@@ -103,13 +105,17 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
             logger.info(f"🔄 Trying fallback: {fallback_url}")
 
             try:
-                spec = await fetch_with_cache(url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh)
+                spec = await fetch_with_cache(
+                    url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh
+                )
                 logger.info("✓ Loaded OpenAPI spec from fallback")
                 return spec
 
             except (httpx.HTTPError, httpx.TimeoutException, OSError, ValueError) as fallback_error:
                 logger.error(f"❌ Fallback also failed: {fallback_error}")
-                raise OpenAPISpecFetchError(f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback {fallback_url}") from fallback_error
+                raise OpenAPISpecFetchError(
+                    f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback {fallback_url}"
+                ) from fallback_error
 
         # No fallback available, re-raise original error
         raise
@@ -136,7 +142,9 @@ def _path_to_resource_id(path: str) -> str:
     return resource_id
 
 
-async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False) -> dict[str, dict[str, Any]]:
+async def get_endpoints_registry(
+    api_base_url: str, force_refresh: bool = False
+) -> dict[str, dict[str, Any]]:
     """
     Get or initialize the endpoints registry for a given API base URL
 
@@ -166,14 +174,19 @@ async def get_endpoints_registry(api_base_url: str, force_refresh: bool = False)
 
         # Parse the OpenAPI spec
         parser = OpenAPIParser()
-        registry: dict[str, dict[str, Any]] = {_path_to_resource_id(endpoint["path"]): endpoint for endpoint in parser.extract_get_endpoints(spec)}
+        registry: dict[str, dict[str, Any]] = {
+            _path_to_resource_id(endpoint["path"]): endpoint
+            for endpoint in parser.extract_get_endpoints(spec)
+        }
 
         # Cache the registry
         _endpoint_registries[api_base_url] = registry
 
         # Build audit fields cache from spec (for auto-add regex and marketplace_audit_fields tool)
         try:
-            await asyncio.to_thread(audit_fields.update_cache, api_base_url, spec, _path_to_resource_id)
+            await asyncio.to_thread(
+                audit_fields.update_cache, api_base_url, spec, _path_to_resource_id
+            )
             logger.info(f"✓ Audit fields cache updated for {api_base_url}")
         except Exception as audit_err:
             logger.warning(f"⚠ Audit fields cache skipped: {audit_err}")

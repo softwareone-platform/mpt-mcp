@@ -33,8 +33,14 @@ def mock_api_response():
                 "id": "ORD-123",
                 "status": "Completed",
                 "audit": {
-                    "created": {"at": "2026-01-22T10:00:00Z", "by": {"id": "USR-1", "name": "User 1"}},
-                    "updated": {"at": "2026-01-22T11:00:00Z", "by": {"id": "USR-2", "name": "User 2"}},
+                    "created": {
+                        "at": "2026-01-22T10:00:00Z",
+                        "by": {"id": "USR-1", "name": "User 1"},
+                    },
+                    "updated": {
+                        "at": "2026-01-22T11:00:00Z",
+                        "by": {"id": "USR-2", "name": "User 2"},
+                    },
                 },
             }
         ],
@@ -43,7 +49,9 @@ def mock_api_response():
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_created_at(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_created_at(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'gt(audit.created.at,"2026-01-22T00:00:00Z")'
@@ -69,7 +77,9 @@ async def test_auto_adds_audit_when_filtering_by_created_at(api_client, mock_api
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_updated_at(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_updated_at(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'lt(audit.updated.at,"2026-01-22T23:59:59Z")'
@@ -94,7 +104,9 @@ async def test_auto_adds_audit_when_filtering_by_updated_at(api_client, mock_api
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_completed_at(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_completed_at(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'ge(audit.completed.at,"2026-01-22T00:00:00Z")'
@@ -119,7 +131,9 @@ async def test_auto_adds_audit_when_filtering_by_completed_at(api_client, mock_a
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_processing_at(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_processing_at(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'eq(audit.processing.at,"2026-01-22T10:00:00Z")'
@@ -144,7 +158,9 @@ async def test_auto_adds_audit_when_filtering_by_processing_at(api_client, mock_
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_quoted_at(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_quoted_at(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'lte(audit.quoted.at,"2026-01-22T23:59:59Z")'
@@ -169,7 +185,9 @@ async def test_auto_adds_audit_when_filtering_by_quoted_at(api_client, mock_api_
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_failed_at(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_failed_at(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'ge(audit.failed.at,"2026-01-22T00:00:00Z")'
@@ -190,11 +208,15 @@ async def test_auto_adds_audit_when_filtering_by_failed_at(api_client, mock_api_
 
     call_args = api_client.get.call_args
     params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit' for audit.failed.at"
+    assert "audit" in params.get("select", ""), (
+        "select parameter should include 'audit' for audit.failed.at"
+    )
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_filtering_by_created_by(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_filtering_by_created_by(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     rql = 'eq(audit.created.by.id,"USR-123")'
@@ -219,7 +241,9 @@ async def test_auto_adds_audit_when_filtering_by_created_by(api_client, mock_api
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_ordering_by_audit_field(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_ordering_by_audit_field(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -239,11 +263,15 @@ async def test_auto_adds_audit_when_ordering_by_audit_field(api_client, mock_api
 
     call_args = api_client.get.call_args
     params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit' when ordering by audit field"
+    assert "audit" in params.get("select", ""), (
+        "select parameter should include 'audit' when ordering by audit field"
+    )
 
 
 @pytest.mark.asyncio
-async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(api_client, mock_api_response, endpoints_registry):
+async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -263,11 +291,15 @@ async def test_auto_adds_audit_when_ordering_ascending_by_audit_field(api_client
 
     call_args = api_client.get.call_args
     params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit' when ordering by audit field"
+    assert "audit" in params.get("select", ""), (
+        "select parameter should include 'audit' when ordering by audit field"
+    )
 
 
 @pytest.mark.asyncio
-async def test_does_not_add_audit_when_already_in_select(api_client, mock_api_response, endpoints_registry):
+async def test_does_not_add_audit_when_already_in_select(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -290,11 +322,15 @@ async def test_does_not_add_audit_when_already_in_select(api_client, mock_api_re
     select_value = params.get("select", "")
     # Count occurrences of 'audit' - should be exactly 1
     audit_count = select_value.count("audit")
-    assert audit_count == 1, f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
+    assert audit_count == 1, (
+        f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_does_not_add_audit_when_using_plus_prefix(api_client, mock_api_response, endpoints_registry):
+async def test_does_not_add_audit_when_using_plus_prefix(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -316,11 +352,15 @@ async def test_does_not_add_audit_when_using_plus_prefix(api_client, mock_api_re
     params = call_args.kwargs.get("params", {})
     select_value = params.get("select", "")
     audit_count = select_value.count("audit")
-    assert audit_count == 1, f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
+    assert audit_count == 1, (
+        f"audit should appear exactly once in select, but found {audit_count} times: {select_value}"
+    )
 
 
 @pytest.mark.asyncio
-async def test_does_not_add_audit_when_using_audit_dot_notation(api_client, mock_api_response, endpoints_registry):
+async def test_does_not_add_audit_when_using_audit_dot_notation(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -346,7 +386,9 @@ async def test_does_not_add_audit_when_using_audit_dot_notation(api_client, mock
     # Should not have standalone 'audit' added when audit.field is already present
     select_parts = [s.strip() for s in select_value.split(",")]
     standalone_audit = [p for p in select_parts if p == "audit" or p == "+audit"]
-    assert len(standalone_audit) == 0, "standalone 'audit' should not be added when audit.field is already present"
+    assert len(standalone_audit) == 0, (
+        "standalone 'audit' should not be added when audit.field is already present"
+    )
 
 
 @pytest.mark.asyncio
@@ -371,11 +413,15 @@ async def test_complex_rql_with_audit_fields(api_client, mock_api_response, endp
 
     call_args = api_client.get.call_args
     params = call_args.kwargs.get("params", {})
-    assert "audit" in params.get("select", ""), "select parameter should include 'audit' for complex RQL with audit fields"
+    assert "audit" in params.get("select", ""), (
+        "select parameter should include 'audit' for complex RQL with audit fields"
+    )
 
 
 @pytest.mark.asyncio
-async def test_does_not_add_audit_when_no_audit_fields_used(api_client, mock_api_response, endpoints_registry):
+async def test_does_not_add_audit_when_no_audit_fields_used(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -396,7 +442,9 @@ async def test_does_not_add_audit_when_no_audit_fields_used(api_client, mock_api
     call_args = api_client.get.call_args
     params = call_args.kwargs.get("params", {})
     select_value = params.get("select", "")
-    assert "audit" not in select_value, "select parameter should NOT include 'audit' when no audit fields are used"
+    assert "audit" not in select_value, (
+        "select parameter should NOT include 'audit' when no audit fields are used"
+    )
 
 
 @pytest.mark.asyncio
@@ -428,7 +476,9 @@ async def test_appends_audit_to_existing_select(api_client, mock_api_response, e
 
 
 @pytest.mark.asyncio
-async def test_creates_select_with_audit_when_no_select_provided(api_client, mock_api_response, endpoints_registry):
+async def test_creates_select_with_audit_when_no_select_provided(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -454,7 +504,9 @@ async def test_creates_select_with_audit_when_no_select_provided(api_client, moc
 
 
 @pytest.mark.asyncio
-async def test_creates_select_with_audit_when_no_select_provided_exact(api_client, mock_api_response, endpoints_registry):
+async def test_creates_select_with_audit_when_no_select_provided_exact(
+    api_client, mock_api_response, endpoints_registry
+):
     api_client.get.return_value = mock_api_response
 
     await execute_marketplace_query(
@@ -501,7 +553,9 @@ async def test_audit_pattern_matches_all_audit_field_types():
 
     for field, should_match in test_cases:
         match = pattern.search(field)
-        assert (match is not None) == should_match, f"Pattern should {'match' if should_match else 'not match'} '{field}'"
+        assert (match is not None) == should_match, (
+            f"Pattern should {'match' if should_match else 'not match'} '{field}'"
+        )
 
 
 @pytest.mark.asyncio
@@ -570,7 +624,9 @@ async def test_real_world_recent_orders_query(api_client, mock_api_response, end
 
 
 @pytest.mark.asyncio
-async def test_retries_without_audit_on_400_error(api_client, mock_api_response, endpoints_registry):
+async def test_retries_without_audit_on_400_error(
+    api_client, mock_api_response, endpoints_registry
+):
     from unittest.mock import AsyncMock
 
     from httpx import HTTPStatusError, Request, Response
@@ -578,7 +634,9 @@ async def test_retries_without_audit_on_400_error(api_client, mock_api_response,
     # First call fails with 400, second succeeds
     error_response = Response(400, json={"errors": {"select": ["Invalid field"]}})
     error_response._request = Request("GET", "https://api.test.com/test")
-    http_error = HTTPStatusError("400 Bad Request", request=error_response._request, response=error_response)
+    http_error = HTTPStatusError(
+        "400 Bad Request", request=error_response._request, response=error_response
+    )
 
     success_response = Mock()
     success_response.json.return_value = mock_api_response

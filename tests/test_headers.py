@@ -25,7 +25,11 @@ class TestMPTHeaders:
         headers = Headers({header_name: value})
 
         # Test retrieval with different cases
-        retrieved = headers.get("mpt_authorization") or headers.get("X-MPT-Authorization") or headers.get("MPT_AUTHORIZATION")
+        retrieved = (
+            headers.get("mpt_authorization")
+            or headers.get("X-MPT-Authorization")
+            or headers.get("MPT_AUTHORIZATION")
+        )
 
         assert retrieved == value, f"{description} failed: expected {value}, got {retrieved}"
 
@@ -42,7 +46,11 @@ class TestMPTHeaders:
         """Test that X-MPT-Endpoint header works with any case"""
         headers = Headers({header_name: value})
 
-        retrieved = headers.get("mpt_endpoint") or headers.get("X-MPT-Endpoint") or headers.get("MPT_ENDPOINT")
+        retrieved = (
+            headers.get("mpt_endpoint")
+            or headers.get("X-MPT-Endpoint")
+            or headers.get("MPT_ENDPOINT")
+        )
 
         assert retrieved == value, f"{description} failed: expected {value}, got {retrieved}"
 

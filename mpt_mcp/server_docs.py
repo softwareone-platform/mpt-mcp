@@ -39,9 +39,13 @@ async def initialize_documentation_cache():
                 )
                 await documentation_cache.refresh()
                 doc_resources = await documentation_cache.list_resources()
-                logger.info(f"📝 Documentation cache loaded ({len(doc_resources)} pages); served via docs://{{path}} template")
+                logger.info(
+                    f"📝 Documentation cache loaded ({len(doc_resources)} pages); served via docs://{{path}} template"
+                )
                 logger.info("✓ Documentation cache initialized")
-                logger.info("✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are available")
+                logger.info(
+                    "✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are available"
+                )
             else:
                 logger.warning("⚠️  GitBook credentials invalid, documentation cache disabled")
                 documentation_cache = DocumentationCache(gitbook_client=None)

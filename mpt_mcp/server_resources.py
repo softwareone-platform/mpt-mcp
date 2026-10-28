@@ -36,7 +36,11 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
         openapi_spec = await endpoint_registry.get_openapi_spec(endpoint, force_refresh=False)
     except Exception as e:
         return json.dumps(
-            {"error": "Failed to fetch OpenAPI specification", "message": str(e), "endpoint": endpoint},
+            {
+                "error": "Failed to fetch OpenAPI specification",
+                "message": str(e),
+                "endpoint": endpoint,
+            },
             indent=2,
         )
 
@@ -52,8 +56,12 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
 
     spec_with_metadata = {
         "api_endpoint": endpoint,
-        "authenticated_as": token_info.get("account", {}).get("name", "Unknown") if token_info else "Unknown",
-        "account_id": token_info.get("account", {}).get("id", "Unknown") if token_info else "Unknown",
+        "authenticated_as": token_info.get("account", {}).get("name", "Unknown")
+        if token_info
+        else "Unknown",
+        "account_id": token_info.get("account", {}).get("id", "Unknown")
+        if token_info
+        else "Unknown",
         "openapi_version": openapi_spec.get("openapi", "3.0"),
         "info": openapi_spec.get("info", {}),
         "spec": openapi_spec,

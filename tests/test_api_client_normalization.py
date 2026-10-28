@@ -60,9 +60,21 @@ def test_api_client_constructs_correct_url():
 def test_api_client_prevents_path_duplication():
     """Test that various base URLs prevent path duplication"""
     test_cases = [
-        ("https://api.s1.show/public", "/public/v1/catalog/products", "https://api.s1.show/public/v1/catalog/products"),
-        ("https://api.s1.show/v1", "/public/v1/catalog/products", "https://api.s1.show/public/v1/catalog/products"),
-        ("https://api.s1.show", "/public/v1/catalog/products", "https://api.s1.show/public/v1/catalog/products"),
+        (
+            "https://api.s1.show/public",
+            "/public/v1/catalog/products",
+            "https://api.s1.show/public/v1/catalog/products",
+        ),
+        (
+            "https://api.s1.show/v1",
+            "/public/v1/catalog/products",
+            "https://api.s1.show/public/v1/catalog/products",
+        ),
+        (
+            "https://api.s1.show",
+            "/public/v1/catalog/products",
+            "https://api.s1.show/public/v1/catalog/products",
+        ),
     ]
 
     for base_url, endpoint, expected_url in test_cases:
@@ -73,5 +85,7 @@ def test_api_client_prevents_path_duplication():
 
 def test_api_client_handles_subdomain():
     """Test that subdomains are preserved"""
-    client = APIClient(base_url="https://api.staging.platform.softwareone.com/public/v1", token="test-token")
+    client = APIClient(
+        base_url="https://api.staging.platform.softwareone.com/public/v1", token="test-token"
+    )
     assert client.base_url == "https://api.staging.platform.softwareone.com"

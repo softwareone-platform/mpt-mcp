@@ -56,21 +56,43 @@ def upgrade() -> None:
     )
 
     # Create indexes for mcp_events
-    op.create_index("idx_events_timestamp", "mcp_events", [sa.literal_column("timestamp DESC")], unique=False)
+    op.create_index(
+        "idx_events_timestamp", "mcp_events", [sa.literal_column("timestamp DESC")], unique=False
+    )
     op.create_index("idx_events_token_id", "mcp_events", ["token_id"], unique=False)
     op.create_index("idx_events_tool_name", "mcp_events", ["tool_name"], unique=False)
     op.create_index("idx_events_api_resource", "mcp_events", ["api_resource"], unique=False)
     op.create_index("idx_events_event_type", "mcp_events", ["event_type"], unique=False)
-    op.create_index("idx_events_error_type", "mcp_events", ["error_type"], unique=False, postgresql_where=sa.text("error_type IS NOT NULL"))
-    op.create_index("idx_events_date_token", "mcp_events", [sa.literal_column("date(timestamp)"), "token_id"], unique=False)
-    op.create_index("idx_events_date_tool", "mcp_events", [sa.literal_column("date(timestamp)"), "tool_name"], unique=False)
+    op.create_index(
+        "idx_events_error_type",
+        "mcp_events",
+        ["error_type"],
+        unique=False,
+        postgresql_where=sa.text("error_type IS NOT NULL"),
+    )
+    op.create_index(
+        "idx_events_date_token",
+        "mcp_events",
+        [sa.literal_column("date(timestamp)"), "token_id"],
+        unique=False,
+    )
+    op.create_index(
+        "idx_events_date_tool",
+        "mcp_events",
+        [sa.literal_column("date(timestamp)"), "tool_name"],
+        unique=False,
+    )
 
 
 def downgrade() -> None:
     """Drop mcp_events table and all its indexes."""
     op.drop_index("idx_events_date_tool", table_name="mcp_events")
     op.drop_index("idx_events_date_token", table_name="mcp_events")
-    op.drop_index("idx_events_error_type", table_name="mcp_events", postgresql_where=sa.text("error_type IS NOT NULL"))
+    op.drop_index(
+        "idx_events_error_type",
+        table_name="mcp_events",
+        postgresql_where=sa.text("error_type IS NOT NULL"),
+    )
     op.drop_index("idx_events_event_type", table_name="mcp_events")
     op.drop_index("idx_events_api_resource", table_name="mcp_events")
     op.drop_index("idx_events_tool_name", table_name="mcp_events")

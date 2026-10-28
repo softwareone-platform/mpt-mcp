@@ -24,7 +24,14 @@ class TestRQLImplementation:
     def mock_product_response(self):
         """Mock API response with product data"""
         return {
-            "data": [{"id": "prod-123", "name": "Microsoft Office 365", "status": "Published", "description": "Office suite"}],
+            "data": [
+                {
+                    "id": "prod-123",
+                    "name": "Microsoft Office 365",
+                    "status": "Published",
+                    "description": "Office suite",
+                }
+            ],
             "$meta": {"pagination": {"total": 100, "limit": 1, "offset": 0}},
         }
 

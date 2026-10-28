@@ -16,7 +16,11 @@ if TYPE_CHECKING:
 async def analytics_lifespan(server: Any) -> AsyncIterator[dict[str, Any]]:
     """Run the analytics logger inside the server's event loop and flush pending events on shutdown."""
     analytics = await initialize_analytics(database_url=config.analytics_database_url)
-    logger.info("📊 Analytics enabled - tracking usage metrics" if analytics.enabled else "📊 Analytics disabled (no database configured)")
+    logger.info(
+        "📊 Analytics enabled - tracking usage metrics"
+        if analytics.enabled
+        else "📊 Analytics disabled (no database configured)"
+    )
     try:
         yield {}
     finally:

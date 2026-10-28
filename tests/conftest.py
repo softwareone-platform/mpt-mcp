@@ -17,7 +17,9 @@ def _patch_server_callables():
         for name, tool in tools.items():
             setattr(server, name, tool)
         for uri, resource in resources.items():
-            name = getattr(resource, "name", None) or uri.replace("://", "_").replace("{", "").replace("}", "").replace("/", "_")
+            name = getattr(resource, "name", None) or uri.replace("://", "_").replace(
+                "{", ""
+            ).replace("}", "").replace("/", "_")
             if name and not hasattr(server, name):
                 setattr(server, name, resource)
 

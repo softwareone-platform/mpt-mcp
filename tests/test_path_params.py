@@ -123,7 +123,9 @@ class TestPathParameterErrorMessages:
         """Test error message with multiple missing parameters"""
         remaining_params = ["orderId", "lineId"]
 
-        hint = f"Provide path_params like: {{{', '.join([f'{p}: value' for p in remaining_params])}}}"
+        hint = (
+            f"Provide path_params like: {{{', '.join([f'{p}: value' for p in remaining_params])}}}"
+        )
 
         assert "orderId: value" in hint
         assert "lineId: value" in hint

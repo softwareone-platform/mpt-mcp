@@ -50,7 +50,12 @@ class TestOmittedFieldsLogging:
                 # Verify response contains omitted fields
                 assert "$meta" in result
                 assert "omitted" in result["$meta"]
-                assert result["$meta"]["omitted"] == ["lines", "parameters", "subscriptions", "assets"]
+                assert result["$meta"]["omitted"] == [
+                    "lines",
+                    "parameters",
+                    "subscriptions",
+                    "assets",
+                ]
 
                 # Verify logging was called with omitted fields info
                 log_calls = [str(call) for call in mock_logger.info.call_args_list]
@@ -138,7 +143,9 @@ class TestOmittedFieldsDocumentation:
         assert "select=+field" in result["omitted_fields_note"]
 
     @pytest.mark.asyncio
-    async def test_marketplace_resource_info_select_param_documents_omitted_fields(self, endpoints_registry):
+    async def test_marketplace_resource_info_select_param_documents_omitted_fields(
+        self, endpoints_registry
+    ):
         """Test that select parameter documentation mentions omitted fields"""
         result = execute_marketplace_resource_info(
             resource="commerce.orders",
@@ -243,7 +250,9 @@ class TestOmittedFieldsWithSelectParameter:
             assert "lines" in result1["$meta"]["omitted"]
 
             # Second call: with select=+lines,+parameters
-            result2 = await api_client.get(endpoint, params={"limit": 10, "select": "+lines,+parameters"})
+            result2 = await api_client.get(
+                endpoint, params={"limit": 10, "select": "+lines,+parameters"}
+            )
             # When fields are explicitly selected, they should be in data
             if "lines" in result2.get("data", [{}])[0]:
                 assert "lines" in result2["data"][0]

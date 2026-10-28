@@ -26,7 +26,9 @@ async def test_401_unauthorized_error():
         mock_response.text = "Invalid credentials"
 
         mock_get = AsyncMock()
-        mock_get.side_effect = httpx.HTTPStatusError("401 Unauthorized", request=Mock(), response=mock_response)
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "401 Unauthorized", request=Mock(), response=mock_response
+        )
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         client = APIClient("https://api.test.com", "test_token")
@@ -48,7 +50,9 @@ async def test_403_forbidden_error():
         mock_response.text = "Access denied"
 
         mock_get = AsyncMock()
-        mock_get.side_effect = httpx.HTTPStatusError("403 Forbidden", request=Mock(), response=mock_response)
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "403 Forbidden", request=Mock(), response=mock_response
+        )
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         client = APIClient("https://api.test.com", "test_token")
@@ -70,7 +74,9 @@ async def test_404_not_found_error():
         mock_response.text = "Resource not found"
 
         mock_get = AsyncMock()
-        mock_get.side_effect = httpx.HTTPStatusError("404 Not Found", request=Mock(), response=mock_response)
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "404 Not Found", request=Mock(), response=mock_response
+        )
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         client = APIClient("https://api.test.com", "test_token")
@@ -92,7 +98,9 @@ async def test_429_rate_limit_error():
         mock_response.text = "Rate limit exceeded"
 
         mock_get = AsyncMock()
-        mock_get.side_effect = httpx.HTTPStatusError("429 Too Many Requests", request=Mock(), response=mock_response)
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "429 Too Many Requests", request=Mock(), response=mock_response
+        )
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         client = APIClient("https://api.test.com", "test_token")
@@ -114,7 +122,9 @@ async def test_500_server_error():
         mock_response.text = "Internal server error"
 
         mock_get = AsyncMock()
-        mock_get.side_effect = httpx.HTTPStatusError("500 Internal Server Error", request=Mock(), response=mock_response)
+        mock_get.side_effect = httpx.HTTPStatusError(
+            "500 Internal Server Error", request=Mock(), response=mock_response
+        )
         mock_client.return_value.__aenter__.return_value.get = mock_get
 
         client = APIClient("https://api.test.com", "test_token")

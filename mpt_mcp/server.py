@@ -38,7 +38,11 @@ server_port = int(os.getenv("PORT", "8080"))
 server_host = "0.0.0.0"
 logger.info(f"🌐 Configured for {server_host}:{server_port}")
 # RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
-mcp = FastMCP("softwareone-marketplace", lifespan=analytics_lifespan, middleware=[RequestContextMiddleware(), AnalyticsMiddleware()])
+mcp = FastMCP(
+    "softwareone-marketplace",
+    lifespan=analytics_lifespan,
+    middleware=[RequestContextMiddleware(), AnalyticsMiddleware()],
+)
 register_http_tools(mcp)
 register_http_resources(mcp)
 
@@ -78,7 +82,9 @@ async def _create_app():
         except Exception as e:
             logger.warning(f"⚠️  Could not register doc resources for discovery: {e}")
     else:
-        logger.info("ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured.")
+        logger.info(
+            "ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to enable). docs://{path} template is still available for reading when configured."
+        )
     # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-balanced.
     # Docs cache is populated at startup and remains in memory for all requests in that process.
     starlette_app = mcp.http_app(stateless_http=True)
@@ -89,9 +95,13 @@ async def _create_app():
     def _http_exception_handler(request: Request, exc: HTTPException) -> JSONResponse:
         if exc.status_code == 404:
             # Log so prod (e.g. Cloud Run) can see what path was received (helps when LB strips path)
-            has_mcp_session_id = bool(request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id"))
+            has_mcp_session_id = bool(
+                request.headers.get("mcp-session-id") or request.headers.get("Mcp-Session-Id")
+            )
             ua = (request.headers.get("user-agent") or "")[:80]
-            logger.warning(f"⚠️ 404 {request.method} path={request.url.path!r} mcp_session_id={'yes' if has_mcp_session_id else 'no'} ua={ua!r}")
+            logger.warning(
+                f"⚠️ 404 {request.method} path={request.url.path!r} mcp_session_id={'yes' if has_mcp_session_id else 'no'} ua={ua!r}"
+            )
             return JSONResponse(
                 {
                     "error": "Not found",
@@ -133,7 +143,9 @@ async def _create_app():
             await self.app(scope, receive, send)
 
     final_app = HealthCheckMiddleware(starlette_app)
-    logger.info("✅ Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware")
+    logger.info(
+        "✅ Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware"
+    )
 
     class AccessLogFilter(logging.Filter):
         def filter(self, record: logging.LogRecord) -> bool:
@@ -189,7 +201,9 @@ def _run_uvicorn():
     enable_reload = os.getenv("DEBUG", "false").lower() == "true"
     reload_dirs = ["mpt_mcp", "config", "alembic"] if enable_reload else None
     if enable_reload:
-        logger.info("🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic")
+        logger.info(
+            "🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic"
+        )
     uvicorn_log_level = "debug" if config.debug else "info"
     logger.info(f"📋 Log level: {uvicorn_log_level} (DEBUG={os.getenv('DEBUG', '(not set)')!r})")
     uvicorn.run(
@@ -217,7 +231,9 @@ def main():
         logger.info("🔑 Multi-tenant Authentication:")
         logger.info("   - Clients MUST provide X-MPT-Authorization header")
         logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")
-        logger.info("   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')")
+        logger.info(
+            "   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token invalid (cached)')"
+        )
         logger.info("   - Headers are case-insensitive")
         logger.info(f"✓ Server URL: http://{server_host}:{server_port}/mcp")
         logger.info(f"✓ Health check: http://{server_host}:{server_port}/health")

@@ -64,7 +64,9 @@ class OpenAPIParser:
 
         return endpoints
 
-    def _simplify_schema(self, schema: dict[str, Any], max_depth: int = 3, current_depth: int = 0) -> dict[str, Any]:
+    def _simplify_schema(
+        self, schema: dict[str, Any], max_depth: int = 3, current_depth: int = 0
+    ) -> dict[str, Any]:
         """
         Simplify a JSON schema for better readability in tool descriptions
 
@@ -92,11 +94,17 @@ class OpenAPIParser:
 
         if "properties" in schema and isinstance(schema["properties"], dict):
             simplified["properties"] = {}
-            for prop_name, prop_schema in list(schema["properties"].items())[:10]:  # Limit to 10 properties
-                simplified["properties"][prop_name] = self._simplify_schema(prop_schema, max_depth, current_depth + 1)
+            for prop_name, prop_schema in list(schema["properties"].items())[
+                :10
+            ]:  # Limit to 10 properties
+                simplified["properties"][prop_name] = self._simplify_schema(
+                    prop_schema, max_depth, current_depth + 1
+                )
 
         if "items" in schema:
-            simplified["items"] = self._simplify_schema(schema["items"], max_depth, current_depth + 1)
+            simplified["items"] = self._simplify_schema(
+                schema["items"], max_depth, current_depth + 1
+            )
 
         if "example" in schema:
             simplified["example"] = schema["example"]

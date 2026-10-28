@@ -25,9 +25,13 @@ class Config:
     """Application configuration"""
 
     # API Configuration
-    marketplace_api_base_url: str = os.getenv("MARKETPLACE_API_BASE_URL", "https://api.platform.softwareone.com")
+    marketplace_api_base_url: str = os.getenv(
+        "MARKETPLACE_API_BASE_URL", "https://api.platform.softwareone.com"
+    )
     marketplace_api_token: str = os.getenv("MARKETPLACE_API_TOKEN", "")
-    openapi_spec_url: str = os.getenv("OPENAPI_SPEC_URL", "https://api.platform.softwareone.com/public/v1/openapi.json")
+    openapi_spec_url: str = os.getenv(
+        "OPENAPI_SPEC_URL", "https://api.platform.softwareone.com/public/v1/openapi.json"
+    )
 
     # Server Configuration
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
@@ -41,7 +45,9 @@ class Config:
 
     # SSE is always multi-tenant - clients MUST provide credentials via MPT_Authorization header
     # Default base URL used when client doesn't specify MPT_Endpoint header
-    sse_default_base_url: str = os.getenv("SSE_DEFAULT_BASE_URL", "https://api.platform.softwareone.com")
+    sse_default_base_url: str = os.getenv(
+        "SSE_DEFAULT_BASE_URL", "https://api.platform.softwareone.com"
+    )
 
     # GitBook Documentation Integration (Optional)
     gitbook_api_key: str = os.getenv("GITBOOK_API_KEY", "")

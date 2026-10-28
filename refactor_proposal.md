@@ -74,6 +74,7 @@ from starlette.requests import Request
 
 mcp = FastMCP("Marketplace")
 
+
 @dataclass
 class CallContext:
     token: str
@@ -88,13 +89,13 @@ class CallContext:
                 return parts[1]
 
 
-
 async def get_call_context(request: Request = CurrentRequest()) -> CallContext:
     return CallContext(
         token=request.headers.get("x-mpt-authorization"),
         endpoint=request.headers.get("x-mpt-endpoint"),
         session_id=request.query_params.get("session_id"),
     )
+
 
 async def authenticate(ctx: CallContext = Depends(get_call_context)) -> CallContext:
     if not ctx.token:
@@ -104,7 +105,6 @@ async def authenticate(ctx: CallContext = Depends(get_call_context)) -> CallCont
         )
     # apply token validation logic
     return ctx
-
 
 
 @mcp.tool()
@@ -127,7 +127,6 @@ The logic to capture analytics should be moved to an AnalyticsMiddleware. FastMC
 
 ```python
 class AnalyticsMiddleware(Middleware):
-
     async def on_call_tool(self, context: MiddlewareContext, call_next):
         result = await call_next(context)
         # save analytics data
@@ -137,7 +136,6 @@ class AnalyticsMiddleware(Middleware):
         result = await call_next(context)
         # save analytics data
         return result
-
 ```
 
 # Caching

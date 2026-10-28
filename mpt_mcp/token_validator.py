@@ -55,7 +55,9 @@ class TokenValidationCache:
         # SECURITY: Keys are SHA256 hashes of token+endpoint, not raw tokens
         self._cache: dict[str, tuple[bool, datetime, dict | None]] = {}
         self._lock = asyncio.Lock()
-        logger.info(f"🔐 Token validation cache initialized (TTL: {ttl_minutes}m, secure hash keys)")
+        logger.info(
+            f"🔐 Token validation cache initialized (TTL: {ttl_minutes}m, secure hash keys)"
+        )
 
     async def get(self, token: str, api_base_url: str) -> tuple[bool, dict | None] | None:
         """
@@ -75,7 +77,9 @@ class TokenValidationCache:
                 is_valid, expiry, token_info = self._cache[cache_key]
 
                 if datetime.now() < expiry:
-                    logger.debug(f"✅ Token validation cache hit (expires in {(expiry - datetime.now()).seconds}s)")
+                    logger.debug(
+                        f"✅ Token validation cache hit (expires in {(expiry - datetime.now()).seconds}s)"
+                    )
                     return (is_valid, token_info)
                 else:
                     logger.debug("⏰ Token validation cache expired, removing")
@@ -83,7 +87,9 @@ class TokenValidationCache:
 
             return None
 
-    async def set(self, token: str, api_base_url: str, is_valid: bool, token_info: dict | None = None):
+    async def set(
+        self, token: str, api_base_url: str, is_valid: bool, token_info: dict | None = None
+    ):
         """
         Cache validation result for a token
 
@@ -98,7 +104,9 @@ class TokenValidationCache:
         async with self._lock:
             expiry = datetime.now() + self.ttl
             self._cache[cache_key] = (is_valid, expiry, token_info)
-            logger.debug(f"💾 Cached token validation (valid={is_valid}, expires in {self.ttl.seconds}s)")
+            logger.debug(
+                f"💾 Cached token validation (valid={is_valid}, expires in {self.ttl.seconds}s)"
+            )
 
     async def invalidate(self, token: str, api_base_url: str):
         """
@@ -193,9 +201,17 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict | None:
 def _extract_claims_from_payload(payload: dict) -> tuple[str | None, str | None]:
     """Extract userId and accountId from SoftwareOne JWT payload."""
     raw_user_id = payload.get("https://claims.softwareone.com/userId")
-    user_id = raw_user_id if raw_user_id and isinstance(raw_user_id, str) and raw_user_id.startswith("USR-") else None
+    user_id = (
+        raw_user_id
+        if raw_user_id and isinstance(raw_user_id, str) and raw_user_id.startswith("USR-")
+        else None
+    )
     raw_account_id = payload.get("https://claims.softwareone.com/accountId")
-    account_id = raw_account_id if raw_account_id and isinstance(raw_account_id, str) and raw_account_id.startswith("ACC-") else None
+    account_id = (
+        raw_account_id
+        if raw_account_id and isinstance(raw_account_id, str) and raw_account_id.startswith("ACC-")
+        else None
+    )
     return (user_id, account_id)
 
 
@@ -360,7 +376,9 @@ def normalize_token(token: str) -> str:
     return s
 
 
-async def validate_token(token: str, api_base_url: str, use_cache: bool = True) -> tuple[bool, dict | None, str | None]:
+async def validate_token(
+    token: str, api_base_url: str, use_cache: bool = True
+) -> tuple[bool, dict | None, str | None]:
     """
     Validate an API token against the Marketplace Platform
 
@@ -397,7 +415,9 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
             if is_valid and token_info:
                 account_name = token_info.get("account", {}).get("name", "Unknown")
                 account_id = token_info.get("account", {}).get("id", "Unknown")
-                logger.info(f"🔐 Token validation (CACHED): ✅ Valid - {account_name} ({account_id})")
+                logger.info(
+                    f"🔐 Token validation (CACHED): ✅ Valid - {account_name} ({account_id})"
+                )
             else:
                 logger.info("🔐 Token validation (CACHED): ❌ Invalid")
 
@@ -439,11 +459,18 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
         validation_url = f"{api_base_url.rstrip('/')}/public/v1/accounts/users/{user_id}"
 
         try:
-            logger.info(f"🔐 Validating JWT token (user: {user_id}) against {api_base_url} (API call)...")
+            logger.info(
+                f"🔐 Validating JWT token (user: {user_id}) against {api_base_url} (API call)..."
+            )
 
             timeout_config = httpx.Timeout(30.0, connect=30.0)
-            async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
-                response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+            async with httpx.AsyncClient(
+                follow_redirects=True, http2=True, timeout=timeout_config
+            ) as client:
+                response = await client.get(
+                    validation_url,
+                    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                )
 
                 if response.status_code == 200:
                     user_info = response.json()
@@ -457,11 +484,23 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
                     if account_id_from_jwt:
                         account_id = account_id_from_jwt
                         # Try to get account name from API response, fallback to Unknown
-                        account_name = user_info.get("account", {}).get("name", "Unknown") if isinstance(user_info.get("account"), dict) else "Unknown"
+                        account_name = (
+                            user_info.get("account", {}).get("name", "Unknown")
+                            if isinstance(user_info.get("account"), dict)
+                            else "Unknown"
+                        )
                     else:
                         # Fallback to API response if JWT doesn't have accountId
-                        account_id = user_info.get("account", {}).get("id", "Unknown") if isinstance(user_info.get("account"), dict) else "Unknown"
-                        account_name = user_info.get("account", {}).get("name", "Unknown") if isinstance(user_info.get("account"), dict) else "Unknown"
+                        account_id = (
+                            user_info.get("account", {}).get("id", "Unknown")
+                            if isinstance(user_info.get("account"), dict)
+                            else "Unknown"
+                        )
+                        account_name = (
+                            user_info.get("account", {}).get("name", "Unknown")
+                            if isinstance(user_info.get("account"), dict)
+                            else "Unknown"
+                        )
 
                     # Check if user is active
                     if user_status != "Active":
@@ -569,8 +608,13 @@ async def validate_token(token: str, api_base_url: str, use_cache: bool = True) 
             logger.info(f"🔐 Validating token {token_id} against {api_base_url} (API call)...")
 
             timeout_config = httpx.Timeout(30.0, connect=30.0)
-            async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
-                response = await client.get(validation_url, headers={"Authorization": f"Bearer {token}", "Accept": "application/json"})
+            async with httpx.AsyncClient(
+                follow_redirects=True, http2=True, timeout=timeout_config
+            ) as client:
+                response = await client.get(
+                    validation_url,
+                    headers={"Authorization": f"Bearer {token}", "Accept": "application/json"},
+                )
 
                 if response.status_code == 200:
                     token_info = response.json()

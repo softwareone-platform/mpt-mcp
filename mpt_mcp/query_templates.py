@@ -22,7 +22,14 @@ def get_query_templates() -> dict[str, Any]:
                     "name": "Orders by status",
                     "description": "Filter orders by their current status",
                     "query": "marketplace_query(resource='commerce.orders', rql='eq(status,Querying)', limit=50)",
-                    "available_statuses": ["Draft", "Querying", "Processing", "Completed", "Failed", "Cancelled"],
+                    "available_statuses": [
+                        "Draft",
+                        "Querying",
+                        "Processing",
+                        "Completed",
+                        "Failed",
+                        "Cancelled",
+                    ],
                     "use_case": "Track orders in a specific state",
                 },
                 {

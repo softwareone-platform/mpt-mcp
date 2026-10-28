@@ -22,19 +22,25 @@ from mpt_mcp.token_validator import get_token_cache
 
 logger = logging.getLogger(__name__)
 
-DOCUMENTATION_CACHE_UNAVAILABLE_MSG = "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
+DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
+    "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
+)
 AUTH_HINT_HEADER_TOKEN = "Provide X-MPT-Authorization header with your API token"
 OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
 
-async def marketplace_docs_list(section: str = None, subsection: str = None, search: str = None, limit: int = 100) -> dict[str, Any]:
+async def marketplace_docs_list(
+    section: str = None, subsection: str = None, search: str = None, limit: int = 100
+) -> dict[str, Any]:
     """List documentation resources with optional filters (section, subsection, search)."""
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
     if not dc or not dc.is_enabled:
         return {"total": 0, "resources": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
 
-    resources = await dc.list_resources(section=section, subsection=subsection, search=search, limit=limit)
+    resources = await dc.list_resources(
+        section=section, subsection=subsection, search=search, limit=limit
+    )
     resources_for_response = []
     for r in resources:
         item = dict(r)
@@ -59,7 +65,9 @@ async def marketplace_docs_list(section: str = None, subsection: str = None, sea
         ),
     }
     if len(resources) >= limit:
-        result["tip"] = f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
+        result["tip"] = (
+            f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
+        )
     elif len(resources) > 50:
         result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
 
@@ -118,7 +126,9 @@ def register_http_tools(mcp):
         return execute_marketplace_quick_queries()
 
     @mcp.tool()
-    async def marketplace_resources(call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
+    async def marketplace_resources(
+        call_context: CallContext = Depends(get_call_context),
+    ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
@@ -135,7 +145,9 @@ def register_http_tools(mcp):
         )
 
     @mcp.tool()
-    async def marketplace_resource_info(resource: str, call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
+    async def marketplace_resource_info(
+        resource: str, call_context: CallContext = Depends(get_call_context)
+    ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
@@ -151,7 +163,9 @@ def register_http_tools(mcp):
         )
 
     @mcp.tool()
-    async def marketplace_resource_schema(resource: str, call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
+    async def marketplace_resource_schema(
+        resource: str, call_context: CallContext = Depends(get_call_context)
+    ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
@@ -169,7 +183,9 @@ def register_http_tools(mcp):
         )
 
     @mcp.tool()
-    async def marketplace_audit_fields(resource: str | None = None, call_context: CallContext = Depends(get_call_context)) -> dict[str, Any]:
+    async def marketplace_audit_fields(
+        resource: str | None = None, call_context: CallContext = Depends(get_call_context)
+    ) -> dict[str, Any]:
         try:
             api_client = await call_context.create_api_client()
         except ValueError as e:
@@ -178,7 +194,11 @@ def register_http_tools(mcp):
         try:
             await endpoint_registry.get_endpoints_registry(api_base_url)
         except Exception as e:
-            return {"error": f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields", "details": str(e), "api_endpoint": api_base_url}
+            return {
+                "error": f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
+                "details": str(e),
+                "api_endpoint": api_base_url,
+            }
         return audit_fields_module.get_audit_fields(api_base_url, resource)
 
     @mcp.tool()
@@ -204,7 +224,10 @@ def register_http_tools(mcp):
 
         content = await dc.get_resource(uri)
         if content is None:
-            return {"text": f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages.", "count": 0}
+            return {
+                "text": f"Documentation page not found: {uri}\n\nUse marketplace_docs_list() to see available pages.",
+                "count": 0,
+            }
 
         return {"text": content, "count": 1}
 

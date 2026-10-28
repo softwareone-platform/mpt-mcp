@@ -19,7 +19,14 @@ class TestQueryTemplatesStructure:
     def test_expected_categories_exist(self):
         """Test that all expected categories are present."""
         templates = get_query_templates()
-        expected_categories = ["orders", "products", "agreements", "subscriptions", "accounts", "tips"]
+        expected_categories = [
+            "orders",
+            "products",
+            "agreements",
+            "subscriptions",
+            "accounts",
+            "tips",
+        ]
 
         for category in expected_categories:
             assert category in templates, f"Missing category: {category}"
@@ -27,36 +34,64 @@ class TestQueryTemplatesStructure:
     def test_category_has_description_and_templates(self):
         """Test that each category (except tips) has description and templates."""
         templates = get_query_templates()
-        categories_with_templates = ["orders", "products", "agreements", "subscriptions", "accounts"]
+        categories_with_templates = [
+            "orders",
+            "products",
+            "agreements",
+            "subscriptions",
+            "accounts",
+        ]
 
         for category in categories_with_templates:
             assert "description" in templates[category], f"{category} missing description"
             assert "templates" in templates[category], f"{category} missing templates"
-            assert isinstance(templates[category]["templates"], list), f"{category} templates should be a list"
-            assert len(templates[category]["templates"]) > 0, f"{category} should have at least one template"
+            assert isinstance(templates[category]["templates"], list), (
+                f"{category} templates should be a list"
+            )
+            assert len(templates[category]["templates"]) > 0, (
+                f"{category} should have at least one template"
+            )
 
     def test_template_has_required_fields(self):
         """Test that each template has required fields."""
         templates = get_query_templates()
         required_fields = ["name", "description", "query", "use_case"]
-        categories_with_templates = ["orders", "products", "agreements", "subscriptions", "accounts"]
+        categories_with_templates = [
+            "orders",
+            "products",
+            "agreements",
+            "subscriptions",
+            "accounts",
+        ]
 
         for category in categories_with_templates:
             for i, template in enumerate(templates[category]["templates"]):
                 for field in required_fields:
                     assert field in template, f"{category} template {i} missing field: {field}"
-                    assert isinstance(template[field], str), f"{category} template {i} {field} should be string"
-                    assert len(template[field]) > 0, f"{category} template {i} {field} should not be empty"
+                    assert isinstance(template[field], str), (
+                        f"{category} template {i} {field} should be string"
+                    )
+                    assert len(template[field]) > 0, (
+                        f"{category} template {i} {field} should not be empty"
+                    )
 
     def test_template_query_format(self):
         """Test that template queries follow expected format."""
         templates = get_query_templates()
-        categories_with_templates = ["orders", "products", "agreements", "subscriptions", "accounts"]
+        categories_with_templates = [
+            "orders",
+            "products",
+            "agreements",
+            "subscriptions",
+            "accounts",
+        ]
 
         for category in categories_with_templates:
             for template in templates[category]["templates"]:
                 query = template["query"]
-                assert query.startswith("marketplace_query("), f"Query should start with marketplace_query(): {query}"
+                assert query.startswith("marketplace_query("), (
+                    f"Query should start with marketplace_query(): {query}"
+                )
                 assert "resource=" in query, f"Query should contain resource parameter: {query}"
                 assert query.endswith(")"), f"Query should end with closing parenthesis: {query}"
 
@@ -105,7 +140,9 @@ class TestQueryTemplatesContent:
         subscriptions = templates["subscriptions"]
 
         assert subscriptions["description"] == "Common subscription queries"
-        assert len(subscriptions["templates"]) >= 3, "Subscriptions should have at least 3 templates"
+        assert len(subscriptions["templates"]) >= 3, (
+            "Subscriptions should have at least 3 templates"
+        )
 
         template_names = [t["name"] for t in subscriptions["templates"]]
         assert "Active subscriptions" in template_names
@@ -165,14 +202,26 @@ class TestQueryTemplatesAvailableStatuses:
     def test_templates_with_status_have_available_values(self):
         """Test that templates filtering by status include available_statuses."""
         templates = get_query_templates()
-        categories_with_templates = ["orders", "products", "agreements", "subscriptions", "accounts"]
+        categories_with_templates = [
+            "orders",
+            "products",
+            "agreements",
+            "subscriptions",
+            "accounts",
+        ]
 
         for category in categories_with_templates:
             for template in templates[category]["templates"]:
                 query = template["query"]
                 if "eq(status," in query or "status," in query:
-                    if "status" in template["name"].lower() or "published" in template["name"].lower() or "active" in template["name"].lower():
-                        assert "available_statuses" in template, f"{category} template '{template['name']}' should have available_statuses"
+                    if (
+                        "status" in template["name"].lower()
+                        or "published" in template["name"].lower()
+                        or "active" in template["name"].lower()
+                    ):
+                        assert "available_statuses" in template, (
+                            f"{category} template '{template['name']}' should have available_statuses"
+                        )
                         assert isinstance(template["available_statuses"], list)
                         assert len(template["available_statuses"]) > 0
 
@@ -186,7 +235,9 @@ class TestQueryTemplatesResourceReferences:
 
         for template in templates["orders"]["templates"]:
             query = template["query"]
-            assert "commerce.orders" in query, f"Order template should reference commerce.orders: {query}"
+            assert "commerce.orders" in query, (
+                f"Order template should reference commerce.orders: {query}"
+            )
 
     def test_products_templates_reference_catalog_resources(self):
         """Test that product templates reference catalog resources."""
@@ -194,7 +245,9 @@ class TestQueryTemplatesResourceReferences:
 
         for template in templates["products"]["templates"]:
             query = template["query"]
-            assert "catalog.products" in query, f"Product template should reference catalog.products: {query}"
+            assert "catalog.products" in query, (
+                f"Product template should reference catalog.products: {query}"
+            )
 
     def test_agreements_templates_reference_commerce_resources(self):
         """Test that agreement templates reference commerce resources."""
@@ -202,7 +255,9 @@ class TestQueryTemplatesResourceReferences:
 
         for template in templates["agreements"]["templates"]:
             query = template["query"]
-            assert "commerce.agreements" in query, f"Agreement template should reference commerce.agreements: {query}"
+            assert "commerce.agreements" in query, (
+                f"Agreement template should reference commerce.agreements: {query}"
+            )
 
     def test_subscriptions_templates_reference_commerce_resources(self):
         """Test that subscription templates reference commerce resources."""
@@ -210,7 +265,9 @@ class TestQueryTemplatesResourceReferences:
 
         for template in templates["subscriptions"]["templates"]:
             query = template["query"]
-            assert "commerce.subscriptions" in query, f"Subscription template should reference commerce.subscriptions: {query}"
+            assert "commerce.subscriptions" in query, (
+                f"Subscription template should reference commerce.subscriptions: {query}"
+            )
 
     def test_accounts_templates_reference_accounts_resources(self):
         """Test that account templates reference accounts resources."""
@@ -218,4 +275,6 @@ class TestQueryTemplatesResourceReferences:
 
         for template in templates["accounts"]["templates"]:
             query = template["query"]
-            assert "accounts." in query, f"Account template should reference accounts resources: {query}"
+            assert "accounts." in query, (
+                f"Account template should reference accounts resources: {query}"
+            )

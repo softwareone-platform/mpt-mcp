@@ -4,7 +4,12 @@ import pytest
 from starlette.requests import Request
 
 from mpt_mcp.api_client import APIClient
-from mpt_mcp.call_context import MISSING_TOKEN_ERROR, CallContext, get_call_context, normalize_endpoint_url
+from mpt_mcp.call_context import (
+    MISSING_TOKEN_ERROR,
+    CallContext,
+    get_call_context,
+    normalize_endpoint_url,
+)
 from mpt_mcp.config import config
 
 
@@ -12,17 +17,33 @@ from mpt_mcp.config import config
 def make_request():
     def _make_request(headers):
         raw_headers = [(name.lower().encode(), value.encode()) for name, value in headers.items()]
-        return Request({"type": "http", "method": "POST", "path": "/mcp", "query_string": b"", "headers": raw_headers})
+        return Request(
+            {
+                "type": "http",
+                "method": "POST",
+                "path": "/mcp",
+                "query_string": b"",
+                "headers": raw_headers,
+            }
+        )
 
     return _make_request
 
 
 async def test_get_call_context_reads_mpt_headers(make_request):
-    request = make_request({"X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET", "X-MPT-Endpoint": "https://api.s1.show/public/", "X-MPT-Validate-Fresh": "true"})
+    request = make_request(
+        {
+            "X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET",
+            "X-MPT-Endpoint": "https://api.s1.show/public/",
+            "X-MPT-Validate-Fresh": "true",
+        }
+    )
 
     result = await get_call_context(request)
 
-    assert result == CallContext(endpoint="https://api.s1.show", token="idt:TKN-1234-5678:SECRET", validate_fresh=True)
+    assert result == CallContext(
+        endpoint="https://api.s1.show", token="idt:TKN-1234-5678:SECRET", validate_fresh=True
+    )
 
 
 async def test_get_call_context_defaults_without_headers(make_request):
@@ -30,7 +51,9 @@ async def test_get_call_context_defaults_without_headers(make_request):
 
     result = await get_call_context(request)
 
-    assert result == CallContext(endpoint=config.sse_default_base_url, token=None, validate_fresh=False)
+    assert result == CallContext(
+        endpoint=config.sse_default_base_url, token=None, validate_fresh=False
+    )
 
 
 @pytest.mark.parametrize(
@@ -68,7 +91,11 @@ async def test_create_api_client_with_invalid_token_raises():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
     with (
-        patch("mpt_mcp.call_context.validate_token", new_callable=AsyncMock, return_value=(False, None, "Token expired")),
+        patch(
+            "mpt_mcp.call_context.validate_token",
+            new_callable=AsyncMock,
+            return_value=(False, None, "Token expired"),
+        ),
         pytest.raises(ValueError, match="Token validation failed: Token expired"),
     ):
         await call_context.create_api_client()
@@ -79,22 +106,39 @@ async def test_create_api_client_with_invalid_token_raises():
     [(False, True), (True, False)],
 )
 async def test_create_api_client_validates_token(validate_fresh, use_cache):
-    call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET", validate_fresh=validate_fresh)
+    call_context = CallContext(
+        endpoint="https://api.test.com",
+        token="idt:TKN-1234-5678:SECRET",
+        validate_fresh=validate_fresh,
+    )
 
-    with patch("mpt_mcp.call_context.validate_token", new_callable=AsyncMock, return_value=(True, {"account": {"name": "Test", "id": "ACC-1"}}, None)) as mock_validate:
+    with patch(
+        "mpt_mcp.call_context.validate_token",
+        new_callable=AsyncMock,
+        return_value=(True, {"account": {"name": "Test", "id": "ACC-1"}}, None),
+    ) as mock_validate:
         await call_context.create_api_client()  # act
 
-    mock_validate.assert_awaited_once_with("idt:TKN-1234-5678:SECRET", "https://api.test.com", use_cache=use_cache)
+    mock_validate.assert_awaited_once_with(
+        "idt:TKN-1234-5678:SECRET", "https://api.test.com", use_cache=use_cache
+    )
 
 
 async def test_create_api_client_returns_client_for_caller_endpoint():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
-    with patch("mpt_mcp.call_context.validate_token", new_callable=AsyncMock, return_value=(True, None, None)):
+    with patch(
+        "mpt_mcp.call_context.validate_token",
+        new_callable=AsyncMock,
+        return_value=(True, None, None),
+    ):
         result = await call_context.create_api_client()
 
     assert isinstance(result, APIClient)
-    assert (result.base_url, result.token) == ("https://api.test.com", "Bearer idt:TKN-1234-5678:SECRET")
+    assert (result.base_url, result.token) == (
+        "https://api.test.com",
+        "Bearer idt:TKN-1234-5678:SECRET",
+    )
 
 
 @pytest.mark.parametrize(

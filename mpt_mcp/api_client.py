@@ -32,7 +32,9 @@ class APIClient:
         normalized_base_url = f"{parsed.scheme}://{parsed.netloc}"
 
         if base_url != normalized_base_url:
-            logger.info(f"🔧 Base URL normalization: Stripped path from '{base_url}' → '{normalized_base_url}' (paths come from OpenAPI spec)")
+            logger.info(
+                f"🔧 Base URL normalization: Stripped path from '{base_url}' → '{normalized_base_url}' (paths come from OpenAPI spec)"
+            )
 
         self.base_url = normalized_base_url
 
@@ -146,7 +148,9 @@ class APIClient:
 
         # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at least 30s
         timeout_config = httpx.Timeout(self.timeout, connect=30.0)
-        async with httpx.AsyncClient(follow_redirects=True, http2=True, timeout=timeout_config) as client:
+        async with httpx.AsyncClient(
+            follow_redirects=True, http2=True, timeout=timeout_config
+        ) as client:
             try:
                 with anyio.fail_after(self.timeout):
                     response = await client.get(
@@ -157,7 +161,9 @@ class APIClient:
                     response.raise_for_status()
                     response_data = response.json()
             except TimeoutError as e:
-                raise httpx.TimeoutException(f"Request timed out after {self.timeout} seconds") from e
+                raise httpx.TimeoutException(
+                    f"Request timed out after {self.timeout} seconds"
+                ) from e
 
             # Log the API response
             logger.info(f"✅ Response: {response.status_code}")
@@ -185,7 +191,9 @@ class APIClient:
                     if "omitted" in meta:
                         omitted = meta.get("omitted", [])
                         if omitted:
-                            logger.info(f"   Omitted fields: {', '.join(omitted)} (use select=+field to include)")
+                            logger.info(
+                                f"   Omitted fields: {', '.join(omitted)} (use select=+field to include)"
+                            )
                 # Fallback to root-level pagination
                 elif "pagination" in response_data:
                     pagination = response_data["pagination"]

@@ -25,7 +25,9 @@ async def test_get_openapi_spec_resource_success():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
     with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, mock_token_info, None)
-        with patch("mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
+        with patch(
+            "mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
+        ) as mock_get_spec:
             mock_get_spec.return_value = mock_spec
 
             result = await get_openapi_spec(call_context=call_context)
@@ -61,7 +63,9 @@ async def test_get_openapi_spec_resource_fetch_error():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
     with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
-        with patch("mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock) as mock_get_spec:
+        with patch(
+            "mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
+        ) as mock_get_spec:
             mock_get_spec.side_effect = Exception("Failed to fetch OpenAPI spec")
 
             result = await get_openapi_spec(call_context=call_context)
@@ -82,7 +86,9 @@ async def test_openapi_spec_cached_per_endpoint():
         "info": {"title": "API 2", "version": "1.0.0"},
     }
 
-    with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+    with patch(
+        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
+    ) as mock_fetch:
         # Configure mock to return different specs
         async def side_effect(endpoint, force_refresh=False):
             if "api1" in endpoint:
@@ -124,7 +130,10 @@ async def test_openapi_resource_has_correct_metadata():
     assert openapi_resource is not None
     # The resource should have a name
     if hasattr(openapi_resource, "name") and openapi_resource.name:
-        assert "openapi" in openapi_resource.name.lower() or "specification" in openapi_resource.name.lower()
+        assert (
+            "openapi" in openapi_resource.name.lower()
+            or "specification" in openapi_resource.name.lower()
+        )
 
 
 @pytest.mark.asyncio
@@ -155,7 +164,9 @@ async def test_registry_caches_spec_after_fetch():
         "info": {"title": "Test API", "version": "1.0.0"},
     }
 
-    with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+    with patch(
+        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
+    ) as mock_fetch:
         mock_fetch.return_value = mock_spec
 
         endpoint = "https://api.test.com"
@@ -176,7 +187,9 @@ async def test_registry_normalizes_endpoint():
         "info": {"title": "Test API", "version": "1.0.0"},
     }
 
-    with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+    with patch(
+        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
+    ) as mock_fetch:
         mock_fetch.return_value = mock_spec
 
         # Request with trailing slash
@@ -209,7 +222,9 @@ async def test_get_openapi_spec_function():
     if endpoint in _openapi_specs:
         del _openapi_specs[endpoint]
 
-    with patch("mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock) as mock_fetch:
+    with patch(
+        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
+    ) as mock_fetch:
         mock_fetch.return_value = mock_spec
 
         spec = await get_openapi_spec(endpoint)
