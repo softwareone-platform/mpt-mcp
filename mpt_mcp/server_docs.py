@@ -13,6 +13,7 @@ _docs_cache_init_pid: int | None = None
 
 
 async def initialize_documentation_cache():
+    """Create the documentation cache once per process, from GitBook when it is configured."""
     global documentation_cache, _docs_cache_initialized, _docs_cache_init_pid
     current_pid = os.getpid()
     # Re-init whenever we're in a different process (worker after fork/spawn, or first run). Ensures worker has its own cache.

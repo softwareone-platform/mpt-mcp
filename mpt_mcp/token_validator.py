@@ -35,7 +35,7 @@ def _hash_token(token: str, api_base_url: str) -> str:
 
 class TokenValidationCache:
     """
-    In-memory cache for token validations with TTL
+    In-memory cache for token validations with TTL.
 
     Caches token validation results to avoid repeated API calls.
     Cache entries expire after a configurable TTL.
@@ -46,7 +46,7 @@ class TokenValidationCache:
 
     def __init__(self, ttl_minutes: int = 10):
         """
-        Initialize token validation cache
+        Initialize token validation cache.
 
         Args:
             ttl_minutes: Time-to-live for cache entries in minutes (default: 10)
@@ -61,7 +61,7 @@ class TokenValidationCache:
 
     async def get(self, token: str, api_base_url: str) -> tuple[bool, dict | None] | None:
         """
-        Get cached validation result for a token
+        Get cached validation result for a token.
 
         Args:
             token: The API token to check
@@ -91,7 +91,7 @@ class TokenValidationCache:
         self, token: str, api_base_url: str, is_valid: bool, token_info: dict | None = None
     ):
         """
-        Cache validation result for a token
+        Cache validation result for a token.
 
         Args:
             token: The API token
@@ -110,7 +110,7 @@ class TokenValidationCache:
 
     async def invalidate(self, token: str, api_base_url: str):
         """
-        Invalidate a specific token in the cache
+        Invalidate a specific token in the cache.
 
         Args:
             token: The API token to invalidate
@@ -124,13 +124,13 @@ class TokenValidationCache:
                 logger.debug("🗑️  Invalidated token from cache")
 
     async def clear(self):
-        """Clear all cached validations"""
+        """Clear all cached validations."""
         async with self._lock:
             self._cache.clear()
             logger.info("🗑️  Cleared all token validation cache")
 
     def get_stats(self) -> dict:
-        """Get cache statistics"""
+        """Get cache statistics."""
         now = datetime.now()
         valid_count = sum(1 for _, expiry, _ in self._cache.values() if expiry > now)
         expired_count = len(self._cache) - valid_count
@@ -148,7 +148,7 @@ _token_cache: TokenValidationCache | None = None
 
 
 def get_token_cache(ttl_minutes: int = 10) -> TokenValidationCache:
-    """Get or create the global token validation cache"""
+    """Get or create the global token validation cache."""
     global _token_cache
 
     if _token_cache is None:
@@ -277,7 +277,7 @@ async def _verify_jwt_and_get_payload(token: str, jwks_url: str) -> tuple[dict |
 
 def is_jwt_token(token: str) -> bool:
     """
-    Check if a token is a JWT (JSON Web Token)
+    Check if a token is a JWT (JSON Web Token).
 
     JWT format: header.payload.signature (3 parts separated by dots)
 
@@ -380,7 +380,7 @@ async def validate_token(
     token: str, api_base_url: str, use_cache: bool = True
 ) -> tuple[bool, dict | None, str | None]:
     """
-    Validate an API token against the Marketplace Platform
+    Validate an API token against the Marketplace Platform.
 
     Calls GET /public/v1/accounts/api-tokens/{token_id}
     to verify the token is valid and active.

@@ -11,9 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class DocumentationCache:
-    """
-    Manages cached documentation from GitBook with automatic TTL-based refresh
-    """
+    """Manages cached documentation from GitBook with automatic TTL-based refresh."""
 
     def __init__(
         self,
@@ -22,7 +20,7 @@ class DocumentationCache:
         public_url: str = "",
     ):
         """
-        Initialize documentation cache
+        Initialize documentation cache.
 
         Args:
             gitbook_client: GitBook client instance (None disables caching)
@@ -64,7 +62,7 @@ class DocumentationCache:
 
     async def refresh(self, force: bool = False) -> bool:
         """
-        Refresh the documentation cache
+        Refresh the documentation cache.
 
         Args:
             force: Force refresh even if cache is still valid
@@ -107,14 +105,14 @@ class DocumentationCache:
             self._is_refreshing = False
 
     def _build_resource_index(self):
-        """Build an index of resources from the content for fast lookups"""
+        """Build an index of resources from the content for fast lookups."""
         self._resources.clear()
 
         if not self._content:
             return
 
         def index_page(page):
-            """Recursively index a page and its children"""
+            """Recursively index a page and its children."""
             if not isinstance(page, dict):
                 return
 
@@ -156,7 +154,7 @@ class DocumentationCache:
         logger.info(f"📇 Built resource index with {len(self._resources)} entries")
 
     async def ensure_cached(self):
-        """Ensure cache is populated, refresh if needed"""
+        """Ensure cache is populated, refresh if needed."""
         if not self.is_enabled:
             return
 
@@ -171,7 +169,7 @@ class DocumentationCache:
         limit: int | None = None,
     ) -> list[dict[str, Any]]:
         """
-        List available documentation resources with optional filtering
+        List available documentation resources with optional filtering.
 
         Args:
             section: Filter by top-level section (e.g., "developer-resources")
@@ -210,7 +208,7 @@ class DocumentationCache:
 
     async def get_resource(self, uri: str) -> str | None:
         """
-        Get content for a specific resource (lazy-loaded and cached)
+        Get content for a specific resource (lazy-loaded and cached).
 
         Args:
             uri: Resource URI (e.g., "docs://getting-started/authentication")
@@ -261,7 +259,7 @@ class DocumentationCache:
 
     def _extract_text_from_document(self, document: dict) -> str:
         """
-        Extract text from GitBook document structure
+        Extract text from GitBook document structure.
 
         GitBook uses a nested structure: document -> nodes -> (blocks or text) -> leaves -> text
 
@@ -274,7 +272,7 @@ class DocumentationCache:
         text_parts = []
 
         def extract_from_node(node):
-            """Recursively extract text from a node"""
+            """Recursively extract text from a node."""
             if not isinstance(node, dict):
                 return
 
@@ -314,7 +312,7 @@ class DocumentationCache:
 
     async def get_documentation_index(self) -> dict[str, Any]:
         """
-        Get the documentation structure/hierarchy (table of contents)
+        Get the documentation structure/hierarchy (table of contents).
 
         Returns:
             Dictionary containing sections, subsections, and page counts
@@ -356,7 +354,7 @@ class DocumentationCache:
 
     def get_cache_info(self) -> dict[str, Any]:
         """
-        Get information about the cache state
+        Get information about the cache state.
 
         Returns:
             Dictionary with cache statistics

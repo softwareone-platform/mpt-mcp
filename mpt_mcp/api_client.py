@@ -11,11 +11,11 @@ BEARER_PREFIX = "Bearer "
 
 
 class APIClient:
-    """Client for making authenticated requests to the SoftwareOne Marketplace API"""
+    """Client for making authenticated requests to the SoftwareOne Marketplace API."""
 
     def __init__(self, base_url: str, token: str, timeout: float = 30.0):
         """
-        Initialize the API client
+        Initialize the API client.
 
         Args:
             base_url: Base URL of the marketplace API (any path will be stripped)
@@ -58,7 +58,7 @@ class APIClient:
     @staticmethod
     def _extract_user_id(token: str) -> str | None:
         """
-        Extract user identifier from token
+        Extract user identifier from token.
 
         Token format: idt:TKN-XXXX-XXXX:actual_token
         Returns: TKN-XXXX-XXXX (the user identifier)
@@ -81,7 +81,7 @@ class APIClient:
         return None
 
     def _get_headers(self) -> dict[str, str]:
-        """Get request headers with authentication"""
+        """Get request headers with authentication."""
         return {
             "Authorization": self.token,  # Already has Bearer prefix from __init__
             "Content-Type": "application/json",
@@ -94,7 +94,7 @@ class APIClient:
         params: dict[str, Any] | None = None,
     ) -> Any:
         """
-        Make a GET request to the API
+        Make a GET request to the API.
 
         Args:
             endpoint: API endpoint path (e.g., "/products" or "/products/{id}")
@@ -207,7 +207,7 @@ class APIClient:
 
     async def validate_token(self) -> bool:
         """
-        Validate that the authentication token is valid
+        Validate that the authentication token is valid.
 
         Returns:
             True if token is valid, False otherwise

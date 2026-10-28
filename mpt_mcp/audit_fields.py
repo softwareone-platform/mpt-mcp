@@ -32,6 +32,7 @@ def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
 def _resolve_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     """
     Resolve schema that may use $ref or allOf (common in downloaded OpenAPI specs).
+
     Returns the schema that actually has 'properties' so we can detect audit events.
     """
     if not isinstance(schema, dict):
@@ -50,6 +51,7 @@ def _resolve_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, A
 def _get_item_schema(spec: dict[str, Any], schema: dict[str, Any]) -> dict[str, Any]:
     """
     Get the item schema for list-like responses.
+
     Handles: (1) array with items, (2) $ref to array/list schema,
     (3) object with a 'data' property that is an array (marketplace API list responses).
     """
@@ -83,9 +85,10 @@ def _collect_audit_events_and_paths_from_props(
     properties: dict[str, Any],
 ) -> tuple[set[str], list[dict[str, str]]]:
     """
-    From a flat 'properties' dict, find the property whose name contains 'audit'
-    and collect event names (created, updated, failed, ...) and paths (audit.<event>.at, .by).
-    API always uses 'audit' as segment; spec may use orderAudit etc.
+    Find the audit property in a flat 'properties' dict and collect its events and paths.
+
+    Events are names like created, updated or failed; paths are audit.<event>.at and .by.
+    The API always uses 'audit' as segment; the spec may use orderAudit etc.
     """
     events: set[str] = set()
     paths: list[dict[str, str]] = []
@@ -198,6 +201,7 @@ def update_cache(
 ) -> None:
     """
     Compute audit data from spec and store in cache under cache_key.
+
     Call this when the spec is loaded (endpoint_registry or server_stdio init).
     """
     import os
@@ -215,6 +219,7 @@ def update_cache(
 def get_audit_regex(cache_key: str | None) -> re.Pattern[str]:
     """
     Return cached regex for the given cache key (api_base_url or spec URL).
+
     If not in cache, return fallback static regex (includes failed).
     """
     if cache_key and cache_key in _audit_cache:
@@ -225,6 +230,7 @@ def get_audit_regex(cache_key: str | None) -> re.Pattern[str]:
 def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict[str, Any]:
     """
     Return cached audit event names for the given cache key.
+
     Paths are always audit.<event>.at and audit.<event>.by.
     If resource is provided, return { "resource": resource, "events": [...] } or error.
     If resource is None, return { "by_resource": { resource_id: ["event1", "event2", ...], ... } } for all resources.

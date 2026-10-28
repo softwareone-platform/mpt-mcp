@@ -1,9 +1,3 @@
-"""
-Alembic migration environment for MCP analytics database.
-
-Supports both online (sync) and offline migrations.
-"""
-
 import os
 from logging.config import fileConfig
 from typing import TYPE_CHECKING

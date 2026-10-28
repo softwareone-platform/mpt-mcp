@@ -29,7 +29,7 @@ _cache_manager: CacheManager | None = None
 
 
 def get_cache_manager() -> CacheManager:
-    """Get or create the global cache manager"""
+    """Get or create the global cache manager."""
     global _cache_manager
 
     if _cache_manager is None:
@@ -41,7 +41,7 @@ def get_cache_manager() -> CacheManager:
 
 def get_openapi_spec_url(api_base_url: str) -> str:
     """
-    Derive the OpenAPI spec URL from the API base URL
+    Derive the OpenAPI spec URL from the API base URL.
 
     The OpenAPI spec is always at: {api_base_url}/public/v1/openapi.json
 
@@ -65,7 +65,7 @@ def get_openapi_spec_url(api_base_url: str) -> str:
 
 async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> dict[str, Any]:
     """
-    Fetch OpenAPI spec for a given API base URL with fallback
+    Fetch OpenAPI spec for a given API base URL with fallback.
 
     First tries the endpoint-specific OpenAPI URL.
     If that fails (404), falls back to the default production endpoint.
@@ -123,7 +123,7 @@ async def fetch_openapi_spec(api_base_url: str, force_refresh: bool = False) -> 
 
 def _path_to_resource_id(path: str) -> str:
     """
-    Convert an API path to a resource identifier
+    Convert an API path to a resource identifier.
 
     Examples:
         /public/v1/catalog/products -> catalog.products
@@ -146,7 +146,7 @@ async def get_endpoints_registry(
     api_base_url: str, force_refresh: bool = False
 ) -> dict[str, dict[str, Any]]:
     """
-    Get or initialize the endpoints registry for a given API base URL
+    Get or initialize the endpoints registry for a given API base URL.
 
     Each API base URL has its own registry of endpoints parsed from its OpenAPI spec.
     Registries are cached in memory after first load.
@@ -205,7 +205,7 @@ async def get_endpoints_registry(
 
 async def get_openapi_spec(api_base_url: str, force_refresh: bool = False) -> dict[str, Any]:
     """
-    Get the OpenAPI specification for a given API base URL
+    Get the OpenAPI specification for a given API base URL.
 
     Args:
         api_base_url: The base URL of the API

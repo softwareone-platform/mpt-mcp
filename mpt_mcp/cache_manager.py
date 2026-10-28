@@ -20,11 +20,11 @@ def _read_json_path(path: Path) -> dict[str, Any]:
 
 
 class CacheManager:
-    """Manages caching of OpenAPI specs and endpoint metadata"""
+    """Manages caching of OpenAPI specs and endpoint metadata."""
 
     def __init__(self, cache_dir: str = ".cache", ttl_hours: int = 24):
         """
-        Initialize cache manager
+        Initialize cache manager.
 
         Args:
             cache_dir: Directory to store cache files
@@ -35,18 +35,18 @@ class CacheManager:
         self.ttl = timedelta(hours=ttl_hours)
 
     def _get_cache_path(self, key: str) -> Path:
-        """Get cache file path for a given key"""
+        """Get cache file path for a given key."""
         # Hash the key to create a safe filename
         key_hash = hashlib.md5(key.encode()).hexdigest()
         return self.cache_dir / f"{key_hash}.json"
 
     def _get_metadata_path(self, key: str) -> Path:
-        """Get metadata file path for a given key"""
+        """Get metadata file path for a given key."""
         key_hash = hashlib.md5(key.encode()).hexdigest()
         return self.cache_dir / f"{key_hash}.meta.json"
 
     def _is_cache_valid(self, key: str) -> bool:
-        """Check if cached data is still valid (not expired)"""
+        """Check if cached data is still valid (not expired)."""
         meta_path = self._get_metadata_path(key)
 
         if not meta_path.exists():
@@ -65,7 +65,7 @@ class CacheManager:
 
     def get(self, key: str) -> dict[str, Any] | None:
         """
-        Get cached data if available and valid
+        Get cached data if available and valid.
 
         Args:
             key: Cache key (usually the URL)
@@ -89,7 +89,7 @@ class CacheManager:
 
     def set(self, key: str, data: dict[str, Any]) -> None:
         """
-        Store data in cache
+        Store data in cache.
 
         Args:
             key: Cache key (usually the URL)
@@ -113,7 +113,7 @@ class CacheManager:
 
     def invalidate(self, key: str) -> None:
         """
-        Invalidate (delete) cached data for a key
+        Invalidate (delete) cached data for a key.
 
         Args:
             key: Cache key to invalidate
@@ -128,7 +128,7 @@ class CacheManager:
 
     def get_cache_info(self) -> dict[str, Any]:
         """
-        Get information about the cache
+        Get information about the cache.
 
         Returns:
             Dictionary with cache statistics
@@ -176,7 +176,7 @@ async def fetch_with_cache(
     force_refresh: bool = False,
 ) -> dict[str, Any]:
     """
-    Fetch data from URL with caching
+    Fetch data from URL with caching.
 
     Args:
         url: URL to fetch

@@ -173,6 +173,7 @@ app = _build_app()
 
 
 def run_migrations():
+    """Apply the analytics database migrations when analytics is configured."""
     if not config.analytics_database_url:
         logger.info("⏩ Skipping migrations (analytics not configured)")
         return
@@ -218,6 +219,7 @@ def _run_uvicorn():
 
 
 def main():
+    """Run the HTTP server: print the startup banner, apply migrations and start uvicorn."""
     try:
         logger.info("=" * 60)
         logger.info("🚀 SoftwareOne Marketplace MCP Server (HTTP Mode)")

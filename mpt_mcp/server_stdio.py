@@ -35,7 +35,7 @@ _initialized: bool = False
 
 async def initialize_server(force_refresh: bool = False):
     """
-    Initialize the server with API client and discover endpoints
+    Initialize the server with API client and discover endpoints.
 
     Args:
         force_refresh: Force refresh cache even if valid cache exists
@@ -100,7 +100,7 @@ async def initialize_server(force_refresh: bool = False):
 
 def _path_to_resource_id(path: str) -> str:
     """
-    Convert an API path to a resource identifier
+    Convert an API path to a resource identifier.
 
     Examples:
         /public/v1/catalog/products -> catalog.products
@@ -336,11 +336,11 @@ async def marketplace_resource_schema(resource: str) -> dict[str, Any]:
 @mcp.tool()
 async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any]:
     """
-    Get audit event names per resource for filtering by \"when\" something happened.
+    Get audit event names per resource for filtering by "when" something happened.
 
     Derived from the OpenAPI spec at startup. Returns event names (e.g. created, updated, failed);
     paths are always audit.<event>.at (when) and audit.<event>.by (who). Use for queries like
-    \"orders failed starting when\" (audit.failed.at) or \"agreements created after X\" (audit.created.at).
+    "orders failed starting when" (audit.failed.at) or "agreements created after X" (audit.created.at).
     Include select=audit when filtering or sorting by these fields.
 
     Args:
@@ -348,8 +348,8 @@ async def marketplace_audit_fields(resource: str | None = None) -> dict[str, Any
                   (e.g. commerce.orders). If omitted, returns all resources.
 
     Returns:
-        If resource is set: { \"resource\": str, \"events\": [ \"created\", \"updated\", ... ] }.
-        If resource is omitted: { \"by_resource\": { resource_id: [ \"event1\", \"event2\", ... ], ... } }.
+        If resource is set: { "resource": str, "events": [ "created", "updated", ... ] }.
+        If resource is omitted: { "by_resource": { resource_id: [ "event1", "event2", ... ], ... } }.
     """
     if not _initialized:
         await initialize_server()

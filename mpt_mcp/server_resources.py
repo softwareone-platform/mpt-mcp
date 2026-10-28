@@ -70,6 +70,7 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
 
 
 def register_http_resources(mcp: Any) -> None:
+    """Register the OpenAPI spec and documentation resources of the HTTP server."""
     mcp.resource(
         "api://openapi.json",
         name="OpenAPI Specification",

@@ -2,11 +2,11 @@ from typing import Any
 
 
 class OpenAPIParser:
-    """Parse OpenAPI specifications and extract GET endpoints"""
+    """Parse OpenAPI specifications and extract GET endpoints."""
 
     def __init__(self, include_patterns: str = "", exclude_patterns: str = ""):
         """
-        Initialize parser with optional filtering
+        Initialize parser with optional filtering.
 
         Args:
             include_patterns: Comma-separated path patterns to include (empty = include all)
@@ -17,7 +17,7 @@ class OpenAPIParser:
 
     def _should_include_path(self, path: str) -> bool:
         """
-        Check if a path should be included based on filter patterns
+        Check if a path should be included based on filter patterns.
 
         Args:
             path: API path to check
@@ -66,7 +66,7 @@ class OpenAPIParser:
         self, schema: dict[str, Any], max_depth: int = 3, current_depth: int = 0
     ) -> dict[str, Any]:
         """
-        Simplify a JSON schema for better readability in tool descriptions
+        Simplify a JSON schema for better readability in tool descriptions.
 
         Args:
             schema: The JSON schema to simplify
@@ -111,7 +111,7 @@ class OpenAPIParser:
 
     def _extract_response_info(self, operation: dict[str, Any]) -> dict[str, Any]:
         """
-        Extract response schema information from an operation
+        Extract response schema information from an operation.
 
         Args:
             operation: OpenAPI operation object

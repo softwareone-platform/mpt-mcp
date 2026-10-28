@@ -17,7 +17,7 @@ RETRY_BACKOFF_BASE_SEC = 1.0
 
 
 class GitBookClient:
-    """Client for fetching content from GitBook API v1"""
+    """Client for fetching content from GitBook API v1."""
 
     def __init__(
         self,
@@ -28,7 +28,7 @@ class GitBookClient:
         timeout: float = DEFAULT_REQUEST_TIMEOUT,
     ):
         """
-        Initialize GitBook API client
+        Initialize GitBook API client.
 
         Args:
             api_key: GitBook API token for authentication
@@ -48,7 +48,7 @@ class GitBookClient:
         )
 
     def _get_headers(self) -> dict[str, str]:
-        """Get request headers with authentication"""
+        """Get request headers with authentication."""
         return {
             "Authorization": f"Bearer {self.api_key}",
             "Accept": "application/json",
@@ -98,7 +98,7 @@ class GitBookClient:
 
     async def fetch_space_content(self) -> dict[str, Any]:
         """
-        Fetch all content from the GitBook space
+        Fetch all content from the GitBook space.
 
         This includes pages, files, and other content items.
 
@@ -120,7 +120,7 @@ class GitBookClient:
 
     async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
         """
-        Fetch a specific page by its path
+        Fetch a specific page by its path.
 
         Args:
             page_path: The page path (e.g., "getting-started/authentication")
@@ -138,7 +138,7 @@ class GitBookClient:
 
     async def fetch_page_by_id(self, page_id: str) -> dict[str, Any]:
         """
-        Fetch a specific page by its ID
+        Fetch a specific page by its ID.
 
         Args:
             page_id: The page ID (e.g., "abc123def456")
@@ -155,7 +155,7 @@ class GitBookClient:
 
     async def validate_credentials(self) -> bool:
         """
-        Validate that the API credentials are valid
+        Validate that the API credentials are valid.
 
         Returns:
             True if credentials are valid, False otherwise

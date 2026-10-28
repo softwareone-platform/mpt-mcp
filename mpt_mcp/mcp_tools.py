@@ -105,6 +105,7 @@ def _sanitize_select(
 ) -> str | None:
     """
     Ensure select only contains allowed top-level fields and always includes id (and status, name when in schema).
+
     Drops any part whose top-level field is not in allowed_fields (if allowed_fields is non-empty).
     """
     if not select or not select.strip():
@@ -196,6 +197,8 @@ async def execute_marketplace_query(
         endpoints_registry: Registry of available endpoints
         analytics_logger: Optional analytics logger instance
         config: Optional config object for checking if analytics is enabled
+        audit_regex: Pattern of audit fields that require select=audit (falls back to the static one)
+        openapi_spec: OpenAPI spec used to validate select fields against the response schema
 
     Returns:
         API response or error dictionary

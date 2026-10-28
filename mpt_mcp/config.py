@@ -15,14 +15,14 @@ if not _env_file.exists():
 
 
 def _parse_cors_origins() -> list[str]:
-    """Parse CORS origins from environment variable"""
+    """Parse CORS origins from environment variable."""
     origins = os.getenv("SSE_CORS_ORIGINS", "*")
     return [origin.strip() for origin in origins.split(",")]
 
 
 @dataclass
 class Config:
-    """Application configuration"""
+    """Application configuration."""
 
     # API Configuration
     marketplace_api_base_url: str = os.getenv(
@@ -73,7 +73,7 @@ class Config:
 
     def validate(self) -> list[str]:
         """
-        Validate configuration
+        Validate configuration.
 
         Returns:
             List of validation errors (empty if valid)
