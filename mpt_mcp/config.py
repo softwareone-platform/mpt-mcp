@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from dotenv import load_dotenv
@@ -12,12 +12,6 @@ load_dotenv(_env_file)
 if not _env_file.exists():
     # Fallback: try cwd (e.g. when run as "python -m mpt_mcp.server" from repo root)
     load_dotenv()
-
-
-def _parse_cors_origins() -> list[str]:
-    """Parse CORS origins from environment variable."""
-    origins = os.getenv("SSE_CORS_ORIGINS", "*")
-    return [origin.strip() for origin in origins.split(",")]
 
 
 @dataclass
@@ -33,12 +27,6 @@ class Config:
     # Server Configuration
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
     request_timeout: float = float(os.getenv("REQUEST_TIMEOUT", "30"))
-
-    # SSE Server Configuration (for cloud deployment)
-    sse_host: str = os.getenv("SSE_HOST", "0.0.0.0")  # ruff: ignore[hardcoded-bind-all-interfaces]
-    # Railway/Render use PORT, fallback to SSE_PORT (default 8000)
-    sse_port: int = int(os.getenv("PORT", os.getenv("SSE_PORT", "8000")))
-    sse_cors_origins: list[str] = field(default_factory=_parse_cors_origins)
 
     # SSE is always multi-tenant - clients MUST provide credentials via MPT_Authorization header
     # Default base URL used when client doesn't specify MPT_Endpoint header

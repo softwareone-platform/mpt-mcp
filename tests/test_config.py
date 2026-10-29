@@ -2,8 +2,6 @@ import pytest
 
 from mpt_mcp.config import config
 
-MAX_PORT = 65535
-
 
 @pytest.mark.parametrize(
     ("attribute", "expected"),
@@ -13,11 +11,3 @@ def test_config_default_values(attribute, expected):
     result = getattr(config, attribute)
 
     assert result == expected
-
-
-def test_http_settings_have_valid_values():
-    result = (config.sse_host, config.sse_port, config.sse_cors_origins)
-
-    assert result[0] in {"0.0.0.0", "localhost", "127.0.0.1"}  # ruff: ignore[hardcoded-bind-all-interfaces]
-    assert 1000 <= result[1] <= MAX_PORT
-    assert result[2]
