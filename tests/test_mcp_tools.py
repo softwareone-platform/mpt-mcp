@@ -10,6 +10,7 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
     execute_marketplace_resource_info,
     execute_marketplace_resources,
+    suggest_resources,
 )
 
 PRODUCTS_PAGE_SIZE = 10
@@ -539,3 +540,37 @@ async def test_query_reports_missing_path_params(api_client, query_path):
     assert result["error"] == "This resource requires path parameters: lineId"
     assert "'lineId': 'LIN-1234-5678'" in result["hint"]
     api_client.get.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("resource", "expected"),
+    [
+        ("catalog.product", ["catalog.products"]),
+        ("catalog.prodcts", ["catalog.products"]),
+        ("Commerce.Orders", ["commerce.orders"]),
+        ("billing.unknown", []),
+    ],
+)
+def test_suggest_resources(resource, expected):
+    resources = ["catalog.products", "commerce.orders", "accounts.buyers"]
+
+    result = suggest_resources(resource, resources)
+
+    assert result == expected
+
+
+def test_suggest_resources_containing_first():
+    resources = [f"catalog.products.item{index}" for index in range(6)] + ["catalog.producs"]
+
+    result = suggest_resources("catalog.products", resources)
+
+    assert result == [f"catalog.products.item{index}" for index in range(5)]
+
+
+def test_suggest_resources_closest_first():
+    resources = [f"public-catalog.product-profiles.item{index}" for index in range(6)]
+    resources.append("catalog.products")
+
+    result = suggest_resources("catalog.product", resources)
+
+    assert result[0] == "catalog.products"

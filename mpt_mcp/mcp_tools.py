@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import logging
 import re
 import time
@@ -12,6 +13,8 @@ from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX, _get_item_schema, _resol
 from mpt_mcp.query_templates import get_query_templates
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
+
     from mpt_mcp.api_client import APIClient
 
 logger = logging.getLogger(__name__)
@@ -23,6 +26,10 @@ KEY_META = "$meta"
 API_ERROR_TEXT_MAX_LENGTH = 500
 
 RQL_LOG_LENGTH = 80
+
+# Suggestions for an unknown resource: how many, and how close a misspelled name must be (0-1)
+SUGGESTION_COUNT = 5
+SUGGESTION_SIMILARITY = 0.6
 
 
 def obfuscate_token_values(data: Any) -> Any:
@@ -49,14 +56,50 @@ def obfuscate_token_values(data: Any) -> Any:
                 # Recursively sanitize nested structures
                 sanitized[key] = obfuscate_token_values(field_value)
         return sanitized
+
     if isinstance(data, list):
         return [obfuscate_token_values(element) for element in data]
+
     return data
 
 
 # ============================================================================
 # Select sanitization: ensure id is always included and drop fields not in schema
 # ============================================================================
+
+
+def suggest_resources(resource: str, resources: Iterable[str]) -> list[str]:
+    """
+    Suggest known resources for an unknown resource name.
+
+    Resources that contain the name, or are contained in it, come first, closest spelling first;
+    then resources with a similar spelling, so typos such as catalog.prodcts still get a suggestion.
+
+    Args:
+        resource: Unknown resource name, e.g. catalog.prodcts
+        resources: Known resource IDs
+
+    Returns:
+        Up to SUGGESTION_COUNT resource IDs, best matches first
+    """
+    resource_lower = resource.lower()
+    resources_by_lower = {known.lower(): known for known in resources}
+    containing = sorted(
+        (
+            known_lower
+            for known_lower in resources_by_lower
+            if resource_lower in known_lower or known_lower in resource_lower
+        ),
+        key=lambda known_lower: -difflib.SequenceMatcher(None, resource_lower, known_lower).ratio(),
+    )
+    similar = [
+        resources_by_lower[known_lower]
+        for known_lower in difflib.get_close_matches(
+            resource_lower, resources_by_lower, n=SUGGESTION_COUNT, cutoff=SUGGESTION_SIMILARITY
+        )
+    ]
+    containing_resources = [resources_by_lower[known_lower] for known_lower in containing]
+    return list(dict.fromkeys(containing_resources + similar))[:SUGGESTION_COUNT]
 
 
 def _get_allowed_select_fields(
@@ -72,9 +115,11 @@ def _get_allowed_select_fields(
     path = endpoint_info.get("path")
     if not path:
         return set()
+
     paths = openapi_spec.get("paths") or {}
     if path not in paths or "get" not in paths[path]:
         return set()
+
     get_op = paths[path]["get"]
     responses = get_op.get("responses") or {}
     response_content = (responses.get("200") or {}).get("content") or {}
@@ -82,6 +127,7 @@ def _get_allowed_select_fields(
     schema = json_content.get("schema")
     if not schema or not isinstance(schema, dict):
         return set()
+
     if "$ref" in schema:
         ref_path = schema["$ref"].split("/")
         ref_schema = openapi_spec
@@ -95,6 +141,7 @@ def _get_allowed_select_fields(
     )
     if not isinstance(item_schema, dict):
         return set()
+
     properties = item_schema.get("properties") or {}
     return set(properties.keys())
 
@@ -174,6 +221,7 @@ def _sanitize_select(
         ]
         selected = ",".join(kept)
         return f"-*,{selected}" if kept else "-*"
+
     return ",".join(kept)
 
 
@@ -238,14 +286,7 @@ async def execute_marketplace_query(
 
     # Check if resource exists
     if resource not in endpoints_registry:
-        # Find similar resources to suggest
-        resource_lower = resource.lower()
-        similar_resources = [
-            resource
-            for resource in endpoints_registry
-            if resource_lower in resource.lower() or resource.lower() in resource_lower
-        ]
-
+        similar_resources = suggest_resources(resource, endpoints_registry)
         error_response = {
             "error": f"Unknown resource: '{resource}'",
             "hint": "Use marketplace_resources() to see all available resources",
@@ -254,8 +295,8 @@ async def execute_marketplace_query(
             }),
         }
 
-        if similar_resources[:5]:  # Show up to 5 suggestions
-            error_response["did_you_mean"] = similar_resources[:5]
+        if similar_resources:
+            error_response["did_you_mean"] = similar_resources
 
         return error_response
 
