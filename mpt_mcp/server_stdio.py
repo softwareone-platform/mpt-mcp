@@ -376,11 +376,10 @@ if __name__ == "__main__":
         logger.info("SoftwareOne Marketplace MCP Server (Stdio Mode)")
         logger.info("=" * 60)
         logger.info("Server will initialize on first tool call...")
-        logger.info("Available tools: 7 (streamlined interface with caching)")
         logger.info("Starting server on stdio...")
         logger.info("=" * 60)
 
-        mcp.run()
+        mcp.run(show_banner=False)
 
     except KeyboardInterrupt:
         logger.info("Shutting down server...")
