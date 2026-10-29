@@ -24,6 +24,7 @@ async def initialize_documentation_cache() -> None:
         _docs_cache_init_pid = None
     if _docs_cache_initialized:
         return
+
     logger.info("Loading documentation cache...")
     if config.gitbook_api_key and config.gitbook_space_id:
         try:
@@ -42,7 +43,7 @@ async def initialize_documentation_cache() -> None:
                 await documentation_cache.refresh()
                 doc_resources = await documentation_cache.list_resources()
                 logger.info(
-                    "Documentation cache loaded (%s pages); served via docs://{path} template",
+                    "Documentation cache loaded (%s pages); served via docs://{path*} template",
                     len(doc_resources),
                 )
                 logger.info("Documentation cache initialized")

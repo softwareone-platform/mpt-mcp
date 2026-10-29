@@ -81,7 +81,7 @@ def register_http_resources(mcp: FastMCP) -> None:
     )(get_openapi_spec)
 
     @mcp.resource(
-        "docs://{path}",
+        "docs://{path*}",
         name="Documentation",
         description="Documentation pages. Use marketplace_docs_list() for available URIs.",
         mime_type="text/markdown",

@@ -95,7 +95,7 @@ async def _create_app() -> ASGIApp:
     else:
         logger.info(
             "Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to "
-            "enable). docs://{path} template is still available for reading when configured."
+            "enable). docs://{path*} template is still available for reading when configured."
         )
     # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-
     # balanced.

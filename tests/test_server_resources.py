@@ -2,6 +2,7 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from fastmcp import Client
 
 from mpt_mcp import server_docs
 from mpt_mcp.call_context import CallContext
@@ -127,7 +128,7 @@ def http_resources():
 async def test_docs_resource_reads_from_live_docs_cache(docs_cache, http_resources):
     docs_cache({"docs://readme": "# Home\n\nHello"})
 
-    result = await http_resources["docs://{path}"]("readme")
+    result = await http_resources["docs://{path*}"]("readme")
 
     assert result == "# Home\n\nHello"
 
@@ -135,6 +136,15 @@ async def test_docs_resource_reads_from_live_docs_cache(docs_cache, http_resourc
 async def test_docs_resource_not_found_when_missing(docs_cache, http_resources):
     docs_cache({})
 
-    result = await http_resources["docs://{path}"]("readme")
+    result = await http_resources["docs://{path*}"]("readme")
 
     assert result == "Documentation page not found: docs://readme"
+
+
+async def test_docs_resource_reads_nested_paths(docs_cache):
+    docs_cache({"docs://help-and-support/contact-support": "# Contact"})
+
+    async with Client(mcp) as client:
+        result = await client.read_resource("docs://help-and-support/contact-support")
+
+    assert result[0].text == "# Contact"

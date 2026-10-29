@@ -40,7 +40,7 @@ Client configurations for Cursor, Claude Desktop and VS Code are in [`examples/`
 
 The documentation tools need GitBook to be configured on the server; otherwise they return a message saying it is not available.
 
-The HTTP server also exposes two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path}` (documentation pages).
+The HTTP server also exposes two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`).
 
 ## Querying
 
