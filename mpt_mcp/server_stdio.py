@@ -194,7 +194,7 @@ async def marketplace_query(
 
 
 @mcp.tool()
-async def marketplace_quick_queries() -> dict[str, Any]:
+def marketplace_quick_queries() -> dict[str, Any]:
     """
     Get pre-built query templates for common use cases.
 
@@ -231,7 +231,7 @@ async def marketplace_resources() -> dict[str, Any]:
 
 
 @mcp.tool(tags={DEBUG_TAG})
-async def marketplace_cache_info() -> dict[str, Any]:
+def marketplace_cache_info() -> dict[str, Any]:
     """
     Get information about the OpenAPI spec cache.
 

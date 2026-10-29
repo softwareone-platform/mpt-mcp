@@ -109,7 +109,7 @@ class AnalyticsMiddleware(Middleware):
         except RuntimeError:
             return await call_next(context)
 
-        call_context = await get_call_context(request)
+        call_context = get_call_context(request)
         analytics.set_context(
             token=call_context.token or "",
             endpoint=call_context.endpoint,

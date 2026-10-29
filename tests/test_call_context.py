@@ -29,24 +29,24 @@ def make_request():
     return _make_request
 
 
-async def test_get_call_context_reads_mpt_headers(make_request):
+def test_get_call_context_reads_mpt_headers(make_request):
     request = make_request({
         "X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET",
         "X-MPT-Endpoint": "https://api.s1.show/public/",
         "X-MPT-Validate-Fresh": "true",
     })
 
-    result = await get_call_context(request)
+    result = get_call_context(request)
 
     assert result == CallContext(
         endpoint="https://api.s1.show", token="idt:TKN-1234-5678:SECRET", validate_fresh=True
     )
 
 
-async def test_call_context_defaults_without_headers(make_request):
+def test_call_context_defaults_without_headers(make_request):
     request = make_request({})
 
-    result = await get_call_context(request)
+    result = get_call_context(request)
 
     assert result == CallContext(
         endpoint=config.sse_default_base_url, token=None, validate_fresh=False
@@ -63,10 +63,10 @@ async def test_call_context_defaults_without_headers(make_request):
         ("", False),
     ],
 )
-async def test_get_call_context_validate_fresh_values(make_request, header_value, expected):
+def test_get_call_context_validate_fresh_values(make_request, header_value, expected):
     request = make_request({"X-MPT-Validate-Fresh": header_value})
 
-    result = await get_call_context(request)
+    result = get_call_context(request)
 
     assert result.validate_fresh is expected
 

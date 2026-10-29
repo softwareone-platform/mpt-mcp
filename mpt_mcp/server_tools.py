@@ -130,7 +130,7 @@ def register_http_tools(mcp: FastMCP) -> None:
         )
 
     @mcp.tool()
-    async def marketplace_quick_queries() -> dict[str, Any]:
+    def marketplace_quick_queries() -> dict[str, Any]:
         return execute_marketplace_quick_queries()
 
     @mcp.tool()
@@ -248,7 +248,7 @@ def register_http_tools(mcp: FastMCP) -> None:
     # TBD: decide whether this is a debug tool (it only reports cache statistics); if so, tag it
     # "debug" so it is hidden in production
     @mcp.tool()
-    async def marketplace_resources_info() -> dict[str, Any]:
+    def marketplace_resources_info() -> dict[str, Any]:
         result = {
             "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
             "token_validation": {"enabled": False, "cache_stats": None},

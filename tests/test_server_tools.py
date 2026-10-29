@@ -498,11 +498,11 @@ async def test_docs_read_not_found_returns_zero_count(docs_cache, http_tools):
     assert (result["count"], "not found" in text) == (0, True)
 
 
-async def test_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
+def test_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
     cache = docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
     monkeypatch.setattr(server_docs, "documentation_cache", cache)
 
-    result = await http_tools["marketplace_resources_info"]()
+    result = http_tools["marketplace_resources_info"]()
 
     documentation = result["documentation"]
     assert (documentation["enabled"], documentation["total_pages"]) == (True, 1)

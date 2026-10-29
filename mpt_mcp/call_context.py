@@ -69,7 +69,7 @@ class CallContext:
         )
 
 
-async def get_call_context(request: Request = CurrentRequest()) -> CallContext:
+def get_call_context(request: Request = CurrentRequest()) -> CallContext:
     """
     Build the call context from the X-MPT-* headers of the current HTTP request.
 

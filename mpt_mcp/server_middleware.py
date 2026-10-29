@@ -30,7 +30,7 @@ class RequestContextMiddleware(Middleware):
         except RuntimeError:
             return await call_next(context)
 
-        call_context = await get_call_context(request)
+        call_context = get_call_context(request)
         user_token = current_user_id.set(call_context.user_id)
         session_token = current_session_id.set(request.query_params.get("session_id"))
         try:

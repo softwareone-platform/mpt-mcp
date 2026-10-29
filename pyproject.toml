@@ -203,7 +203,6 @@ ignore = [
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 18
     "try-consider-else",  # 11
-    "unused-async",  # 5
 ]
 external = [ "AAA", "WPS" ]
 
