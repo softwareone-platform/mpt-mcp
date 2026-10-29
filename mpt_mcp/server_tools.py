@@ -25,13 +25,89 @@ from mpt_mcp.token_validator import get_token_cache
 
 logger = logging.getLogger(__name__)
 
+DEBUG_TAG = "debug"
+
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
     "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 )
-AUTH_HEADER_HINT = "Provide X-MPT-Authorization header with your API token"
+AUTH_HEADER_HINT = (
+    "Provide your API token in the X-MPT-Authorization header (HTTP) or in "
+    "MARKETPLACE_API_TOKEN (stdio)"
+)
 OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
 MANY_DOCS_RESULTS = 50
+
+
+async def marketplace_audit_fields(
+    resource: str | None = None, call_context: CallContext = Depends(get_call_context)
+) -> dict[str, Any]:
+    """
+    Get audit event names per resource for filtering by "when" something happened.
+
+    Derived from the OpenAPI spec. Returns event names (e.g. created, updated, failed); paths are
+    always audit.<event>.at (when) and audit.<event>.by (who). Use for queries like "orders failed
+    starting when" (audit.failed.at) or "agreements created after X" (audit.created.at).
+    Include select=audit when filtering or sorting by these fields.
+
+    Args:
+        resource: Optional. If provided, returns events for this resource only
+                  (e.g. commerce.orders). If omitted, returns all resources.
+        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+
+    Returns:
+        If resource is set: { "resource": str, "events": [ "created", "updated", ... ] }.
+        If resource is omitted:
+            { "by_resource": { resource_id: [ "event1", "event2", ... ], ... } }.
+    """
+    try:
+        api_client = await call_context.create_api_client()
+    except ValueError as error:
+        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+
+    api_base_url = api_client.base_url
+    try:
+        await endpoint_registry.get_endpoints_registry(api_base_url)
+    except Exception as error:
+        return {
+            "error": f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
+            "details": str(error),
+            "api_endpoint": api_base_url,
+        }
+
+    return audit_fields_module.get_audit_fields(api_base_url, resource)
+
+
+def marketplace_cache_info() -> dict[str, Any]:
+    """
+    Get information about the OpenAPI spec cache.
+
+    Only listed and callable when DEBUG=true.
+
+    Returns:
+        Cache statistics: cached files, their total size and how many are valid or expired
+    """
+    return {
+        "cache_status": "enabled",
+        "cache_info": endpoint_registry.get_cache_manager().get_cache_info(),
+        "note": "Cache reduces startup time and allows offline operation. Cache is automatically "
+        "refreshed every 24 hours.",
+    }
+
+
+async def marketplace_docs_index() -> dict[str, Any]:
+    """
+    Get the documentation table of contents.
+
+    Returns:
+        Total page count and the documentation sections with their subsections and page counts
+    """
+    await server_docs.initialize_documentation_cache()
+    dc = server_docs.documentation_cache
+    if not dc or not dc.is_enabled:
+        return {"total_pages": 0, "sections": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
+
+    return await dc.get_documentation_index()
 
 
 async def marketplace_docs_list(
@@ -40,7 +116,18 @@ async def marketplace_docs_list(
     search: str | None = None,
     limit: int = 100,
 ) -> dict[str, Any]:
-    """List documentation resources with optional filters (section, subsection, search)."""
+    """
+    List documentation pages, optionally filtered.
+
+    Args:
+        section: Only pages of this section (see marketplace_docs_index)
+        subsection: Only pages of this subsection
+        search: Only pages whose title or path contains this text
+        limit: Max pages to return (default 100)
+
+    Returns:
+        Matching pages with their docs:// uri, title and public browser_url when available
+    """
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
     if not dc or not dc.is_enabled:
@@ -82,194 +169,325 @@ async def marketplace_docs_list(
     return result
 
 
-def register_http_tools(mcp: FastMCP) -> None:
-    """Register the Marketplace and documentation tools of the HTTP server."""
+async def marketplace_docs_read(uri: str) -> dict[str, Any]:
+    """
+    Read a documentation page.
 
-    @mcp.tool()
-    async def marketplace_query(
-        resource: str,
-        rql: str = "",
-        limit: int | None = None,
-        offset: int | None = None,
-        select: str | None = None,
-        order: str | None = None,
-        path_params: dict[str, str] | None = None,
-        call_context: CallContext = Depends(get_call_context),
-    ) -> dict[str, Any]:
-        try:
-            api_client = await call_context.create_api_client()
-        except ValueError as error:
-            return {"error": str(error), "hint": AUTH_HEADER_HINT}
-        api_base_url = api_client.base_url
-        logger.info("Using API endpoint: %s", api_base_url)
-        try:
-            endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-            openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)
-        except Exception as error:
-            return {
-                "error": f"{OPENAPI_SPEC_LOAD_ERROR} for your endpoint",
-                "api_endpoint": api_base_url,
-                "details": str(error),
-                "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
-            }
-        audit_regex = audit_fields_module.get_audit_regex(api_base_url)
-        return await execute_marketplace_query(
-            resource=resource,
-            rql=rql,
-            limit=limit,
-            offset=offset,
-            select=select,
-            order=order,
-            path_params=path_params,
-            api_client=api_client,
-            endpoints_registry=endpoints_registry_data,
-            analytics_logger=get_analytics_logger(),
-            config=config,
-            audit_regex=audit_regex,
-            openapi_spec=openapi_spec,
-        )
+    Args:
+        uri: Page uri from marketplace_docs_list (e.g. docs://help-and-support/contact-support)
 
-    @mcp.tool()
-    def marketplace_quick_queries() -> dict[str, Any]:
-        return execute_marketplace_quick_queries()
+    Returns:
+        {"text": "<markdown content>", "count": 1}, or count 0 with the reason in text when the
+        page is not available
+    """
+    await server_docs.initialize_documentation_cache()
+    dc = server_docs.documentation_cache
+    if not dc or not dc.is_enabled:
+        return {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
 
-    @mcp.tool()
-    async def marketplace_resources(
-        call_context: CallContext = Depends(get_call_context),
-    ) -> dict[str, Any]:
-        try:
-            api_client = await call_context.create_api_client()
-        except ValueError as error:
-            return {"error": str(error), "hint": AUTH_HEADER_HINT}
-        api_base_url = api_client.base_url
-        try:
-            endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as error:
-            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
-        return execute_marketplace_resources(
-            api_base_url=api_base_url,
-            user_id=call_context.user_id,
-            endpoints_registry=endpoints_registry_data,
-        )
-
-    @mcp.tool()
-    async def marketplace_resource_info(
-        resource: str, call_context: CallContext = Depends(get_call_context)
-    ) -> dict[str, Any]:
-        try:
-            api_client = await call_context.create_api_client()
-        except ValueError as error:
-            return {"error": str(error), "hint": AUTH_HEADER_HINT}
-        api_base_url = api_client.base_url
-        try:
-            endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as error:
-            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
-        return execute_marketplace_resource_info(
-            resource=resource,
-            endpoints_registry=endpoints_registry_data,
-        )
-
-    @mcp.tool()
-    async def marketplace_resource_schema(
-        resource: str, call_context: CallContext = Depends(get_call_context)
-    ) -> dict[str, Any]:
-        try:
-            api_client = await call_context.create_api_client()
-        except ValueError as error:
-            return {"error": str(error), "hint": AUTH_HEADER_HINT}
-        api_base_url = api_client.base_url
-        try:
-            spec = await endpoint_registry.get_openapi_spec(api_base_url)
-            endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as error:
-            return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
-        return execute_marketplace_resource_schema(
-            resource=resource,
-            openapi_spec=spec,
-            endpoints_registry=endpoints_registry_data,
-        )
-
-    @mcp.tool()
-    async def marketplace_audit_fields(
-        resource: str | None = None, call_context: CallContext = Depends(get_call_context)
-    ) -> dict[str, Any]:
-        try:
-            api_client = await call_context.create_api_client()
-        except ValueError as error:
-            return {"error": str(error), "hint": AUTH_HEADER_HINT}
-        api_base_url = api_client.base_url
-        try:
-            await endpoint_registry.get_endpoints_registry(api_base_url)
-        except Exception as error:
-            return {
-                "error": f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
-                "details": str(error),
-                "api_endpoint": api_base_url,
-            }
-        return audit_fields_module.get_audit_fields(api_base_url, resource)
-
-    @mcp.tool()
-    async def marketplace_docs_index() -> dict[str, Any]:
-        await server_docs.initialize_documentation_cache()
-        dc = server_docs.documentation_cache
-        if not dc or not dc.is_enabled:
-            return {"total_pages": 0, "sections": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
-
-        return await dc.get_documentation_index()
-
-    mcp.tool()(marketplace_docs_list)
-
-    @mcp.tool()
-    async def marketplace_docs_read(uri: str) -> dict[str, Any]:
-        """Read a documentation page by uri (e.g. docs://help-and-support/contact-support).
-
-        Returns a JSON object: {"text": "<markdown content>", "count": 1}.
-        Clients should use the "text" field for the document body and "count" (always 1) for
-        consistency with other tools.
-        """
-        await server_docs.initialize_documentation_cache()
-        dc = server_docs.documentation_cache
-        if not dc or not dc.is_enabled:
-            return {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
-
-        page_content = await dc.get_resource(uri)
-        if page_content is None:
-            return {
-                "text": (
-                    f"Documentation page not found: {uri}\n\n"
-                    "Use marketplace_docs_list() to see available pages."
-                ),
-                "count": 0,
-            }
-
-        return {"text": page_content, "count": 1}
-
-    # TBD: decide whether this is a debug tool (it only reports cache statistics); if so, tag it
-    # "debug" so it is hidden in production
-    @mcp.tool()
-    def marketplace_resources_info() -> dict[str, Any]:
-        result = {
-            "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
-            "token_validation": {"enabled": False, "cache_stats": None},
+    page_content = await dc.get_resource(uri)
+    if page_content is None:
+        return {
+            "text": (
+                f"Documentation page not found: {uri}\n\n"
+                "Use marketplace_docs_list() to see available pages."
+            ),
+            "count": 0,
         }
-        dc = server_docs.documentation_cache
-        if dc and dc.is_enabled:
-            cache_info = dc.get_cache_info()
-            result["documentation"] = {
-                "enabled": True,
-                "total_pages": cache_info.get("resource_count", 0),
-                "cache_info": cache_info,
-            }
-        try:
-            token_cache = get_token_cache()
-            result["token_validation"] = {
-                "enabled": True,
-                "cache_stats": token_cache.get_stats(),
-                "description": "Token validation cache prevents repeated API calls for "
-                "authentication",
-            }
-        except Exception as e_inner:
-            result["token_validation"] = {"enabled": False, "error": str(e_inner)}
 
-        return result
+    return {"text": page_content, "count": 1}
+
+
+async def marketplace_query(
+    resource: str,
+    rql: str = "",
+    limit: int | None = None,
+    offset: int | None = None,
+    select: str | None = None,
+    order: str | None = None,
+    path_params: dict[str, str] | None = None,
+    call_context: CallContext = Depends(get_call_context),
+) -> dict[str, Any]:
+    """
+    Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
+
+    Supports both simple queries and advanced RQL filtering, sorting, and pagination. See
+    documentation at https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language
+
+    Available Resource Categories:
+    - Catalog: catalog.products, catalog.items, catalog.listings, catalog.authorizations
+    - Commerce: commerce.orders, commerce.requests, commerce.agreements, commerce.subscriptions
+    - Billing: billing.invoices, billing.statements, billing.journals, billing.ledgers
+    - Accounts: accounts.accounts, accounts.buyers, accounts.sellers, accounts.users
+
+    RQL Query Examples:
+    - Pagination: limit=10, offset=0
+    - Filter: rql=eq(status,Active), limit=20
+    - Search: rql=ilike(name,*Microsoft*), limit=50
+    - Complex: rql=and(eq(status,Active),gt(price,100)), order=-created
+    - Sort: order=-created or order=+name
+
+    Use marketplace_resources() to see all available resources.
+
+    Args:
+        resource: The resource to query (e.g., catalog.products, commerce.orders)
+        rql: Advanced RQL query string. Examples: eq(status,Active), ilike(name,*Microsoft*).
+            Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Pagination/selection: limit=100,
+            select=+status, order=-created.
+        limit: Max items to return (default 10, max 100). Use select= with only needed fields
+            (from marketplace_resource_schema) to avoid huge responses.
+        offset: Number of items to skip for pagination (e.g., 0, 20, 40)
+        select: Fields to include/exclude (+name,+description or -metadata). For audit
+            fields include 'audit'. Nested: +subscriptions (full), +subscriptions.id,
+            +subscriptions.id,+subscriptions.name.
+            For catalog.products when including vendor use +vendor.id,+vendor.name (not +vendor).
+            RQL filter fields must exist—use marketplace_resource_schema(resource) to check.
+        order: Sort order (e.g., -created for descending, +name for ascending). When using
+            audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
+        path_params: Path parameters for resources requiring IDs
+            Examples: {id: PRD-1234-5678} for catalog.products.by_id
+                     {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines
+        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+
+    Returns:
+        API response with data and pagination information
+    """
+    try:
+        api_client = await call_context.create_api_client()
+    except ValueError as error:
+        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+
+    api_base_url = api_client.base_url
+    logger.info("Using API endpoint: %s", api_base_url)
+    try:
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
+        openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)
+    except Exception as error:
+        return {
+            "error": f"{OPENAPI_SPEC_LOAD_ERROR} for your endpoint",
+            "api_endpoint": api_base_url,
+            "details": str(error),
+            "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
+        }
+
+    audit_regex = audit_fields_module.get_audit_regex(api_base_url)
+    return await execute_marketplace_query(
+        resource=resource,
+        rql=rql,
+        limit=limit,
+        offset=offset,
+        select=select,
+        order=order,
+        path_params=path_params,
+        api_client=api_client,
+        endpoints_registry=endpoints_registry_data,
+        analytics_logger=get_analytics_logger(),
+        config=config,
+        audit_regex=audit_regex,
+        openapi_spec=openapi_spec,
+    )
+
+
+def marketplace_quick_queries() -> dict[str, Any]:
+    """
+    Get pre-built query templates for common use cases.
+
+    Returns ready-to-use query examples organized by category. These templates
+    help you quickly perform common tasks without learning RQL syntax.
+
+    Example: marketplace_quick_queries() shows templates for finding recent
+    orders, active products, specific vendors, etc.
+
+    Returns:
+        Dictionary of query templates organized by category
+    """
+    return execute_marketplace_quick_queries()
+
+
+async def marketplace_refresh_cache(
+    call_context: CallContext = Depends(get_call_context),
+) -> dict[str, Any]:
+    """
+    Force refresh the OpenAPI spec cache of your endpoint.
+
+    Only listed and callable when DEBUG=true.
+
+    Use this to manually update the endpoint registry if you know the API has changed.
+
+    Returns:
+        Status message indicating cache refresh result
+    """
+    try:
+        api_client = await call_context.create_api_client()
+    except ValueError as error:
+        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+
+    logger.info("Force refreshing OpenAPI spec cache...")
+    endpoints_registry_data = await endpoint_registry.get_endpoints_registry(
+        api_client.base_url, force_refresh=True
+    )
+    if not endpoints_registry_data:
+        return {
+            "success": False,
+            "error": OPENAPI_SPEC_LOAD_ERROR,
+            "message": "Failed to refresh cache. Check network connection.",
+        }
+
+    return {
+        "success": True,
+        "message": (
+            f"Cache refreshed successfully. Loaded {len(endpoints_registry_data)} endpoints."
+        ),
+        "endpoints_count": len(endpoints_registry_data),
+    }
+
+
+async def marketplace_resource_info(
+    resource: str, call_context: CallContext = Depends(get_call_context)
+) -> dict[str, Any]:
+    """
+    Get detailed information about a specific resource.
+
+    Args:
+        resource: The resource identifier (e.g., catalog.products)
+        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+
+    Returns:
+        Detailed information about the resource including available parameters
+    """
+    try:
+        api_client = await call_context.create_api_client()
+    except ValueError as error:
+        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+
+    api_base_url = api_client.base_url
+    try:
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
+    except Exception as error:
+        return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
+
+    return execute_marketplace_resource_info(
+        resource=resource,
+        endpoints_registry=endpoints_registry_data,
+    )
+
+
+async def marketplace_resource_schema(
+    resource: str, call_context: CallContext = Depends(get_call_context)
+) -> dict[str, Any]:
+    """
+    Get the full schema for a resource.
+
+    Returns detailed information about the resource including available parameters, example
+    queries, filterable fields, and response structure.
+
+    Example: marketplace_resource_schema(resource=catalog.products) returns full schema; for
+    products use select=+vendor.id,+vendor.name when including vendor.
+
+    Args:
+        resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
+        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+
+    Returns:
+        Complete JSON schema with field types, descriptions, enums, and examples
+    """
+    try:
+        api_client = await call_context.create_api_client()
+    except ValueError as error:
+        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+
+    api_base_url = api_client.base_url
+    try:
+        spec = await endpoint_registry.get_openapi_spec(api_base_url)
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
+    except Exception as error:
+        return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
+
+    return execute_marketplace_resource_schema(
+        resource=resource,
+        openapi_spec=spec,
+        endpoints_registry=endpoints_registry_data,
+    )
+
+
+async def marketplace_resources(
+    call_context: CallContext = Depends(get_call_context),
+) -> dict[str, Any]:
+    """
+    List all available API resources.
+
+    Returns:
+        A categorized list of all available API endpoints
+    """
+    try:
+        api_client = await call_context.create_api_client()
+    except ValueError as error:
+        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+
+    api_base_url = api_client.base_url
+    try:
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
+    except Exception as error:
+        return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
+
+    return execute_marketplace_resources(
+        api_base_url=api_base_url,
+        user_id=call_context.user_id,
+        endpoints_registry=endpoints_registry_data,
+    )
+
+
+def marketplace_resources_info() -> dict[str, Any]:
+    """
+    Get the state of the documentation and token validation caches.
+
+    Only listed and callable when DEBUG=true.
+
+    Returns:
+        Whether each cache is enabled, with its statistics
+    """
+    result = {
+        "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
+        "token_validation": {"enabled": False, "cache_stats": None},
+    }
+    dc = server_docs.documentation_cache
+    if dc and dc.is_enabled:
+        cache_info = dc.get_cache_info()
+        result["documentation"] = {
+            "enabled": True,
+            "total_pages": cache_info.get("resource_count", 0),
+            "cache_info": cache_info,
+        }
+    try:
+        token_cache = get_token_cache()
+        result["token_validation"] = {
+            "enabled": True,
+            "cache_stats": token_cache.get_stats(),
+            "description": "Token validation cache prevents repeated API calls for authentication",
+        }
+    except Exception as e_inner:
+        result["token_validation"] = {"enabled": False, "error": str(e_inner)}
+
+    return result
+
+
+def register_tools(mcp: FastMCP) -> None:
+    """Register the Marketplace, documentation and debug tools."""
+    for tool in (
+        marketplace_query,
+        marketplace_quick_queries,
+        marketplace_resources,
+        marketplace_resource_info,
+        marketplace_resource_schema,
+        marketplace_audit_fields,
+        marketplace_docs_index,
+        marketplace_docs_list,
+        marketplace_docs_read,
+    ):
+        mcp.tool()(tool)
+    for debug_tool in (
+        marketplace_cache_info,
+        marketplace_refresh_cache,
+        marketplace_resources_info,
+    ):
+        mcp.tool(tags={DEBUG_TAG})(debug_tool)

@@ -18,9 +18,9 @@ Configuration is read from environment variables; [`compose.yaml`](../compose.ya
 | `MARKETPLACE_API_BASE_URL` | stdio | Marketplace API endpoint (default `https://api.platform.softwareone.com`) |
 | `SSE_DEFAULT_BASE_URL` | HTTP | Endpoint used when a client does not send `X-MPT-Endpoint` |
 | `PORT` | HTTP | Listening port (default `8080`) |
-| `DEBUG` | both | `true` enables debug logging, uvicorn reload and the stdio debug tools |
-| `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID`, `GITBOOK_PUBLIC_URL` | HTTP | Documentation tools and `docs://` resources; disabled when not set |
-| `JWT_JWKS_URL`, `JWT_EXP_LEEWAY_SECONDS` | HTTP | JWT verification; the JWKS URL is derived from the token's `iss` claim when not set |
+| `DEBUG` | both | `true` enables debug logging, uvicorn reload and the debug tools |
+| `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID`, `GITBOOK_PUBLIC_URL` | both | Documentation tools and `docs://` resources; disabled when not set |
+| `JWT_JWKS_URL`, `JWT_EXP_LEEWAY_SECONDS` | both | JWT verification; the JWKS URL is derived from the token's `iss` claim when not set |
 | `ANALYTICS_DATABASE_URL` | HTTP | PostgreSQL URL (`postgresql+asyncpg://…`); analytics is disabled when not set |
 
 `compose.yaml` sets `DEBUG=true` by default for local development; set `DEBUG=false` in `.env` to disable it.

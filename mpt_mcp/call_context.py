@@ -1,20 +1,23 @@
+from __future__ import annotations
+
 import logging
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
-from fastmcp.dependencies import CurrentRequest
-
-# FastMCP resolves dependency annotations at runtime, so Request cannot be a TYPE_CHECKING import
-from starlette.requests import Request
+from fastmcp.server.dependencies import get_http_request
 
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.config import config
 from mpt_mcp.token_validator import normalize_token, parse_token_id, validate_token
 
+if TYPE_CHECKING:
+    from starlette.requests import Request
+
 logger = logging.getLogger(__name__)
 
-MISSING_AUTH_HEADER_ERROR = (
-    "Missing X-MPT-Authorization header. Please provide your API token in the "
-    "X-MPT-Authorization header."
+NO_CREDENTIALS_ERROR = (
+    "Missing API token. Please provide your API token in the X-MPT-Authorization header (HTTP) "
+    "or in MARKETPLACE_API_TOKEN (stdio)."
 )
 TRUTHY_HEADER_VALUES = ("1", "true", "yes")
 
@@ -43,7 +46,7 @@ class CallContext:
             ValueError: If the token is missing or fails validation
         """
         if not self.token:
-            raise ValueError(MISSING_AUTH_HEADER_ERROR)
+            raise ValueError(NO_CREDENTIALS_ERROR)
 
         await self._validate_token()
 
@@ -69,12 +72,34 @@ class CallContext:
         )
 
 
-def get_call_context(request: Request = CurrentRequest()) -> CallContext:
+def get_call_context() -> CallContext:
     """
-    Build the call context from the X-MPT-* headers of the current HTTP request.
+    Build the call context of the current MCP request.
+
+    The HTTP server reads it from the request headers; the stdio server, which has no request,
+    from MARKETPLACE_API_BASE_URL and MARKETPLACE_API_TOKEN.
+
+    Returns:
+        Call context with the caller's endpoint, token and validation preference
+    """
+    try:
+        request = get_http_request()
+    except RuntimeError:
+        token = config.marketplace_api_token
+        return CallContext(
+            endpoint=normalize_endpoint_url(config.marketplace_api_base_url),
+            token=normalize_token(token) if token else None,
+        )
+
+    return read_call_context(request)
+
+
+def read_call_context(request: Request) -> CallContext:
+    """
+    Build the call context from the X-MPT-* headers of an HTTP request.
 
     Args:
-        request: Current HTTP request, injected by FastMCP
+        request: HTTP request of the MCP call
 
     Returns:
         Call context with the caller's endpoint, token and validation preference

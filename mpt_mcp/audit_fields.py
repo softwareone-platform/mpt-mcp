@@ -226,7 +226,7 @@ def update_cache(
     """
     Compute audit data from spec and store in cache under cache_key.
 
-    Call this when the spec is loaded (endpoint_registry or server_stdio init).
+    Call this when the spec is loaded (by endpoint_registry).
     """
     if os.getenv("DEBUG", "").lower() == "true":
         logger.setLevel(logging.DEBUG)

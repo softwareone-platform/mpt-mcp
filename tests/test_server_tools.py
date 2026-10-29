@@ -31,10 +31,7 @@ def api_client():
         yield client
 
 
-async def test_unknown_resource_suggests_similar(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_query = http_tools["marketplace_query"]
+async def test_unknown_resource_suggests_similar(call_context, endpoints_registry, api_client):
     # Mock the endpoint registry with some sample resources
     mock_registry = {
         "catalog.products": {
@@ -62,7 +59,7 @@ async def test_unknown_resource_suggests_similar(
     endpoints_registry.return_value = mock_registry
 
     # Try to query "catalog.product" (typo - missing 's')
-    result = await marketplace_query("catalog.product", call_context=call_context)
+    result = await server_tools.marketplace_query("catalog.product", call_context=call_context)
 
     # Should return error with suggestions
     assert "error" in result
@@ -71,10 +68,7 @@ async def test_unknown_resource_suggests_similar(
     assert "catalog.products" in result["did_you_mean"]
 
 
-async def test_unknown_resource_shows_categories(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_query = http_tools["marketplace_query"]
+async def test_unknown_resource_shows_categories(call_context, endpoints_registry, api_client):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -90,17 +84,14 @@ async def test_unknown_resource_shows_categories(
 
     endpoints_registry.return_value = mock_registry
 
-    result = await marketplace_query("invalid.resource", call_context=call_context)
+    result = await server_tools.marketplace_query("invalid.resource", call_context=call_context)
 
     assert "available_categories" in result
     assert "catalog" in result["available_categories"]
     assert "commerce" in result["available_categories"]
 
 
-async def test_missing_path_params_shows_example(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_query = http_tools["marketplace_query"]
+async def test_missing_path_params_shows_example(call_context, endpoints_registry, api_client):
     mock_registry = {
         "catalog.products.by_id": {
             "path": "/public/v1/catalog/products/{id}",
@@ -112,7 +103,9 @@ async def test_missing_path_params_shows_example(
     endpoints_registry.return_value = mock_registry
 
     # Query without providing path_params
-    result = await marketplace_query("catalog.products.by_id", call_context=call_context)
+    result = await server_tools.marketplace_query(
+        "catalog.products.by_id", call_context=call_context
+    )
 
     # Should include helpful error
     assert "error" in result
@@ -123,10 +116,7 @@ async def test_missing_path_params_shows_example(
     assert "hint" in result
 
 
-async def test_path_params_error_has_realistic_values(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_query = http_tools["marketplace_query"]
+async def test_path_params_error_has_realistic_values(call_context, endpoints_registry, api_client):
     mock_registry = {
         "commerce.orders.by_id": {
             "path": "/public/v1/commerce/orders/{orderId}",
@@ -137,16 +127,15 @@ async def test_path_params_error_has_realistic_values(
 
     endpoints_registry.return_value = mock_registry
 
-    result = await marketplace_query("commerce.orders.by_id", call_context=call_context)
+    result = await server_tools.marketplace_query(
+        "commerce.orders.by_id", call_context=call_context
+    )
 
     # Should use realistic example value
     assert "ORD-" in result["example"]  # Realistic order ID format
 
 
-async def test_resource_info_shows_children(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_resource_info = http_tools["marketplace_resource_info"]
+async def test_resource_info_shows_children(call_context, endpoints_registry, api_client):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -167,7 +156,9 @@ async def test_resource_info_shows_children(
 
     endpoints_registry.return_value = mock_registry
 
-    result = await marketplace_resource_info("catalog.products", call_context=call_context)
+    result = await server_tools.marketplace_resource_info(
+        "catalog.products", call_context=call_context
+    )
 
     # Should include child resources
     assert "related_resources" in result
@@ -176,8 +167,7 @@ async def test_resource_info_shows_children(
     assert "catalog.products.by_id" in child_resources
 
 
-async def test_resource_info_shows_parent(call_context, http_tools, endpoints_registry, api_client):
-    marketplace_resource_info = http_tools["marketplace_resource_info"]
+async def test_resource_info_shows_parent(call_context, endpoints_registry, api_client):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -193,7 +183,9 @@ async def test_resource_info_shows_parent(call_context, http_tools, endpoints_re
 
     endpoints_registry.return_value = mock_registry
 
-    result = await marketplace_resource_info("catalog.products.by_id", call_context=call_context)
+    result = await server_tools.marketplace_resource_info(
+        "catalog.products.by_id", call_context=call_context
+    )
 
     # Should include parent resource
     assert "related_resources" in result
@@ -201,10 +193,7 @@ async def test_resource_info_shows_parent(call_context, http_tools, endpoints_re
     assert result["related_resources"]["parent"]["resource"] == "catalog.products"
 
 
-async def test_resource_info_shows_multiple_examples(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_resource_info = http_tools["marketplace_resource_info"]
+async def test_resource_info_shows_multiple_examples(call_context, endpoints_registry, api_client):
     mock_registry = {
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
@@ -221,7 +210,9 @@ async def test_resource_info_shows_multiple_examples(
 
     endpoints_registry.return_value = mock_registry
 
-    result = await marketplace_resource_info("commerce.orders", call_context=call_context)
+    result = await server_tools.marketplace_resource_info(
+        "commerce.orders", call_context=call_context
+    )
 
     # Should include multiple examples
     assert "example_queries" in result
@@ -232,10 +223,7 @@ async def test_resource_info_shows_multiple_examples(
     assert "Active" in example_strings or "Completed" in example_strings
 
 
-async def test_resource_info_shows_filtering_tips(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_resource_info = http_tools["marketplace_resource_info"]
+async def test_resource_info_shows_filtering_tips(call_context, endpoints_registry, api_client):
     mock_registry = {
         "commerce.orders": {
             "path": "/public/v1/commerce/orders",
@@ -248,17 +236,16 @@ async def test_resource_info_shows_filtering_tips(
 
     endpoints_registry.return_value = mock_registry
 
-    result = await marketplace_resource_info("commerce.orders", call_context=call_context)
+    result = await server_tools.marketplace_resource_info(
+        "commerce.orders", call_context=call_context
+    )
 
     # Should include filtering tips
     assert "filtering_tips" in result
     assert "status" in result["filtering_tips"]
 
 
-async def test_api_error_includes_status_code(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_query = http_tools["marketplace_query"]
+async def test_api_error_includes_status_code(call_context, endpoints_registry, api_client):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -284,7 +271,7 @@ async def test_api_error_includes_status_code(
 
     api_client.get = AsyncMock(side_effect=http_error)
 
-    result = await marketplace_query("catalog.products", call_context=call_context)
+    result = await server_tools.marketplace_query("catalog.products", call_context=call_context)
 
     # Should preserve API error details
     assert "error" in result
@@ -294,10 +281,7 @@ async def test_api_error_includes_status_code(
     assert "Invalid RQL" in result["api_error_details"]["message"]
 
 
-async def test_api_error_includes_request_url(
-    call_context, http_tools, endpoints_registry, api_client
-):
-    marketplace_query = http_tools["marketplace_query"]
+async def test_api_error_includes_request_url(call_context, endpoints_registry, api_client):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -323,7 +307,7 @@ async def test_api_error_includes_request_url(
 
     api_client.get = AsyncMock(side_effect=http_error)
 
-    result = await marketplace_query("catalog.products", call_context=call_context)
+    result = await server_tools.marketplace_query("catalog.products", call_context=call_context)
 
     # Should include request URL
     assert "request_url" in result
@@ -418,23 +402,14 @@ def docs_cache(monkeypatch):
     return _docs_cache
 
 
-@pytest.fixture
-def http_tools():
-    fake_mcp = Mock()
-    server_tools.register_http_tools(fake_mcp)
-    return {
-        call.args[0].__name__: call.args[0] for call in fake_mcp.tool.return_value.call_args_list
-    }
-
-
-async def test_docs_index_returns_cache_index(docs_cache, http_tools):
+async def test_docs_index_returns_cache_index(docs_cache):
     index = {
         "total_pages": 1,
         "sections": [{"name": "readme", "total_pages": 1, "subsections": []}],
     }
     docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}], index=index)
 
-    result = await http_tools["marketplace_docs_index"]()
+    result = await server_tools.marketplace_docs_index()
 
     assert result == index
 
@@ -477,32 +452,47 @@ async def test_docs_list_uses_live_docs_cache(docs_cache):
     assert (result["total"], first_uri) == (1, "docs://readme")
 
 
-async def test_docs_read_returns_text_and_count(docs_cache, http_tools):
+async def test_docs_read_returns_text_and_count(docs_cache):
     docs_cache(
         content_by_uri={"docs://help-and-support/contact-support": "# Contact\n\nHello from docs."}
     )
 
-    result = await http_tools["marketplace_docs_read"](
-        uri="docs://help-and-support/contact-support"
-    )
+    result = await server_tools.marketplace_docs_read(uri="docs://help-and-support/contact-support")
 
     assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
 
 
-async def test_docs_read_not_found_returns_zero_count(docs_cache, http_tools):
+async def test_docs_read_not_found_returns_zero_count(docs_cache):
     docs_cache()
 
-    result = await http_tools["marketplace_docs_read"](uri="docs://missing/page")
+    result = await server_tools.marketplace_docs_read(uri="docs://missing/page")
 
     text = result["text"].lower()
     assert (result["count"], "not found" in text) == (0, True)
 
 
-def test_resources_info_reflects_docs_cache(docs_cache, http_tools, monkeypatch):
+def test_resources_info_reflects_docs_cache(docs_cache, monkeypatch):
     cache = docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
     monkeypatch.setattr(server_docs, "documentation_cache", cache)
 
-    result = http_tools["marketplace_resources_info"]()
+    result = server_tools.marketplace_resources_info()
 
     documentation = result["documentation"]
     assert (documentation["enabled"], documentation["total_pages"]) == (True, 1)
+
+
+async def test_refresh_cache_reloads_registry(call_context, endpoints_registry, api_client):
+    endpoints_registry.return_value = {"catalog.products": {}}
+
+    result = await server_tools.marketplace_refresh_cache(call_context=call_context)
+
+    assert (result["success"], result["endpoints_count"]) == (True, 1)
+    endpoints_registry.assert_called_once_with("https://api.test.com", force_refresh=True)
+
+
+async def test_refresh_cache_reports_failed_load(call_context, endpoints_registry, api_client):
+    endpoints_registry.return_value = {}
+
+    result = await server_tools.marketplace_refresh_cache(call_context=call_context)
+
+    assert result["success"] is False

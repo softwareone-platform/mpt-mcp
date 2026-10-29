@@ -71,33 +71,35 @@ async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)
     return json.dumps(spec_with_metadata, indent=2)
 
 
-def register_http_resources(mcp: FastMCP) -> None:
-    """Register the OpenAPI spec and documentation resources of the HTTP server."""
+async def get_documentation_page(path: str) -> str:
+    """Return the markdown of the documentation page at docs://{path}."""
+    uri = f"docs://{path}"
+    await server_docs.initialize_documentation_cache()
+    dc = server_docs.documentation_cache
+    if not dc or not dc.is_enabled:
+        return (
+            "Documentation cache is not available. Please configure GITBOOK_API_KEY and "
+            "GITBOOK_SPACE_ID."
+        )
+
+    page_content = await dc.get_resource(uri)
+    if page_content is None:
+        return f"Documentation page not found: {uri}"
+
+    return page_content
+
+
+def register_resources(mcp: FastMCP) -> None:
+    """Register the OpenAPI spec and documentation resources."""
     mcp.resource(
         "api://openapi.json",
         name="OpenAPI Specification",
         description="OpenAPI 3 spec for the current API endpoint (requires auth).",
         mime_type="application/json",
     )(get_openapi_spec)
-
-    @mcp.resource(
+    mcp.resource(
         "docs://{path*}",
         name="Documentation",
         description="Documentation pages. Use marketplace_docs_list() for available URIs.",
         mime_type="text/markdown",
-    )
-    async def get_documentation_resource(path: str) -> str:
-        uri = f"docs://{path}"
-        await server_docs.initialize_documentation_cache()
-        dc = server_docs.documentation_cache
-        if not dc or not dc.is_enabled:
-            return (
-                "Documentation cache is not available. Please configure GITBOOK_API_KEY and "
-                "GITBOOK_SPACE_ID."
-            )
-
-        page_content = await dc.get_resource(uri)
-        if page_content is None:
-            return f"Documentation page not found: {uri}"
-
-        return page_content
+    )(get_documentation_page)

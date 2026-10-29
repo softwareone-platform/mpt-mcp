@@ -1,3 +1,4 @@
+import re
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -6,10 +7,11 @@ from starlette.requests import Request
 
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.call_context import (
-    MISSING_AUTH_HEADER_ERROR,
+    NO_CREDENTIALS_ERROR,
     CallContext,
     get_call_context,
     normalize_endpoint_url,
+    read_call_context,
 )
 from mpt_mcp.config import config
 
@@ -29,14 +31,14 @@ def make_request():
     return _make_request
 
 
-def test_get_call_context_reads_mpt_headers(make_request):
+def test_read_call_context_reads_mpt_headers(make_request):
     request = make_request({
         "X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET",
         "X-MPT-Endpoint": "https://api.s1.show/public/",
         "X-MPT-Validate-Fresh": "true",
     })
 
-    result = get_call_context(request)
+    result = read_call_context(request)
 
     assert result == CallContext(
         endpoint="https://api.s1.show", token="idt:TKN-1234-5678:SECRET", validate_fresh=True
@@ -46,11 +48,29 @@ def test_get_call_context_reads_mpt_headers(make_request):
 def test_call_context_defaults_without_headers(make_request):
     request = make_request({})
 
-    result = get_call_context(request)
+    result = read_call_context(request)
 
     assert result == CallContext(
         endpoint=config.sse_default_base_url, token=None, validate_fresh=False
     )
+
+
+def test_get_call_context_reads_http_request(make_request, monkeypatch):
+    request = make_request({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"})
+    monkeypatch.setattr("mpt_mcp.call_context.get_http_request", lambda: request)
+
+    result = get_call_context()
+
+    assert result == read_call_context(request)
+
+
+def test_get_call_context_reads_environment(monkeypatch):
+    monkeypatch.setattr(config, "marketplace_api_base_url", "https://api.test.com/public/")
+    monkeypatch.setattr(config, "marketplace_api_token", "Bearer idt:TKN-1234-5678:SECRET")
+
+    result = get_call_context()
+
+    assert result == CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
 
 @pytest.mark.parametrize(
@@ -63,10 +83,10 @@ def test_call_context_defaults_without_headers(make_request):
         ("", False),
     ],
 )
-def test_get_call_context_validate_fresh_values(make_request, header_value, expected):
+def test_read_call_context_validate_fresh_values(make_request, header_value, expected):
     request = make_request({"X-MPT-Validate-Fresh": header_value})
 
-    result = get_call_context(request)
+    result = read_call_context(request)
 
     assert result.validate_fresh is expected
 
@@ -86,7 +106,7 @@ def test_user_id_from_token(token, expected):
 async def test_create_api_client_without_token_raises():
     call_context = CallContext(endpoint="https://api.test.com", token=None)
 
-    with pytest.raises(ValueError, match=MISSING_AUTH_HEADER_ERROR):
+    with pytest.raises(ValueError, match=re.escape(NO_CREDENTIALS_ERROR)):
         await call_context.create_api_client()
 
 

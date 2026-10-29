@@ -47,11 +47,11 @@ Repository-specific settings come from [`pyproject.toml`](../pyproject.toml):
 
 Repository-specific guidance:
 
-- call HTTP tools through the `http_tools` fixture in `test_server_tools.py`, which captures the functions `register_http_tools` registers, and pass an explicit `call_context` fixture instead of building HTTP requests
+- call tools as the module functions of `server_tools.py` and pass an explicit `call_context` fixture instead of building HTTP requests
 - patch names where they are used, for example `mpt_mcp.server_resources.validate_token`
 - module-level caches (OpenAPI specs, JWKS keys) live for the whole test process: give each test its own endpoint or issuer, as the `unique_endpoint` and `issuer` fixtures do, instead of clearing private state
 - test JWT validation with real RSA keys and mocked HTTP responses, as in `test_token_validator.py`
-- debug tool visibility depends on `DEBUG`, which `compose.yaml` sets to `true`: set the state explicitly with the `debug_tools_enabled` and `debug_tools_disabled` fixtures
+- debug tool visibility depends on `DEBUG`, which `compose.yaml` sets to `true`: test it on servers created with `config.debug` set, as the `production_server` and `debug_server` fixtures in `test_mcp_server.py` do
 
 ## When Tests Are Required
 

@@ -63,22 +63,22 @@ extend-ignore = [
   "WPS226",
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "WPS121",  # 8
-  "WPS122",  # 9
+  "WPS121",  # 7
+  "WPS122",  # 7
   "WPS201",  # 1
   "WPS202",  # 4
   "WPS204",  # 6
-  "WPS210",  # 28
-  "WPS211",  # 8
+  "WPS210",  # 25
+  "WPS211",  # 7
   "WPS212",  # 3
   "WPS213",  # 9
   "WPS214",  # 4
-  "WPS217",  # 2
+  "WPS217",  # 1
   "WPS218",  # 2
   "WPS219",  # 2
   "WPS220",  # 59
-  "WPS229",  # 36
-  "WPS231",  # 29
+  "WPS229",  # 33
+  "WPS231",  # 27
   "WPS232",  # 6
   "WPS234",  # 4
   "WPS235",  # 1
@@ -88,14 +88,14 @@ extend-ignore = [
   "WPS338",  # 6
   "WPS404",  # 7
   "WPS407",  # 7
-  "WPS420",  # 9
-  "WPS430",  # 34
+  "WPS420",  # 8
+  "WPS430",  # 24
   "WPS431",  # 2
   "WPS441",  # 12
   "WPS476",  # 5
   "WPS501",  # 1
   "WPS504",  # 4
-  "WPS505",  # 6
+  "WPS505",  # 5
   "WPS529",  # 40
   "WPS602",  # 7
 ]
@@ -196,12 +196,11 @@ ignore = [
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
     "call-datetime-now-without-tzinfo",  # 13
-    "complex-structure",  # 22
+    "complex-structure",  # 20
     "datetime-min-max",  # 1
-    "global-statement",  # 18
-    "signature-in-docstring",  # 4
+    "global-statement",  # 12
     "too-many-nested-blocks",  # 6
-    "too-many-statements-in-try-clause",  # 18
+    "too-many-statements-in-try-clause",  # 17
     "try-consider-else",  # 11
 ]
 external = [ "AAA", "WPS" ]
@@ -209,7 +208,7 @@ external = [ "AAA", "WPS" ]
 # Plugin configs:
 [tool.ruff.lint.flake8-bugbear]
 # FastMCP dependency markers are meant to be used as argument defaults
-extend-immutable-calls = ["fastmcp.dependencies.CurrentRequest", "fastmcp.dependencies.Depends"]
+extend-immutable-calls = ["fastmcp.dependencies.Depends"]
 
 [tool.ruff.lint.flake8-import-conventions]
 banned-from = ["ast", "datetime"]

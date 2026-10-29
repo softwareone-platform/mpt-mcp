@@ -23,24 +23,26 @@ Client configurations for Cursor, Claude Desktop and VS Code are in [`examples/`
 
 ## Tools
 
-| Tool | HTTP | stdio | Purpose |
-|---|---|---|---|
-| `marketplace_query` | yes | yes | Query a Marketplace API resource with RQL, `select`, `order` and pagination |
-| `marketplace_resources` | yes | yes | List the queryable resources, grouped by category |
-| `marketplace_resource_info` | yes | yes | Describe a resource: filterable fields, enum values, path parameters, examples |
-| `marketplace_resource_schema` | yes | yes | Return the full response schema of a resource |
-| `marketplace_audit_fields` | yes | yes | List the audit events (`created`, `updated`, `failed`…) of each resource |
-| `marketplace_quick_queries` | yes | yes | Return ready-to-use query templates by category |
-| `marketplace_docs_index` | yes | no | Return the documentation table of contents |
-| `marketplace_docs_list` | yes | no | List documentation pages, filtered by section, subsection or search |
-| `marketplace_docs_read` | yes | no | Read a documentation page by `docs://` URI |
-| `marketplace_resources_info` | yes | no | Show the state of the documentation and token validation caches |
-| `marketplace_cache_info` | no | `DEBUG=true` | Show the OpenAPI spec cache state |
-| `marketplace_refresh_cache` | no | `DEBUG=true` | Reload the OpenAPI spec and the endpoint registry |
+Both servers serve the same tools:
+
+| Tool | Purpose |
+|---|---|
+| `marketplace_query` | Query a Marketplace API resource with RQL, `select`, `order` and pagination |
+| `marketplace_resources` | List the queryable resources, grouped by category |
+| `marketplace_resource_info` | Describe a resource: filterable fields, enum values, path parameters, examples |
+| `marketplace_resource_schema` | Return the full response schema of a resource |
+| `marketplace_audit_fields` | List the audit events (`created`, `updated`, `failed`…) of each resource |
+| `marketplace_quick_queries` | Return ready-to-use query templates by category |
+| `marketplace_docs_index` | Return the documentation table of contents |
+| `marketplace_docs_list` | List documentation pages, filtered by section, subsection or search |
+| `marketplace_docs_read` | Read a documentation page by `docs://` URI |
+| `marketplace_cache_info` | `DEBUG=true` only: show the OpenAPI spec cache state |
+| `marketplace_refresh_cache` | `DEBUG=true` only: reload the OpenAPI spec and the endpoint registry |
+| `marketplace_resources_info` | `DEBUG=true` only: show the state of the documentation and token validation caches |
 
 The documentation tools need GitBook to be configured on the server; otherwise they return a message saying it is not available.
 
-The HTTP server also exposes two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`).
+Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`).
 
 ## Querying
 

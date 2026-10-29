@@ -17,10 +17,10 @@ Development runs in Docker through the `make` targets, see [local-development.md
 
 ## Code Organization
 
-- Tool logic that both servers share must live in [`mpt_mcp/mcp_tools.py`](../mpt_mcp/mcp_tools.py); `server_tools.py`, `server_resources.py` and `server_stdio.py` only register tools and wire the transport.
-- HTTP tools must get the caller's credentials with `call_context: CallContext = Depends(get_call_context)`, not by reading request headers.
+- Both transports serve the server that [`mpt_mcp/mcp_server.py`](../mpt_mcp/mcp_server.py) creates: add tools and resources to `server_tools.py` and `server_resources.py`, never to `server.py` or `server_stdio.py`. Tool logic lives in [`mpt_mcp/mcp_tools.py`](../mpt_mcp/mcp_tools.py).
+- Tools must get the caller's credentials with `call_context: CallContext = Depends(get_call_context)`, not by reading request headers or `config`.
 - Cross-cutting request behaviour (log context, analytics) must live in FastMCP middlewares, not in tools.
-- Development-only stdio tools must be tagged with `DEBUG_TAG`.
+- Development-only tools must be tagged with `DEBUG_TAG`.
 - Tool docstrings are the descriptions MCP clients send to the model; treat changes to them as user-facing changes.
 - Analytics schema changes must go through an Alembic migration, see [migrations.md](migrations.md).
 

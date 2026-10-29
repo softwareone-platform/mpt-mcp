@@ -7,7 +7,7 @@ from fastmcp import Client
 from mpt_mcp import server_docs
 from mpt_mcp.call_context import CallContext
 from mpt_mcp.server import mcp
-from mpt_mcp.server_resources import get_openapi_spec, register_http_resources
+from mpt_mcp.server_resources import get_documentation_page, get_openapi_spec
 
 
 async def test_get_openapi_spec_resource_success():
@@ -116,27 +116,18 @@ def docs_cache(monkeypatch):
     return _docs_cache
 
 
-@pytest.fixture
-def http_resources():
-    fake_mcp = Mock()
-    register_http_resources(fake_mcp)
-    uris = [call.args[0] for call in fake_mcp.resource.call_args_list]
-    handlers = [call.args[0] for call in fake_mcp.resource.return_value.call_args_list]
-    return dict(zip(uris, handlers, strict=True))
-
-
-async def test_docs_resource_reads_from_live_docs_cache(docs_cache, http_resources):
+async def test_docs_resource_reads_from_live_docs_cache(docs_cache):
     docs_cache({"docs://readme": "# Home\n\nHello"})
 
-    result = await http_resources["docs://{path*}"]("readme")
+    result = await get_documentation_page("readme")
 
     assert result == "# Home\n\nHello"
 
 
-async def test_docs_resource_not_found_when_missing(docs_cache, http_resources):
+async def test_docs_resource_not_found_when_missing(docs_cache):
     docs_cache({})
 
-    result = await http_resources["docs://{path*}"]("readme")
+    result = await get_documentation_page("readme")
 
     assert result == "Documentation page not found: docs://readme"
 

@@ -5,7 +5,7 @@ from typing import Any
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
-from mpt_mcp.call_context import CallContext, get_call_context
+from mpt_mcp.call_context import CallContext, read_call_context
 from mpt_mcp.log_config import current_session_id, current_user_id
 
 logger = logging.getLogger(__name__)
@@ -30,7 +30,7 @@ class RequestContextMiddleware(Middleware):
         except RuntimeError:
             return await call_next(context)
 
-        call_context = get_call_context(request)
+        call_context = read_call_context(request)
         user_token = current_user_id.set(call_context.user_id)
         session_token = current_session_id.set(request.query_params.get("session_id"))
         try:

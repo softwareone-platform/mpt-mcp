@@ -10,7 +10,6 @@ from http import HTTPStatus
 
 import uvicorn
 from alembic.config import Config as AlembicConfig
-from fastmcp import FastMCP
 from fastmcp.resources import FunctionResource
 from starlette.exceptions import HTTPException
 from starlette.requests import Request
@@ -19,13 +18,10 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 
 from alembic import command
 from mpt_mcp import server_docs
-from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
 from mpt_mcp.documentation_cache import DocumentationCache
 from mpt_mcp.log_config import configure_logging
-from mpt_mcp.server_middleware import RequestContextMiddleware
-from mpt_mcp.server_resources import register_http_resources
-from mpt_mcp.server_tools import register_http_tools
+from mpt_mcp.mcp_server import create_mcp_server
 
 logger = logging.getLogger(__name__)
 
@@ -41,14 +37,7 @@ server_port = int(os.getenv("PORT", "8080"))
 # Listen on every interface: the server runs in a container (Cloud Run)
 server_host = "0.0.0.0"  # ruff: ignore[hardcoded-bind-all-interfaces]
 logger.info("Configured for %s:%s", server_host, server_port)
-# RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
-mcp = FastMCP(
-    "softwareone-marketplace",
-    lifespan=analytics_lifespan,
-    middleware=[RequestContextMiddleware(), AnalyticsMiddleware()],
-)
-register_http_tools(mcp)
-register_http_resources(mcp)
+mcp = create_mcp_server(analytics=True)
 
 
 async def _create_app() -> ASGIApp:

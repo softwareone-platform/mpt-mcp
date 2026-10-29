@@ -6,7 +6,7 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
 from mpt_mcp.analytics.logger import get_analytics_logger
-from mpt_mcp.call_context import get_call_context
+from mpt_mcp.call_context import read_call_context
 
 CLIENT_NAME_MAX_LENGTH = 50
 
@@ -109,7 +109,7 @@ class AnalyticsMiddleware(Middleware):
         except RuntimeError:
             return await call_next(context)
 
-        call_context = get_call_context(request)
+        call_context = read_call_context(request)
         analytics.set_context(
             token=call_context.token or "",
             endpoint=call_context.endpoint,

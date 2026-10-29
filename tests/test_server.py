@@ -3,64 +3,7 @@ from http import HTTPStatus
 import pytest
 from starlette.testclient import TestClient
 
-from mpt_mcp.server import app, mcp
-
-
-async def test_production_tools_only():
-
-    tools_dict = {tool.name: tool for tool in (await mcp.list_tools())}
-    tool_names = list(tools_dict.keys())
-
-    # These production tools SHOULD exist
-    expected_tools = [
-        "marketplace_query",
-        "marketplace_resources",
-        "marketplace_resource_info",
-        "marketplace_resource_schema",
-    ]
-
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Missing production tool: {tool_name}"
-
-    # Debug tool should NOT exist in production server
-    assert "marketplace_cache_info" not in tool_names, (
-        "Debug tool marketplace_cache_info should not be in production server"
-    )
-    assert "marketplace_refresh_cache" not in tool_names, (
-        "Debug tool marketplace_refresh_cache should not be in production server"
-    )
-
-
-async def test_tool_functions_exist():
-
-    tools_dict = {tool.name: tool for tool in (await mcp.list_tools())}
-    tool_names = list(tools_dict.keys())
-
-    # Production tools
-    expected_tools = [
-        "marketplace_query",
-        "marketplace_resources",
-        "marketplace_resource_info",
-        "marketplace_resource_schema",
-    ]
-
-    for tool_name in expected_tools:
-        assert tool_name in tool_names, f"Missing production tool: {tool_name}"
-
-
-async def test_debug_tools_not_in_production():
-
-    tools_dict = {tool.name: tool for tool in (await mcp.list_tools())}
-    tool_names = list(tools_dict.keys())
-
-    # Debug tools that should NOT be in production
-    debug_tools = ["marketplace_cache_info", "marketplace_refresh_cache"]
-
-    for tool_name in debug_tools:
-        assert tool_name not in tool_names, (
-            f"Debug tool {tool_name} should not be in production server"
-        )
-
+from mpt_mcp.server import app
 
 INITIALIZE_REQUEST = {
     "jsonrpc": "2.0",
