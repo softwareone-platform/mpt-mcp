@@ -92,7 +92,7 @@ extend-ignore = [
   "WPS420",  # 9
   "WPS430",  # 34
   "WPS431",  # 2
-  "WPS441",  # 11
+  "WPS441",  # 12
   "WPS476",  # 5
   "WPS501",  # 1
   "WPS504",  # 4
@@ -207,8 +207,6 @@ ignore = [
     "unused-async",  # 5
 ]
 external = [ "AAA", "WPS" ]
-# The ℹ️ (information source) emoji is used on purpose in log messages
-allowed-confusables = ["ℹ"]
 
 # Plugin configs:
 [tool.ruff.lint.flake8-bugbear]

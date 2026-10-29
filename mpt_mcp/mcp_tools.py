@@ -141,7 +141,7 @@ def _sanitize_select(
             continue
         kept.append(select_part)
     if dropped:
-        logger.info("   💡 Select sanitized: dropped fields not in schema: %s", ", ".join(dropped))
+        logger.info("   Select sanitized: dropped fields not in schema: %s", ", ".join(dropped))
 
     # Always include id; when they exist in schema, also include status and name (in that order)
     tops = {top_level_field(select_part) for select_part in kept}
@@ -153,7 +153,7 @@ def _sanitize_select(
             to_add.append(field)
             tops.add(field)
     if to_add:
-        logger.info("   💡 Select: added %s (always included when in schema)", ", ".join(to_add))
+        logger.info("   Select: added %s (always included when in schema)", ", ".join(to_add))
     # Canonical order: id, status, name first (when present), then the rest
     prefix = [
         always_field for always_field in _ALWAYS_INCLUDE_WHEN_IN_SCHEMA if always_field in tops
@@ -316,7 +316,7 @@ async def execute_marketplace_query(
     if resource == "catalog.products" and (not select or not select.strip()):
         select = "+id,+name,+shortDescription"
         logger.info(
-            "   💡 Default select for catalog.products: +id,+name,+shortDescription (omit select "
+            "   Default select for catalog.products: +id,+name,+shortDescription (omit select "
             "for full fields)"
         )
 
@@ -346,9 +346,7 @@ async def execute_marketplace_query(
         auto_added_audit = True
         # Append audit to the existing select, or create one with audit
         select = f"{select},audit" if select else "audit"
-        logger.info(
-            "   💡 Auto-added 'audit' to select (required for audit field filtering/sorting)"
-        )
+        logger.info("   Auto-added 'audit' to select (required for audit field filtering/sorting)")
 
     # Sanitize select: drop fields not in resource schema and ensure id is always included
     if select:
@@ -360,14 +358,13 @@ async def execute_marketplace_query(
     if limit is None:
         limit = 10
         logger.info(
-            "   💡 Applied default limit=10 (platform default is 1000, too large for most use "
-            "cases)"
+            "   Applied default limit=10 (platform default is 1000, too large for most use cases)"
         )
     elif limit == 0:
         # If limit is explicitly set to 0, respect it (might be intentional)
-        logger.warning("   ⚠️ Limit is 0, keeping as-is (might be intentional)")
+        logger.warning("   Limit is 0, keeping as-is (might be intentional)")
     elif limit > 100:
-        logger.info("   💡 Capped limit %s to 100 (max allowed to avoid context overflow)", limit)
+        logger.info("   Capped limit %s to 100 (max allowed to avoid context overflow)", limit)
         limit = 100
 
     # Build query parameters
@@ -389,7 +386,7 @@ async def execute_marketplace_query(
     if order:
         query_params["order"] = order
 
-    logger.info("📊 Query: %s", resource)
+    logger.info("Query: %s", resource)
     logger.info("   Path: %s", api_path)
     logger.info("   Params: %s", query_params)
 
@@ -398,7 +395,7 @@ async def execute_marketplace_query(
         result_count = None
         if KEY_META in result:
             result_count = result[KEY_META].get("pagination", {}).get("total")
-            logger.info("   ✅ Result: %s total items", result_count or "?")
+            logger.info("   Result: %s total items", result_count or "?")
 
         # SECURITY: Obfuscate token values if querying API token endpoints
         # Check the actual API path to catch /public/v1/accounts/api-tokens and
@@ -406,7 +403,7 @@ async def execute_marketplace_query(
         # This ensures we catch all token-related endpoints regardless of resource name
         is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
         if is_token_endpoint:
-            logger.info("   🔒 Obfuscating token values in response (security)")
+            logger.info("   Obfuscating token values in response (security)")
             result = obfuscate_token_values(result)
 
         # Log successful API query
@@ -434,7 +431,7 @@ async def execute_marketplace_query(
         meta_omitted = meta.get("omitted")
         omitted = meta_omitted if isinstance(meta_omitted, list) else []
         logger.info(
-            "   📤 Returning: data len=%s, %s=%s, omitted=%s",
+            "   Returning: data len=%s, %s=%s, omitted=%s",
             len(data_list),
             KEY_META,
             "yes" if meta else "no",
@@ -443,7 +440,7 @@ async def execute_marketplace_query(
 
         return result
     except Exception as error:
-        logger.warning("   ❌ Error: %s", error)
+        logger.warning("   Error: %s", error)
 
         error_response = {"error": str(error), "resource": resource, "path": api_path}
         response_code = None
@@ -461,9 +458,7 @@ async def execute_marketplace_query(
 
                 # If we auto-added audit and got a 400, retry without it
                 if response_code == HTTPStatus.BAD_REQUEST and auto_added_audit:
-                    logger.info(
-                        "   🔄 400 error after auto-adding 'audit' - retrying without it..."
-                    )
+                    logger.info("   400 error after auto-adding 'audit' - retrying without it...")
                     should_retry_without_audit = True
                 # Check for audit field filtering errors and provide helpful hint
                 elif response_code == HTTPStatus.BAD_REQUEST and error_body.get("errors"):
@@ -490,15 +485,13 @@ async def execute_marketplace_query(
                 error_response["api_error_text"] = error.response.text[:API_ERROR_TEXT_MAX_LENGTH]
                 # If we auto-added audit and got a 400, still try retry
                 if response_code == HTTPStatus.BAD_REQUEST and auto_added_audit:
-                    logger.info(
-                        "   🔄 400 error after auto-adding 'audit' - retrying without it..."
-                    )
+                    logger.info("   400 error after auto-adding 'audit' - retrying without it...")
                     should_retry_without_audit = True
 
         # Retry without auto-added audit if we got a 400
         if should_retry_without_audit:
             logger.info(
-                "   🔄 Retrying query without auto-added 'audit' (using original select: %s)",
+                "   Retrying query without auto-added 'audit' (using original select: %s)",
                 original_select or "None",
             )
             retry_params = {}
@@ -520,7 +513,7 @@ async def execute_marketplace_query(
                 result_count = None
                 if KEY_META in result:
                     result_count = result[KEY_META].get("pagination", {}).get("total")
-                    logger.info("   ✅ Retry successful: %s total items", result_count or "?")
+                    logger.info("   Retry successful: %s total items", result_count or "?")
 
                 # SECURITY: Obfuscate token values if querying API token endpoints
                 # Check the actual API path to catch /public/v1/accounts/api-tokens and
@@ -528,7 +521,7 @@ async def execute_marketplace_query(
                 # This ensures we catch all token-related endpoints regardless of resource name
                 is_token_endpoint = "/accounts/api-tokens" in api_path.lower()
                 if is_token_endpoint:
-                    logger.info("   🔒 Obfuscating token values in response (security)")
+                    logger.info("   Obfuscating token values in response (security)")
                     result = obfuscate_token_values(result)
 
                 # Log successful API query after retry
@@ -556,7 +549,7 @@ async def execute_marketplace_query(
                 meta_omitted = meta.get("omitted")
                 omitted = meta_omitted if isinstance(meta_omitted, list) else []
                 logger.info(
-                    "   📤 Returning: data len=%s, %s=%s, omitted=%s",
+                    "   Returning: data len=%s, %s=%s, omitted=%s",
                     len(data_list),
                     KEY_META,
                     "yes" if meta else "no",
@@ -565,7 +558,7 @@ async def execute_marketplace_query(
 
                 return result
             except Exception as retry_e:
-                logger.warning("   ❌ Retry also failed: %s", retry_e)
+                logger.warning("   Retry also failed: %s", retry_e)
                 # Fall through to return original error
 
         # Log failed API query

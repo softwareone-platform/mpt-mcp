@@ -40,7 +40,7 @@ logging.getLogger("mcp").setLevel(logging.WARNING)
 server_port = int(os.getenv("PORT", "8080"))
 # Listen on every interface: the server runs in a container (Cloud Run)
 server_host = "0.0.0.0"  # ruff: ignore[hardcoded-bind-all-interfaces]
-logger.info("🌐 Configured for %s:%s", server_host, server_port)
+logger.info("Configured for %s:%s", server_host, server_port)
 # RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
 mcp = FastMCP(
     "softwareone-marketplace",
@@ -89,14 +89,12 @@ async def _create_app() -> ASGIApp:
                 )
                 mcp.add_resource(doc_resource)
                 doc_resource_count += 1
-            logger.info(
-                "📝 Registered %s documentation resources for discovery", doc_resource_count
-            )
+            logger.info("Registered %s documentation resources for discovery", doc_resource_count)
         except Exception as error:
-            logger.warning("⚠️  Could not register doc resources for discovery: %s", error)
+            logger.warning("Could not register doc resources for discovery: %s", error)
     else:
         logger.info(
-            "ℹ️  Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to "
+            "Documentation resources: none (set GITBOOK_API_KEY and GITBOOK_SPACE_ID to "
             "enable). docs://{path} template is still available for reading when configured."
         )
     # Stateless HTTP always: no server-side sessions, so no 404 "Session not found" when load-
@@ -117,7 +115,7 @@ async def _create_app() -> ASGIApp:
             )
             ua = (request.headers.get("user-agent") or "")[:USER_AGENT_LOG_LENGTH]
             logger.warning(
-                "⚠️ 404 %s path=%r mcp_session_id=%s ua=%r",
+                "404 %s path=%r mcp_session_id=%s ua=%r",
                 request.method,
                 request.url.path,
                 "yes" if has_mcp_session_id else "no",
@@ -167,7 +165,7 @@ async def _create_app() -> ASGIApp:
 
     final_app = HealthCheckMiddleware(starlette_app)
     logger.info(
-        "✅ Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware"
+        "Middleware added: RequestContextMiddleware, AnalyticsMiddleware, HealthCheckMiddleware"
     )
 
     class AccessLogFilter(logging.Filter):
@@ -205,10 +203,10 @@ app = _build_app()
 def run_migrations() -> None:
     """Apply the analytics database migrations when analytics is configured."""
     if not config.analytics_database_url:
-        logger.info("⏩ Skipping migrations (analytics not configured)")
+        logger.info("Skipping migrations (analytics not configured)")
         return
     try:
-        logger.info("🔄 Running database migrations...")
+        logger.info("Running database migrations...")
         project_root = pathlib.Path(__file__).parent.parent
         alembic_ini_path = project_root / "alembic.ini"
         alembic_dir = project_root / "alembic"
@@ -219,9 +217,9 @@ def run_migrations() -> None:
         sync_url = config.analytics_database_url.replace("postgresql+asyncpg://", "postgresql://")
         alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
         command.upgrade(alembic_cfg, "head")
-        logger.info("✅ Database migrations completed successfully")
+        logger.info("Database migrations completed successfully")
     except Exception as error:
-        logger.warning("⚠️  Migration warning: %s", error)
+        logger.warning("Migration warning: %s", error)
         logger.info("   Server will continue, but analytics may not work correctly")
 
 
@@ -231,10 +229,10 @@ def _run_uvicorn() -> None:
     reload_dirs = ["mpt_mcp", "config", "alembic"] if enable_reload else None
     if enable_reload:
         logger.info(
-            "🔄 Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic"
+            "Hot reload enabled - watching for .py file changes in: mpt_mcp, config, alembic"
         )
     uvicorn_log_level = "debug" if config.debug else "info"
-    logger.info("📋 Log level: %s (DEBUG=%r)", uvicorn_log_level, os.getenv("DEBUG", "(not set)"))
+    logger.info("Log level: %s (DEBUG=%r)", uvicorn_log_level, os.getenv("DEBUG", "(not set)"))
     uvicorn.run(
         "mpt_mcp.server:app",
         host=server_host,
@@ -252,13 +250,13 @@ def main() -> None:
     """Run the HTTP server: print the startup banner, apply migrations and start uvicorn."""
     try:
         logger.info("=" * 60)
-        logger.info("🚀 SoftwareOne Marketplace MCP Server (HTTP Mode)")
+        logger.info("SoftwareOne Marketplace MCP Server (HTTP Mode)")
         logger.info("=" * 60)
-        logger.info("🌐 Starting server on %s:%s", server_host, server_port)
-        logger.info("📡 Transport: Streamable HTTP (POST/DELETE)")
-        logger.info("📡 Endpoint path: /mcp (registered at startup, not per-request)")
-        logger.info("📡 Default API endpoint: %s", config.sse_default_base_url)
-        logger.info("🔑 Multi-tenant Authentication:")
+        logger.info("Starting server on %s:%s", server_host, server_port)
+        logger.info("Transport: Streamable HTTP (POST/DELETE)")
+        logger.info("Endpoint path: /mcp (registered at startup, not per-request)")
+        logger.info("Default API endpoint: %s", config.sse_default_base_url)
+        logger.info("Multi-tenant Authentication:")
         logger.info("   - Clients MUST provide X-MPT-Authorization header")
         logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")
         logger.info(
@@ -266,8 +264,8 @@ def main() -> None:
             "invalid (cached)')"
         )
         logger.info("   - Headers are case-insensitive")
-        logger.info("✓ Server URL: http://%s:%s/mcp", server_host, server_port)
-        logger.info("✓ Health check: http://%s:%s/health", server_host, server_port)
+        logger.info("Server URL: http://%s:%s/mcp", server_host, server_port)
+        logger.info("Health check: http://%s:%s/health", server_host, server_port)
         logger.info("=" * 60)
         run_migrations()
         _run_uvicorn()
@@ -275,7 +273,7 @@ def main() -> None:
         logger.info("Shutting down server...")
         sys.exit(0)
     except Exception:
-        logger.exception("❌ Server error")
+        logger.exception("Server error")
         sys.exit(1)
 
 

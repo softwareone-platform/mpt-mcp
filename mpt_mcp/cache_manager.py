@@ -200,11 +200,11 @@ async def fetch_with_cache(
     if not force_refresh:
         cached_data = cache_manager.get(url)
         if cached_data is not None:
-            logger.info("✓ Using cached data from: %s", url)
+            logger.info("Using cached data from: %s", url)
             return cached_data
 
     # Fetch from network (connect and default DEFAULT_FETCH_TIMEOUT, connect at least 30s)
-    logger.info("📡 Fetching from: %s", url)
+    logger.info("Fetching from: %s", url)
     try:
         timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=DEFAULT_CONNECT_TIMEOUT)
         async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
@@ -215,7 +215,7 @@ async def fetch_with_cache(
 
             # Log if redirects occurred
             if len(response.history) > 0:
-                logger.info("🔄 Followed %s redirect(s)", len(response.history))
+                logger.info("Followed %s redirect(s)", len(response.history))
                 for position, redirect in enumerate(response.history, 1):
                     logger.info(
                         "   %s. %s → %s",
@@ -230,17 +230,17 @@ async def fetch_with_cache(
 
         # Cache the result
         cache_manager.set(url, data)
-        logger.info("✓ Cached data from: %s", url)
+        logger.info("Cached data from: %s", url)
 
         return data
 
     except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as error:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
-        logger.warning("⚠ Network fetch failed: %s", error)
+        logger.warning("Network fetch failed: %s", error)
 
         cache_path = cache_manager.get_cache_path(url)
         if cache_path.exists():
-            logger.warning("⚠ Using expired cache as fallback")
+            logger.warning("Using expired cache as fallback")
             return await asyncio.to_thread(_read_json_path, cache_path)
 
         # No cache available, re-raise the error

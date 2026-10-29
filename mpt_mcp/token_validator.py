@@ -62,9 +62,7 @@ class TokenValidationCache:
         # SECURITY: Keys are SHA256 hashes of token+endpoint, not raw tokens
         self._cache: dict[str, tuple[bool, dt.datetime, dict[str, Any] | None]] = {}
         self._lock = asyncio.Lock()
-        logger.info(
-            "🔐 Token validation cache initialized (TTL: %sm, secure hash keys)", ttl_minutes
-        )
+        logger.info("Token validation cache initialized (TTL: %sm, secure hash keys)", ttl_minutes)
 
     async def get(
         self,
@@ -89,11 +87,11 @@ class TokenValidationCache:
 
                 if dt.datetime.now() < expiry:
                     logger.debug(
-                        "✅ Token validation cache hit (expires in %ss)",
+                        "Token validation cache hit (expires in %ss)",
                         (expiry - dt.datetime.now()).seconds,
                     )
                     return (is_valid, token_info)
-                logger.debug("⏰ Token validation cache expired, removing")
+                logger.debug("Token validation cache expired, removing")
                 del self._cache[cache_key]
 
             return None
@@ -121,7 +119,7 @@ class TokenValidationCache:
             expiry = dt.datetime.now() + self.ttl
             self._cache[cache_key] = (is_valid, expiry, token_info)
             logger.debug(
-                "💾 Cached token validation (valid=%s, expires in %ss)", is_valid, self.ttl.seconds
+                "Cached token validation (valid=%s, expires in %ss)", is_valid, self.ttl.seconds
             )
 
     async def invalidate(self, token: str, api_base_url: str) -> None:
@@ -137,13 +135,13 @@ class TokenValidationCache:
         async with self._lock:
             if cache_key in self._cache:
                 del self._cache[cache_key]
-                logger.debug("🗑️  Invalidated token from cache")
+                logger.debug("Invalidated token from cache")
 
     async def clear(self) -> None:
         """Clear all cached validations."""
         async with self._lock:
             self._cache.clear()
-            logger.info("🗑️  Cleared all token validation cache")
+            logger.info("Cleared all token validation cache")
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
@@ -438,11 +436,9 @@ async def validate_token(
                 account = token_info.get("account", {})
                 account_name = account.get("name", "Unknown")
                 account_id = account.get("id", "Unknown")
-                logger.info(
-                    "🔐 Token validation (CACHED): ✅ Valid - %s (%s)", account_name, account_id
-                )
+                logger.info("Token validation (CACHED): Valid - %s (%s)", account_name, account_id)
             else:
-                logger.info("🔐 Token validation (CACHED): ❌ Invalid")
+                logger.info("Token validation (CACHED): Invalid")
 
             return (is_valid, token_info, None if is_valid else "Token invalid (cached)")
 
@@ -458,17 +454,17 @@ async def validate_token(
                 "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. "
                 "Auth0)."
             )
-            logger.warning("❌ %s", error)
+            logger.warning("%s", error)
             return (False, None, error)
         payload, verify_error = await _verify_jwt_and_get_payload(token, jwks_url)
         if payload is None:
             error = verify_error or "JWT signature or claims invalid"
-            logger.warning("❌ %s", error)
+            logger.warning("%s", error)
             return (False, None, error)
         user_id, account_id_from_jwt = _extract_claims_from_payload(payload)
         if not user_id or not user_id.startswith("USR-"):
             error = "JWT missing or invalid userId claim"
-            logger.warning("❌ %s", error)
+            logger.warning("%s", error)
             return (False, None, error)
         token_id = user_id
     else:
@@ -476,7 +472,7 @@ async def validate_token(
 
     if not token_id:
         error = "Invalid token format. Expected: idt:TKN-XXXX-XXXX:secret or JWT token"
-        logger.warning("❌ %s", error)
+        logger.warning("%s", error)
         return (False, None, error)
 
     if is_jwt and token_id.startswith("USR-"):
@@ -487,7 +483,7 @@ async def validate_token(
 
         try:
             logger.info(
-                "🔐 Validating JWT token (user: %s) against %s (API call)...", user_id, api_base_url
+                "Validating JWT token (user: %s) against %s (API call)...", user_id, api_base_url
             )
 
             timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
@@ -532,7 +528,7 @@ async def validate_token(
                     # Check if user is active
                     if user_status != ACTIVE_STATUS:
                         error = f"User exists but is not active (status: {user_status})"
-                        logger.warning("❌ User %s: %s", user_id, error)
+                        logger.warning("User %s: %s", user_id, error)
 
                         # Create token_info structure similar to API token format
                         token_info = {
@@ -557,7 +553,7 @@ async def validate_token(
                         return (False, token_info, error)
 
                     logger.info(
-                        "✅ JWT token validated successfully\n   User: %s (%s)\n   Email: %s\n   "
+                        "JWT token validated successfully\n   User: %s (%s)\n   Email: %s\n   "
                         "Account: %s (%s)\n   Status: %s",
                         user_name,
                         user_id,
@@ -591,7 +587,7 @@ async def validate_token(
 
                 if response.status_code == HTTPStatus.UNAUTHORIZED:
                     error = "JWT token authentication failed (401 Unauthorized)"
-                    logger.warning("❌ %s", error)
+                    logger.warning("%s", error)
 
                     # Cache failed validation
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
@@ -600,7 +596,7 @@ async def validate_token(
 
                 if response.status_code == HTTPStatus.NOT_FOUND:
                     error = f"User {user_id} not found (404)"
-                    logger.warning("❌ %s", error)
+                    logger.warning("%s", error)
 
                     # Cache failed validation
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
@@ -608,26 +604,26 @@ async def validate_token(
                     return (False, None, error)
 
                 error = f"JWT token validation failed with status {response.status_code}"
-                logger.warning("❌ %s", error)
+                logger.warning("%s", error)
 
                 # Don't cache unexpected errors (might be transient)
                 return (False, None, error)
 
         except httpx.TimeoutException:
             error = "JWT token validation timed out"
-            logger.exception("❌ %s", error)
+            logger.exception("%s", error)
             # Don't cache timeouts (transient issue)
             return (False, None, error)
 
         except httpx.HTTPError as http_error:
             error = f"JWT token validation failed: {http_error!s}"
-            logger.exception("❌ %s", error)
+            logger.exception("%s", error)
             # Don't cache HTTP errors (might be transient)
             return (False, None, error)
 
         except Exception as unexpected_error:
             error = f"Unexpected error during JWT token validation: {unexpected_error!s}"
-            logger.exception("❌ %s", error)
+            logger.exception("%s", error)
             # Don't cache unexpected errors
             return (False, None, error)
 
@@ -636,7 +632,7 @@ async def validate_token(
         validation_url = f"{api_base_url.rstrip('/')}/public/v1/accounts/api-tokens/{token_id}"
 
         try:
-            logger.info("🔐 Validating token %s against %s (API call)...", token_id, api_base_url)
+            logger.info("Validating token %s against %s (API call)...", token_id, api_base_url)
 
             timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
             async with httpx.AsyncClient(
@@ -661,7 +657,7 @@ async def validate_token(
                     # Check if token is active
                     if token_status != ACTIVE_STATUS:
                         error = f"Token exists but is not active (status: {token_status})"
-                        logger.warning("❌ Token %s: %s", token_id, error)
+                        logger.warning("Token %s: %s", token_id, error)
 
                         # Cache inactive token as invalid
                         await cache.set(token, api_base_url, is_valid=False, token_info=token_info)
@@ -669,7 +665,7 @@ async def validate_token(
                         return (False, token_info, error)
 
                     logger.info(
-                        "✅ Token %s validated successfully\n   Token Name: %s\n   Account: %s "
+                        "Token %s validated successfully\n   Token Name: %s\n   Account: %s "
                         "(%s)\n   Type: %s\n   Status: %s",
                         token_id,
                         token_name,
@@ -686,7 +682,7 @@ async def validate_token(
 
                 if response.status_code == HTTPStatus.UNAUTHORIZED:
                     error = "Token authentication failed (401 Unauthorized)"
-                    logger.warning("❌ %s", error)
+                    logger.warning("%s", error)
 
                     # Cache failed validation (but with shorter TTL)
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
@@ -695,7 +691,7 @@ async def validate_token(
 
                 if response.status_code == HTTPStatus.NOT_FOUND:
                     error = f"Token {token_id} not found (404)"
-                    logger.warning("❌ %s", error)
+                    logger.warning("%s", error)
 
                     # Cache failed validation
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
@@ -703,25 +699,25 @@ async def validate_token(
                     return (False, None, error)
 
                 error = f"Token validation failed with status {response.status_code}"
-                logger.warning("❌ %s", error)
+                logger.warning("%s", error)
 
                 # Don't cache unexpected errors (might be transient)
                 return (False, None, error)
 
         except httpx.TimeoutException:
             error = "Token validation timed out"
-            logger.exception("❌ %s", error)
+            logger.exception("%s", error)
             # Don't cache timeouts (transient issue)
             return (False, None, error)
 
         except httpx.HTTPError as http_error:
             error = f"Token validation failed: {http_error!s}"
-            logger.exception("❌ %s", error)
+            logger.exception("%s", error)
             # Don't cache HTTP errors (might be transient)
             return (False, None, error)
 
         except Exception as unexpected_error:
             error = f"Unexpected error during token validation: {unexpected_error!s}"
-            logger.exception("❌ %s", error)
+            logger.exception("%s", error)
             # Don't cache unexpected errors
             return (False, None, error)

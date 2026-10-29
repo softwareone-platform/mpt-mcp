@@ -58,7 +58,7 @@ class AnalyticsLogger:
     async def initialize(self) -> None:
         """Initialize database connection and start background flush task."""
         if not self.enabled:
-            logger.info("📊 Analytics disabled (no database URL configured)")
+            logger.info("Analytics disabled (no database URL configured)")
             return
 
         try:
@@ -70,13 +70,13 @@ class AnalyticsLogger:
             async with self.engine.begin() as conn:
                 await conn.execute(text("SELECT 1"))
 
-            logger.info("📊 Analytics enabled - connected to database")
+            logger.info("Analytics enabled - connected to database")
 
             # Start background flush task
             self._flush_task = asyncio.create_task(self._background_flush())
 
         except Exception:
-            logger.exception("❌ Failed to initialize analytics")
+            logger.exception("Failed to initialize analytics")
             self.enabled = False
 
     async def close(self) -> None:
@@ -91,7 +91,7 @@ class AnalyticsLogger:
 
         if self.engine:
             await self.engine.dispose()
-            logger.info("📊 Analytics logger closed")
+            logger.info("Analytics logger closed")
 
     async def _background_flush(self) -> None:
         """Background task that periodically flushes events to database."""
@@ -102,7 +102,7 @@ class AnalyticsLogger:
             except asyncio.CancelledError:
                 raise  # Re-raise so the task is properly cancelled
             except Exception:
-                logger.exception("❌ Error in background flush")
+                logger.exception("Error in background flush")
 
     def _normalize_event(self, event: dict[str, Any]) -> dict[str, Any]:
         """Ensure event has all required columns for database insertion."""
@@ -156,9 +156,9 @@ class AnalyticsLogger:
         try:
             async with self.engine.begin() as conn:
                 await conn.execute(insert(mcp_events), events_to_insert)
-            logger.debug("📊 Flushed %s events to database", len(events_to_insert))
+            logger.debug("Flushed %s events to database", len(events_to_insert))
         except Exception:
-            logger.exception("❌ Failed to flush events")
+            logger.exception("Failed to flush events")
             # Don't put events back in queue to avoid infinite retry loop
             logger.debug("Sample event: %s", events_to_insert[0] if events_to_insert else "None")
 
@@ -235,9 +235,9 @@ class AnalyticsLogger:
         # Console logging for visibility
         token_id = event.get("token_id", "unknown")
         if success:
-            logger.info("📊 Tool: %s | Token: %s | %.0fms", tool_name, token_id, response_time_ms)
+            logger.info("Tool: %s | Token: %s | %.0fms", tool_name, token_id, response_time_ms)
         else:
-            logger.warning("📊 Tool: %s | Token: %s | Error: %s", tool_name, token_id, error_type)
+            logger.warning("Tool: %s | Token: %s | Error: %s", tool_name, token_id, error_type)
 
         # Error patterns are tracked in mcp_events table
 
@@ -300,14 +300,14 @@ class AnalyticsLogger:
         token_id = event.get("token_id", "unknown")
         if HTTPStatus.OK <= api_status_code < HTTPStatus.MULTIPLE_CHOICES:
             logger.info(
-                "📊 API: %s | Token: %s | %s | %.0fms",
+                "API: %s | Token: %s | %s | %.0fms",
                 api_resource,
                 token_id,
                 api_status_code,
                 api_response_time_ms,
             )
         else:
-            logger.warning("📊 API: %s | Token: %s | %s", api_resource, token_id, api_status_code)
+            logger.warning("API: %s | Token: %s | %s", api_resource, token_id, api_status_code)
 
         # Popular queries are tracked in mcp_events table
 
@@ -360,7 +360,7 @@ class AnalyticsLogger:
         cache_str = " [cached]" if cache_hit else ""
         if success:
             logger.info(
-                "📊 Resource: %s | Token: %s | %.0fms%s",
+                "Resource: %s | Token: %s | %.0fms%s",
                 resource_uri,
                 token_id,
                 response_time_ms,
@@ -368,7 +368,7 @@ class AnalyticsLogger:
             )
         else:
             logger.warning(
-                "📊 Resource: %s | Token: %s | Error: %s", resource_uri, token_id, error_message
+                "Resource: %s | Token: %s | Error: %s", resource_uri, token_id, error_message
             )
 
         # Error patterns are tracked in mcp_events table

@@ -46,11 +46,11 @@ async def initialize_server(*, force_refresh: bool = False) -> None:
         return
 
     # STDIO is for local development - don't use analytics
-    logger.info("📊 Analytics disabled (STDIO mode is for local development)")
+    logger.info("Analytics disabled (STDIO mode is for local development)")
 
     errors = config.validate()
     if errors:
-        logger.error("❌ Configuration errors:")
+        logger.error("Configuration errors:")
         for config_error in errors:
             logger.info("  - %s", config_error)
         raise ValueError("Invalid configuration")
@@ -66,7 +66,7 @@ async def initialize_server(*, force_refresh: bool = False) -> None:
     openapi_parser = OpenAPIParser()
 
     try:
-        logger.info("📡 Loading OpenAPI spec from: %s", config.openapi_spec_url)
+        logger.info("Loading OpenAPI spec from: %s", config.openapi_spec_url)
 
         spec = await fetch_with_cache(
             url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh
@@ -81,19 +81,19 @@ async def initialize_server(*, force_refresh: bool = False) -> None:
                 "parameters": endpoint["parameters"],
             }
 
-        logger.info("✓ Discovered %s GET endpoints", len(endpoints_registry))
-        logger.info("✓ Stored in memory registry with %s resource IDs", len(endpoints_registry))
+        logger.info("Discovered %s GET endpoints", len(endpoints_registry))
+        logger.info("Stored in memory registry with %s resource IDs", len(endpoints_registry))
 
         try:
             audit_fields.update_cache(config.marketplace_api_base_url, spec, _path_to_resource_id)
-            logger.info("✓ Audit fields cache updated")
+            logger.info("Audit fields cache updated")
         except Exception as audit_err:
-            logger.warning("⚠ Audit fields cache skipped: %s", audit_err)
+            logger.warning("Audit fields cache skipped: %s", audit_err)
 
         _initialized = True
 
     except Exception as error:
-        logger.warning("⚠ Failed to load OpenAPI spec: %s", error)
+        logger.warning("Failed to load OpenAPI spec: %s", error)
         endpoints_registry = {}
         _initialized = False
 
@@ -269,7 +269,7 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
         return {"error": "Cache manager not initialized"}
 
     try:
-        logger.info("🔄 Force refreshing OpenAPI spec cache...")
+        logger.info("Force refreshing OpenAPI spec cache...")
 
         cache_manager.invalidate(config.openapi_spec_url)
 
@@ -373,11 +373,11 @@ if __name__ == "__main__":
     configure_logging(logging.DEBUG if config.debug else logging.INFO)
     try:
         logger.info("=" * 60)
-        logger.info("🚀 SoftwareOne Marketplace MCP Server (Stdio Mode)")
+        logger.info("SoftwareOne Marketplace MCP Server (Stdio Mode)")
         logger.info("=" * 60)
         logger.info("Server will initialize on first tool call...")
         logger.info("Available tools: 7 (streamlined interface with caching)")
-        logger.info("✓ Starting server on stdio...")
+        logger.info("Starting server on stdio...")
         logger.info("=" * 60)
 
         mcp.run()
@@ -386,5 +386,5 @@ if __name__ == "__main__":
         logger.info("Shutting down server...")
         sys.exit(0)
     except Exception:
-        logger.exception("❌ Server error")
+        logger.exception("Server error")
         sys.exit(1)

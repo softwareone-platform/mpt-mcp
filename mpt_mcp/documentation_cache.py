@@ -40,10 +40,10 @@ class DocumentationCache:
 
         if gitbook_client:
             logger.info(
-                "📚 Documentation cache initialized (refresh interval: %sh)", refresh_interval_hours
+                "Documentation cache initialized (refresh interval: %sh)", refresh_interval_hours
             )
         else:
-            logger.info("📚 Documentation cache disabled (no GitBook client configured)")
+            logger.info("Documentation cache disabled (no GitBook client configured)")
 
     @property
     def is_enabled(self) -> bool:
@@ -72,20 +72,20 @@ class DocumentationCache:
             True if refresh was successful, False otherwise
         """
         if not self.is_enabled:
-            logger.warning("📚 Documentation cache is disabled, skipping refresh")
+            logger.warning("Documentation cache is disabled, skipping refresh")
             return False
 
         if self._is_refreshing:
-            logger.info("📚 Refresh already in progress, skipping")
+            logger.info("Refresh already in progress, skipping")
             return False
 
         if not force and not self.needs_refresh:
-            logger.info("📚 Cache is still valid, skipping refresh")
+            logger.info("Cache is still valid, skipping refresh")
             return True
 
         try:
             self._is_refreshing = True
-            logger.info("📚 Refreshing documentation cache...")
+            logger.info("Refreshing documentation cache...")
 
             space_content = await self.gitbook_client.fetch_space_content()
 
@@ -95,12 +95,12 @@ class DocumentationCache:
             self._build_resource_index()
 
             logger.info(
-                "✅ Documentation cache refreshed successfully (%s resources)", len(self._resources)
+                "Documentation cache refreshed successfully (%s resources)", len(self._resources)
             )
             return True
 
         except Exception:
-            logger.exception("❌ Failed to refresh documentation cache")
+            logger.exception("Failed to refresh documentation cache")
             return False
         finally:
             self._is_refreshing = False
@@ -152,7 +152,7 @@ class DocumentationCache:
             for page in pages:
                 index_page(page)
 
-        logger.info("📇 Built resource index with %s entries", len(self._resources))
+        logger.info("Built resource index with %s entries", len(self._resources))
 
     async def ensure_cached(self) -> None:
         """Ensure cache is populated, refresh if needed."""
@@ -222,7 +222,7 @@ class DocumentationCache:
         await self.ensure_cached()
 
         if uri not in self._resources:
-            logger.warning("📚 Resource not found: %s", uri)
+            logger.warning("Resource not found: %s", uri)
             return None
 
         resource = self._resources[uri]
@@ -234,7 +234,7 @@ class DocumentationCache:
         page_id = resource["metadata"].get("id")
 
         if not page_id:
-            logger.error("📚 Resource has no ID: %s", uri)
+            logger.error("Resource has no ID: %s", uri)
             return "Content not available - no page ID"
 
         try:
@@ -243,21 +243,21 @@ class DocumentationCache:
             markdown = page_data.get("markdown", "")
 
             available_fields = list(page_data.keys())
-            logger.debug("📋 GitBook page fields: %s", available_fields)
+            logger.debug("GitBook page fields: %s", available_fields)
 
             if not markdown and "document" in page_data:
-                logger.debug("📄 No markdown, extracting from document structure")
+                logger.debug("No markdown, extracting from document structure")
                 markdown = self._extract_text_from_document(page_data["document"])
 
             resource["content"] = markdown or "No content available"
 
             content_length = len(markdown) if markdown else 0
-            logger.info("✅ Fetched and cached content for: %s (length: %s)", uri, content_length)
+            logger.info("Fetched and cached content for: %s (length: %s)", uri, content_length)
 
             return resource["content"]
 
         except Exception as error:
-            logger.exception("❌ Failed to fetch resource %s", uri)
+            logger.exception("Failed to fetch resource %s", uri)
             return f"Error fetching content: {error!s}"
 
     def _extract_text_from_document(self, document: dict[str, Any]) -> str:

@@ -24,7 +24,7 @@ async def initialize_documentation_cache() -> None:
         _docs_cache_init_pid = None
     if _docs_cache_initialized:
         return
-    logger.info("📖 Loading documentation cache...")
+    logger.info("Loading documentation cache...")
     if config.gitbook_api_key and config.gitbook_space_id:
         try:
             gitbook_client = GitBookClient(
@@ -42,25 +42,24 @@ async def initialize_documentation_cache() -> None:
                 await documentation_cache.refresh()
                 doc_resources = await documentation_cache.list_resources()
                 logger.info(
-                    "📝 Documentation cache loaded (%s pages); served via docs://{path} template",
+                    "Documentation cache loaded (%s pages); served via docs://{path} template",
                     len(doc_resources),
                 )
-                logger.info("✓ Documentation cache initialized")
+                logger.info("Documentation cache initialized")
                 logger.info(
-                    "✅ DOCS CACHE READY — marketplace_docs_list and docs:// resources are "
-                    "available"
+                    "DOCS CACHE READY — marketplace_docs_list and docs:// resources are available"
                 )
             else:
-                logger.warning("⚠️  GitBook credentials invalid, documentation cache disabled")
+                logger.warning("GitBook credentials invalid, documentation cache disabled")
                 documentation_cache = DocumentationCache(gitbook_client=None)
         except Exception as error:
-            logger.warning("⚠️  Failed to initialize documentation cache: %s", error)
+            logger.warning("Failed to initialize documentation cache: %s", error)
             documentation_cache = DocumentationCache(gitbook_client=None)
     else:
         has_key = bool(config.gitbook_api_key)
         has_space = bool(config.gitbook_space_id)
         logger.info(
-            "ℹ️  GitBook not configured, documentation cache disabled (GITBOOK_API_KEY=%s, "
+            "GitBook not configured, documentation cache disabled (GITBOOK_API_KEY=%s, "
             "GITBOOK_SPACE_ID=%s).",
             "set" if has_key else "missing",
             "set" if has_space else "missing",

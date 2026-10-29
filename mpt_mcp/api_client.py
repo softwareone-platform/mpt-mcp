@@ -37,7 +37,7 @@ class APIClient:
 
         if base_url != normalized_base_url:
             logger.info(
-                "🔧 Base URL normalization: Stripped path from '%s' → '%s' (paths come from "
+                "Base URL normalization: Stripped path from '%s' → '%s' (paths come from "
                 "OpenAPI spec)",
                 base_url,
                 normalized_base_url,
@@ -58,7 +58,7 @@ class APIClient:
         # Token format: idt:TKN-XXXX-XXXX:actual_token
         self.user_id = self._extract_user_id(token)
         if self.user_id:
-            logger.info("👤 Authenticated as user: %s", self.user_id)
+            logger.info("Authenticated as user: %s", self.user_id)
 
         self.timeout = timeout
 
@@ -145,9 +145,9 @@ class APIClient:
 
         # Log the API request with user identification
         logger.info("=" * LOG_SEPARATOR_WIDTH)
-        logger.info("🔍 Marketplace API Request")
+        logger.info("Marketplace API Request")
         if self.user_id:
-            logger.info("   👤 User: %s", self.user_id)
+            logger.info("   User: %s", self.user_id)
         logger.info("   Base URL: %s", self.base_url)
         logger.info("   Endpoint: %s", endpoint)
         if original_params:
@@ -175,7 +175,7 @@ class APIClient:
                 ) from error
 
             # Log the API response
-            logger.info("✅ Response: %s", response.status_code)
+            logger.info("Response: %s", response.status_code)
 
             # Try to log useful info about the response
             if isinstance(response_data, dict):

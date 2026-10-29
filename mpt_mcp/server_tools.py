@@ -102,7 +102,7 @@ def register_http_tools(mcp: FastMCP) -> None:
         except ValueError as error:
             return {"error": str(error), "hint": AUTH_HEADER_HINT}
         api_base_url = api_client.base_url
-        logger.info("🔍 Using API endpoint: %s", api_base_url)
+        logger.info("Using API endpoint: %s", api_base_url)
         try:
             endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
             openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)
