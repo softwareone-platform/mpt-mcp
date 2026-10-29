@@ -28,10 +28,10 @@ class Config:
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
     request_timeout: float = float(os.getenv("REQUEST_TIMEOUT", "30"))
 
-    # SSE is always multi-tenant - clients MUST provide credentials via MPT_Authorization header
-    # Default base URL used when client doesn't specify MPT_Endpoint header
-    sse_default_base_url: str = os.getenv(
-        "SSE_DEFAULT_BASE_URL", "https://api.platform.softwareone.com"
+    # The HTTP server is multi-tenant: clients send their credentials in the X-MPT-* headers
+    # Endpoint used when a client does not send the X-MPT-Endpoint header
+    http_default_base_url: str = os.getenv(
+        "HTTP_DEFAULT_BASE_URL", "https://api.platform.softwareone.com"
     )
 
     # GitBook Documentation Integration (Optional)

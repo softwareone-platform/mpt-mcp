@@ -119,6 +119,7 @@ async def _create_app() -> ASGIApp:
                 },
                 status_code=HTTPStatus.NOT_FOUND,
             )
+
         return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     starlette_app.add_exception_handler(HTTPException, _http_exception_handler)
@@ -150,6 +151,7 @@ async def _create_app() -> ASGIApp:
                     })
                     await response(scope, receive, send)
                     return
+
             await self.app(scope, receive, send)
 
     final_app = HealthCheckMiddleware(starlette_app)
@@ -163,6 +165,7 @@ async def _create_app() -> ASGIApp:
                 path = str(record.args[2])
                 if path in {"/mcp", "/health", "GET /health", "POST /mcp"}:
                     return False
+
             return True
 
     uvicorn_access = logging.getLogger("uvicorn.access")
@@ -181,6 +184,7 @@ def _build_app() -> ASGIApp:
         asyncio.get_running_loop()
     except RuntimeError:
         return asyncio.run(_create_app())
+
     with ThreadPoolExecutor(max_workers=1) as pool:
         future = pool.submit(asyncio.run, _create_app())
         return future.result()
@@ -194,6 +198,7 @@ def run_migrations() -> None:
     if not config.analytics_database_url:
         logger.info("Skipping migrations (analytics not configured)")
         return
+
     try:
         logger.info("Running database migrations...")
         project_root = pathlib.Path(__file__).parent.parent
@@ -244,7 +249,7 @@ def main() -> None:
         logger.info("Starting server on %s:%s", server_host, server_port)
         logger.info("Transport: Streamable HTTP (POST/DELETE)")
         logger.info("Endpoint path: /mcp (registered at startup, not per-request)")
-        logger.info("Default API endpoint: %s", config.sse_default_base_url)
+        logger.info("Default API endpoint: %s", config.http_default_base_url)
         logger.info("Multi-tenant Authentication:")
         logger.info("   - Clients MUST provide X-MPT-Authorization header")
         logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")

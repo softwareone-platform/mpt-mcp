@@ -16,7 +16,7 @@ Configuration is read from environment variables; [`compose.yaml`](../compose.ya
 |---|---|---|
 | `MARKETPLACE_API_TOKEN` | stdio | API token (`idt:TKN-XXXX-XXXX:secret`) of the single tenant |
 | `MARKETPLACE_API_BASE_URL` | stdio | Marketplace API endpoint (default `https://api.platform.softwareone.com`) |
-| `SSE_DEFAULT_BASE_URL` | HTTP | Endpoint used when a client does not send `X-MPT-Endpoint` |
+| `HTTP_DEFAULT_BASE_URL` | HTTP | Endpoint used when a client does not send `X-MPT-Endpoint` |
 | `PORT` | HTTP | Listening port (default `8080`) |
 | `DEBUG` | both | `true` enables debug logging, uvicorn reload and the debug tools |
 | `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID`, `GITBOOK_PUBLIC_URL` | both | Documentation tools and `docs://` resources; disabled when not set |

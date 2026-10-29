@@ -51,7 +51,7 @@ def test_call_context_defaults_without_headers(make_request):
     result = read_call_context(request)
 
     assert result == CallContext(
-        endpoint=config.sse_default_base_url, token=None, validate_fresh=False
+        endpoint=config.http_default_base_url, token=None, validate_fresh=False
     )
 
 

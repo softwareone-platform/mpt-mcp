@@ -11,7 +11,7 @@ The server talks to three external systems. All of them are mocked in tests, see
   - JWTs are verified with the issuer's JWKS (`JWT_JWKS_URL`, or `{iss}/.well-known/jwks.json`) using RS/ES algorithms only, then checked with `GET /public/v1/accounts/users/{user_id}`.
   - Results are cached for 10 minutes by a hash of token and endpoint; `X-MPT-Validate-Fresh: true` bypasses the cache.
 
-The HTTP server is multi-tenant: the endpoint comes from `X-MPT-Endpoint` (default `SSE_DEFAULT_BASE_URL`), so a single deployment serves any Marketplace environment.
+The HTTP server is multi-tenant: the endpoint comes from `X-MPT-Endpoint` (default `HTTP_DEFAULT_BASE_URL`), so a single deployment serves any Marketplace environment.
 
 ## GitBook
 

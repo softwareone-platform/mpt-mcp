@@ -1,15 +1,16 @@
 #!/bin/bash
 
-# Example: Using the SSE Multi-Tenant MCP Server with curl
-# This shows how to call the server with custom API credentials
+# Example: Calling the HTTP MCP server with curl
+# The server is stateless, so each tools/call request works without an initialize call.
+# Responses are server-sent events: the JSON-RPC message is on the "data:" line.
 
 # Configuration
-MCP_SERVER_URL="http://localhost:8000/sse"
+MCP_SERVER_URL="http://localhost:8080/mcp"
 YOUR_API_TOKEN="your_api_token_here"
 YOUR_API_ENDPOINT="https://api.platform.softwareone.com"
 
 echo "============================================================"
-echo "MCP SSE Multi-Tenant - curl Examples"
+echo "MCP HTTP Multi-Tenant - curl Examples"
 echo "============================================================"
 echo ""
 
@@ -17,8 +18,9 @@ echo ""
 echo "Example 1: Get product count"
 echo "------------------------------------------------------------"
 
-curl -X POST "$MCP_SERVER_URL" \
+curl -s -X POST "$MCP_SERVER_URL" \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -H "X-MPT-Authorization: $YOUR_API_TOKEN" \
   -H "X-MPT-Endpoint: $YOUR_API_ENDPOINT" \
   -d '{
@@ -32,7 +34,7 @@ curl -X POST "$MCP_SERVER_URL" \
         "limit": 1
       }
     }
-  }' | jq '.'
+  }' | sed -n 's/^data: //p' | jq '.result.structuredContent'
 
 echo ""
 echo ""
@@ -41,8 +43,9 @@ echo ""
 echo "Example 2: Search for Microsoft products"
 echo "------------------------------------------------------------"
 
-curl -X POST "$MCP_SERVER_URL" \
+curl -s -X POST "$MCP_SERVER_URL" \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -H "X-MPT-Authorization: $YOUR_API_TOKEN" \
   -H "X-MPT-Endpoint: $YOUR_API_ENDPOINT" \
   -d '{
@@ -57,7 +60,7 @@ curl -X POST "$MCP_SERVER_URL" \
         "limit": 5
       }
     }
-  }' | jq '.'
+  }' | sed -n 's/^data: //p' | jq '.result.structuredContent'
 
 echo ""
 echo ""
@@ -66,8 +69,9 @@ echo ""
 echo "Example 3: List available resources"
 echo "------------------------------------------------------------"
 
-curl -X POST "$MCP_SERVER_URL" \
+curl -s -X POST "$MCP_SERVER_URL" \
   -H "Content-Type: application/json" \
+  -H "Accept: application/json, text/event-stream" \
   -H "X-MPT-Authorization: $YOUR_API_TOKEN" \
   -H "X-MPT-Endpoint: $YOUR_API_ENDPOINT" \
   -d '{
@@ -78,7 +82,7 @@ curl -X POST "$MCP_SERVER_URL" \
       "name": "marketplace_resources",
       "arguments": {}
     }
-  }' | jq '.result.total_resources'
+  }' | sed -n 's/^data: //p' | jq '.result.structuredContent.total_resources'
 
 echo ""
 echo ""

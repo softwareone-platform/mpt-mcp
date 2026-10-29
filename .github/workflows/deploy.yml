@@ -79,7 +79,7 @@ jobs:
 
     - name: Deploy to Cloud Run
       run: |
-        ENV_VARS="SSE_DEFAULT_BASE_URL=https://api.platform.softwareone.com"
+        ENV_VARS="HTTP_DEFAULT_BASE_URL=https://api.platform.softwareone.com"
         if [ -n "${{ secrets.ANALYTICS_DATABASE_URL }}" ]; then
           ENV_VARS="$ENV_VARS,ANALYTICS_DATABASE_URL=${{ secrets.ANALYTICS_DATABASE_URL }}"
           # Extract Cloud SQL connection name from ANALYTICS_DATABASE_URL if present

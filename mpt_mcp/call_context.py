@@ -105,7 +105,7 @@ def read_call_context(request: Request) -> CallContext:
         Call context with the caller's endpoint, token and validation preference
     """
     raw_token = request.headers.get("x-mpt-authorization")
-    endpoint = request.headers.get("x-mpt-endpoint") or config.sse_default_base_url
+    endpoint = request.headers.get("x-mpt-endpoint") or config.http_default_base_url
     validate_fresh = (
         request.headers.get("x-mpt-validate-fresh", "").strip().lower() in TRUTHY_HEADER_VALUES
     )
