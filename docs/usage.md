@@ -55,7 +55,7 @@ marketplace_query(resource="catalog.products.by_id", path_params={"id": "PRD-123
 
 Query behaviour:
 
-- `limit` defaults to 10 and is capped at 100; use `offset` or `page` to paginate.
+- `limit` defaults to 10 and is capped at 100; use `offset` to paginate.
 - `catalog.products` returns `+id,+name,+shortDescription` when no `select` is given.
 - Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds `audit` to `select`, which the API requires; if the API rejects it, the query is retried without it.
 - `select` fields that are not in the resource schema are dropped when the schema is known.

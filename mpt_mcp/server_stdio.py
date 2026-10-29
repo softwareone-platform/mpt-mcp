@@ -121,7 +121,6 @@ async def marketplace_query(
     rql: str = "",
     limit: int | None = None,
     offset: int | None = None,
-    page: int | None = None,
     select: str | None = None,
     order: str | None = None,
     path_params: dict[str, str] | None = None,
@@ -142,7 +141,6 @@ async def marketplace_query(
         limit: Max items to return (default 10, max 100). Use select= with only needed fields
             (from marketplace_resource_schema) to avoid huge responses.
         offset: Number of items to skip for pagination (e.g., 0, 20, 40)
-        page: Page number (alternative to offset)
         select: Fields to include/exclude (+name,+description or -metadata). For audit
             fields include 'audit'. Nested: +subscriptions (full), +subscriptions.id,
             +subscriptions.id,+subscriptions.name.
@@ -183,7 +181,6 @@ async def marketplace_query(
         rql=rql,
         limit=limit,
         offset=offset,
-        page=page,
         select=select,
         order=order,
         path_params=path_params,

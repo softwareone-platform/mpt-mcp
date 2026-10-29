@@ -187,7 +187,6 @@ async def execute_marketplace_query(
     rql: str,
     limit: int | None,
     offset: int | None,
-    page: int | None,
     select: str | None,
     order: str | None,
     path_params: dict[str, str] | None,
@@ -206,7 +205,6 @@ async def execute_marketplace_query(
         rql: RQL query string
         limit: Maximum items to return
         offset: Items to skip
-        page: Page number
         select: Fields to include/exclude
         order: Sort order
         path_params: Path parameters dictionary
@@ -233,7 +231,6 @@ async def execute_marketplace_query(
         "rql": rql,
         "limit": limit,
         "offset": offset,
-        "page": page,
         "select": select,
         "order": order,
         "path_params": path_params,
@@ -379,8 +376,6 @@ async def execute_marketplace_query(
         query_params["limit"] = limit
     if offset is not None:
         query_params["offset"] = offset
-    if page is not None:
-        query_params["page"] = page
     if select:
         query_params["select"] = select
     if order:
@@ -501,8 +496,6 @@ async def execute_marketplace_query(
                 retry_params["limit"] = limit
             if offset is not None:
                 retry_params["offset"] = offset
-            if page is not None:
-                retry_params["page"] = page
             if original_select:
                 retry_params["select"] = original_select
             if order:
@@ -863,7 +856,6 @@ def execute_marketplace_resource_info(
             "rql": "RQL query string for filtering and sorting",
             "limit": "Maximum number of items to return",
             "offset": "Number of items to skip",
-            "page": "Page number",
             "select": (
                 "Fields to include/exclude. Use select=+field for omitted fields (see "
                 f"{KEY_META}.omitted). Example: select=+lines,+parameters."
