@@ -10,6 +10,7 @@ from mpt_mcp import audit_fields
 from mpt_mcp.api_client import APIClient
 from mpt_mcp.cache_manager import CacheManager, fetch_with_cache
 from mpt_mcp.config import config
+from mpt_mcp.endpoint_registry import get_openapi_spec_url
 from mpt_mcp.log_config import configure_logging
 from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
@@ -65,11 +66,13 @@ async def initialize_server(*, force_refresh: bool = False) -> None:
 
     openapi_parser = OpenAPIParser()
 
+    openapi_spec_url = get_openapi_spec_url(api_client.base_url)
+
     try:
-        logger.info("Loading OpenAPI spec from: %s", config.openapi_spec_url)
+        logger.info("Loading OpenAPI spec from: %s", openapi_spec_url)
 
         spec = await fetch_with_cache(
-            url=config.openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh
+            url=openapi_spec_url, cache_manager=cache_manager, force_refresh=force_refresh
         )
 
         openapi_spec = spec
@@ -265,13 +268,13 @@ async def marketplace_refresh_cache() -> dict[str, Any]:
     Returns:
         Status message indicating cache refresh result
     """
-    if not cache_manager:
+    if not cache_manager or not api_client:
         return {"error": "Cache manager not initialized"}
 
     try:
         logger.info("Force refreshing OpenAPI spec cache...")
 
-        cache_manager.invalidate(config.openapi_spec_url)
+        cache_manager.invalidate(get_openapi_spec_url(api_client.base_url))
 
         await initialize_server(force_refresh=True)
 

@@ -29,9 +29,6 @@ class Config:
         "MARKETPLACE_API_BASE_URL", "https://api.platform.softwareone.com"
     )
     marketplace_api_token: str = os.getenv("MARKETPLACE_API_TOKEN", "")
-    openapi_spec_url: str = os.getenv(
-        "OPENAPI_SPEC_URL", "https://api.platform.softwareone.com/public/v1/openapi.json"
-    )
 
     # Server Configuration
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
@@ -85,9 +82,6 @@ class Config:
 
         if not self.marketplace_api_token:
             errors.append("MARKETPLACE_API_TOKEN is not configured")
-
-        if not self.openapi_spec_url:
-            errors.append("OPENAPI_SPEC_URL is not configured")
 
         return errors
 

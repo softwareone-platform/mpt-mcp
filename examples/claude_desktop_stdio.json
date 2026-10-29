@@ -11,8 +11,7 @@
         "PYTHONUNBUFFERED": "1",
         "PYTHONPATH": "/absolute/path/to/mpt-mcp",
         "MARKETPLACE_API_BASE_URL": "https://api.platform.softwareone.com",
-        "MARKETPLACE_API_TOKEN": "your_api_token_here",
-        "OPENAPI_SPEC_URL": "https://api.platform.softwareone.com/public/v1/openapi.json"
+        "MARKETPLACE_API_TOKEN": "your_api_token_here"
       }
     }
   }
