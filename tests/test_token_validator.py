@@ -1,5 +1,6 @@
 import base64
 import json
+import logging
 import time
 from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
@@ -189,6 +190,18 @@ async def test_validate_token_success(token_api, token_details):
     result = await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)
 
     assert result == (True, token_details, None)
+
+
+async def test_validate_token_logs_one_line(token_api, caplog):
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.token_validator"):
+        await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)  # act
+
+    expected = (
+        "Token TKN-1234-5678 validated: account Test Account (ACC-123-456), type Vendor, "
+        "status Active"
+    )
+    assert expected in caplog.messages
+    assert "Test Token" not in caplog.text
 
 
 async def test_validate_token_inactive(token_api, token_details):

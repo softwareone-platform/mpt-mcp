@@ -1,3 +1,4 @@
+import logging
 from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -237,18 +238,38 @@ async def test_get_raises_http_errors(api_client, http_get, status):
     assert exc_info.value.response.status_code == status
 
 
-async def test_logs_omitted_fields_in_response(api_client, http_get):
-    http_get.return_value.json.return_value = {
-        "data": [{"id": "ORD-123", "status": "Completed"}],
-        "$meta": {"omitted": ["lines", "parameters", "subscriptions", "assets"]},
-    }
-
-    with patch("mpt_mcp.api_client.logger") as mock_logger:
+async def test_get_logs_request_url(api_client, http_get, caplog):
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.api_client"):
         await api_client.get(ORDERS_ENDPOINT, query_params={"limit": 10})  # act
 
-    log_calls = [str(call) for call in mock_logger.info.call_args_list]
-    logged = " ".join(log_calls).lower()
-    assert "omitted" in logged
+    assert f"Marketplace API request: https://api.test.com{ORDERS_ENDPOINT}?limit=10" in caplog.text
+
+
+@pytest.mark.parametrize(
+    ("response_data", "expected"),
+    [
+        (
+            {
+                "data": [{"id": "ORD-123"}],
+                "$meta": {
+                    "pagination": {"total": 45, "limit": 10, "offset": 0},
+                    "omitted": ["lines", "assets"],
+                },
+            },
+            "items=1, offset=0, limit=10, total=45, omitted fields: lines, assets",
+        ),
+        ({"id": "ORD-123", "status": "Completed"}, "single item"),
+        ([{"id": "ORD-123"}, {"id": "ORD-456"}], "items=2"),
+    ],
+)
+async def test_get_logs_response_summary(api_client, http_get, caplog, response_data, expected):
+    http_get.return_value.status_code = HTTPStatus.OK
+    http_get.return_value.json.return_value = response_data
+
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.api_client"):
+        await api_client.get(ORDERS_ENDPOINT)  # act
+
+    assert f"Marketplace API response 200: {expected}" in caplog.text
 
 
 @pytest.mark.parametrize(

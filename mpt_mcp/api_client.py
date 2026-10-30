@@ -11,8 +11,6 @@ BEARER_PREFIX = "Bearer "
 
 DEFAULT_CONNECT_TIMEOUT = 30.0
 
-LOG_SEPARATOR_WIDTH = 80
-
 
 class APIClient:
     """Client for making authenticated requests to the SoftwareOne Marketplace API."""
@@ -124,8 +122,6 @@ class APIClient:
         # Special handling for RQL - it IS the query string, not a query parameter
         # Example: {"rql": "eq(status,Failed)"} becomes "/endpoint?eq(status,Failed)"
         # NOT "/endpoint?rql=eq(status,Failed)"
-        original_params = query_params.copy() if query_params else {}
-
         # Build the full URL with all parameters
         if query_params and "rql" in query_params:
             rql_query = query_params.pop("rql")
@@ -143,16 +139,7 @@ class APIClient:
             # Don't pass params to httpx - we've built the full URL
             query_params = None
 
-        # Log the API request with user identification
-        logger.info("=" * LOG_SEPARATOR_WIDTH)
-        logger.info("Marketplace API Request")
-        if self.user_id:
-            logger.info("   User: %s", self.user_id)
-        logger.info("   Base URL: %s", self.base_url)
-        logger.info("   Endpoint: %s", endpoint)
-        if original_params:
-            logger.info("   Parameters: %s", original_params)
-        logger.info("   Full URL: %s", url)
+        logger.info("Marketplace API request: %s", httpx.URL(url, params=query_params))
 
         # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at
         # least 30s
@@ -174,48 +161,49 @@ class APIClient:
                     f"Request timed out after {self.timeout} seconds"
                 ) from error
 
-            # Log the API response
-            logger.info("Response: %s", response.status_code)
-
-            # Try to log useful info about the response
-            if isinstance(response_data, dict):
-                if "data" in response_data:
-                    data = response_data["data"]
-                    if isinstance(data, list):
-                        logger.info("   Items returned: %s", len(data))
-                    elif isinstance(data, dict):
-                        logger.info("   Single item returned")
-
-                # Check for $meta.pagination (SoftwareOne API format)
-                if "$meta" in response_data and isinstance(response_data["$meta"], dict):
-                    meta = response_data["$meta"]
-                    if "pagination" in meta:
-                        pagination = meta["pagination"]
-                        total = pagination.get("total")
-                        offset = pagination.get("offset")
-                        limit = pagination.get("limit")
-                        logger.info(
-                            "   Pagination: offset=%s, limit=%s, total=%s", offset, limit, total
-                        )
-
-                    # Log omitted fields if present
-                    if "omitted" in meta:
-                        omitted = meta.get("omitted", [])
-                        if omitted:
-                            logger.info(
-                                "   Omitted fields: %s (use select=+field to include)",
-                                ", ".join(omitted),
-                            )
-                # Fallback to root-level pagination
-                elif "pagination" in response_data:
-                    pagination = response_data["pagination"]
-                    logger.info("   Pagination: %s", pagination)
-            elif isinstance(response_data, list):
-                logger.info("   Items returned: %s", len(response_data))
-
-            logger.info("=" * LOG_SEPARATOR_WIDTH)
+            logger.info(
+                "Marketplace API response %s: %s",
+                response.status_code,
+                self._describe_response(response_data),
+            )
 
             return response_data
+
+    @staticmethod
+    def _describe_response(response_data: Any) -> str:
+        """
+        Summarize a response for the log in one line.
+
+        Args:
+            response_data: Parsed JSON response
+
+        Returns:
+            Items returned, pagination and omitted fields, e.g. "items=10, offset=0, limit=10,
+            total=45"
+        """
+        if isinstance(response_data, list):
+            return f"items={len(response_data)}"
+
+        if not isinstance(response_data, dict):
+            return type(response_data).__name__
+
+        details = []
+        data = response_data.get("data")
+        if isinstance(data, list):
+            details.append(f"items={len(data)}")
+        elif isinstance(data, dict) or "data" not in response_data:
+            details.append("single item")
+        meta = response_data.get("$meta")
+        meta = meta if isinstance(meta, dict) else {}
+        pagination = meta.get("pagination") or response_data.get("pagination")
+        if isinstance(pagination, dict):
+            details.append(
+                f"offset={pagination.get('offset')}, limit={pagination.get('limit')}, "
+                f"total={pagination.get('total')}"
+            )
+        if meta.get("omitted"):
+            details.append(f"omitted fields: {', '.join(meta['omitted'])}")
+        return ", ".join(details)
 
     async def validate_token(self) -> bool:
         """

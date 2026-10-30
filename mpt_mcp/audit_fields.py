@@ -10,7 +10,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-LOGGED_PROPERTIES_LIMIT = 12
 
 # In-memory cache: key (api_base_url or spec URL) -> { "events", "regex", "by_resource" }
 _audit_cache: dict[str, dict[str, Any]] = {}
@@ -25,6 +24,7 @@ def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     """Resolve $ref (e.g. #/components/schemas/Order) to the schema object."""
     if not ref or not ref.startswith("#/"):
         return {}
+
     parts = ref.replace("#/", "").split("/")
     out = spec
     for part in parts:
@@ -43,14 +43,17 @@ def _resolve_schema(
     """
     if not isinstance(schema, dict):
         return schema
+
     if "$ref" in schema:
         return _resolve_schema(spec, _resolve_ref(spec, schema["$ref"]))
+
     if "allOf" in schema:
         for part in schema["allOf"]:
             if isinstance(part, dict) and "$ref" in part:
                 resolved = _resolve_schema(spec, _resolve_ref(spec, part["$ref"]))
                 if resolved:
                     return resolved
+
     return schema
 
 
@@ -68,10 +71,13 @@ def _get_item_schema(
         item_schema = schema["items"]
         if isinstance(item_schema, dict) and "$ref" in item_schema:
             return _resolve_ref(spec, item_schema["$ref"])
+
         return item_schema if isinstance(item_schema, dict) else {}
+
     if "$ref" in schema:
         resolved = _resolve_ref(spec, schema["$ref"])
         return _get_item_schema(spec, resolved)
+
     # List endpoints often return { "$meta", "data": [ items ] }; use item schema for audit
     # Some specs omit "type": "object", so check for "properties" with "data" as well
     if schema.get("type") == "object" or "properties" in schema:
@@ -86,7 +92,9 @@ def _get_item_schema(
                     item_schema = prop["items"]
                     if isinstance(item_schema, dict) and "$ref" in item_schema:
                         return _resolve_ref(spec, item_schema["$ref"])
+
                     return item_schema if isinstance(item_schema, dict) else {}
+
     return schema
 
 
@@ -167,41 +175,23 @@ def get_audit_data_from_spec(
         json_content = response_content.get("application/json") or {}
         schema = json_content.get("schema")
         if not schema:
-            logger.debug("audit_fields: %s has no 200 application/json schema", path)
             continue
         if "$ref" in schema:
             schema = _resolve_ref(spec, schema["$ref"])
         schema = _get_item_schema(spec, schema)
         properties = schema.get("properties") if isinstance(schema, dict) else {}
         if not properties:
-            logger.debug("audit_fields: %s item schema has no properties", path)
             continue
-        prop_names = list(properties.keys())
-        audit_like = [name for name in prop_names if "audit" in name.lower()]
-        if not audit_like:
-            logger.debug(
-                "audit_fields: %s properties (no *audit*): %s",
-                path,
-                prop_names[:LOGGED_PROPERTIES_LIMIT],
-            )
+        if not any("audit" in name.lower() for name in properties):
             continue
-        logger.debug("audit_fields: %s has audit-like props: %s", path, audit_like)
         events, _ = _collect_audit_events_and_paths_from_props(spec, properties)
         if not events:
-            logger.debug(
-                "audit_fields: %s audit-like %s resolved to 0 events (check nested .at/.by)",
-                path,
-                audit_like,
-            )
             continue
         all_events |= events
         resource_id = path_to_resource_id(path)
         existing_events = set(by_resource.get(resource_id) or [])
         existing_events |= events
         by_resource[resource_id] = sorted(existing_events)
-        logger.debug(
-            "audit_fields: %s -> %s: events %s", path, resource_id, by_resource[resource_id]
-        )
     logger.info(
         "audit_fields: total resources with audit: %d, events: %s",
         len(by_resource),
@@ -214,6 +204,7 @@ def build_audit_regex(events: set[str]) -> re.Pattern[str]:
     r"""Build regex audit\.(event1|event2|...).(at|by) from event names."""
     if not events:
         return FALLBACK_STATIC_REGEX
+
     part = "|".join(re.escape(error) for error in sorted(events))
     return re.compile(rf"audit\.({part})\.(at|by)")
 
@@ -246,6 +237,7 @@ def get_audit_regex(cache_key: str | None) -> re.Pattern[str]:
     """
     if cache_key and cache_key in _audit_cache:
         return _audit_cache[cache_key]["regex"]
+
     return FALLBACK_STATIC_REGEX
 
 
@@ -261,7 +253,9 @@ def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict
     if not cache_key or cache_key not in _audit_cache:
         if resource:
             return {"error": "Audit fields not available (spec not loaded)", "resource": resource}
+
         return {"by_resource": {}}
+
     by_resource = _audit_cache[cache_key]["by_resource"]
     if resource is not None:
         if resource not in by_resource:
@@ -270,5 +264,7 @@ def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict
                 "events": [],
                 "hint": "No audit fields found for this resource",
             }
+
         return {"resource": resource, "events": by_resource[resource]}
+
     return {"by_resource": by_resource}

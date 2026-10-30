@@ -91,6 +91,7 @@ class TokenValidationCache:
                         (expiry - dt.datetime.now()).seconds,
                     )
                     return (is_valid, token_info)
+
                 logger.debug("Token validation cache expired, removing")
                 del self._cache[cache_key]
 
@@ -190,6 +191,7 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
             jwks_dict, expiry = _jwks_cache[jwks_url]
             if dt.datetime.now() < expiry:
                 return jwks_dict
+
             del _jwks_cache[jwks_url]
 
     try:
@@ -246,6 +248,7 @@ def _get_signing_keys(token: str, jwks_dict: dict[str, Any]) -> list[jwt.PyJWK]:
     kid = jwt.get_unverified_header(token).get("kid")
     if kid is None:
         return list(jwk_set.keys)
+
     try:
         return [jwk_set[kid]]
     except KeyError:
@@ -286,6 +289,7 @@ async def _verify_jwt_and_get_payload(
                 last_error = error
                 continue
             return (payload, None)
+
         raise last_error
     except jwt.ExpiredSignatureError as error:
         logger.debug("JWT verification failed (expired, leeway=%ss): %s", leeway, error)
@@ -326,6 +330,7 @@ def _get_jwks_url_from_token(token: str) -> str | None:
         parts = token.split(".")
         if len(parts) != 3:
             return None
+
         # Decode payload segment (base64url); no JWT verify API used—only parsing for iss
         payload_b64 = parts[1]
         padding = 4 - len(payload_b64) % 4
@@ -336,9 +341,11 @@ def _get_jwks_url_from_token(token: str) -> str | None:
         iss = payload.get("iss")
         if not iss or not isinstance(iss, str):
             return None
+
         iss = iss.strip().rstrip("/")
         if not iss.startswith("https://"):
             return None
+
         return f"{iss}/.well-known/jwks.json"
     except Exception:
         return None
@@ -371,6 +378,7 @@ def parse_token_id(token: str) -> str | None:
         parts = token.split(":")
         if len(parts) >= 2 and parts[1].startswith("TKN-"):
             return parts[1]
+
         return None
     except Exception as error:
         logger.warning("Failed to parse token ID: %s", error)
@@ -390,6 +398,7 @@ def normalize_token(token: str) -> str:
     """
     if not token or not isinstance(token, str):
         return ""
+
     normalized = token.strip()
     if normalized.upper().startswith("BEARER "):
         normalized = normalized[7:].strip()
@@ -423,6 +432,7 @@ async def validate_token(
     """
     if not token or not isinstance(token, str) or not token.strip():
         return (False, None, "Missing or empty token")
+
     token = token.strip()
 
     cache = get_token_cache()
@@ -456,16 +466,19 @@ async def validate_token(
             )
             logger.warning("%s", error)
             return (False, None, error)
+
         payload, verify_error = await _verify_jwt_and_get_payload(token, jwks_url)
         if payload is None:
             error = verify_error or "JWT signature or claims invalid"
             logger.warning("%s", error)
             return (False, None, error)
+
         user_id, account_id_from_jwt = _extract_claims_from_payload(payload)
         if not user_id or not user_id.startswith("USR-"):
             error = "JWT missing or invalid userId claim"
             logger.warning("%s", error)
             return (False, None, error)
+
         token_id = user_id
     else:
         token_id = parse_token_id(token)
@@ -650,7 +663,6 @@ async def validate_token(
                     account = token_info.get("account", {})
                     account_id = account.get("id", "Unknown")
                     account_name = account.get("name", "Unknown")
-                    token_name = token_info.get("name", "Unnamed Token")
                     account_type = account.get("type", "Unknown")
                     token_status = token_info.get("status", "Unknown")
 
@@ -665,10 +677,8 @@ async def validate_token(
                         return (False, token_info, error)
 
                     logger.info(
-                        "Token %s validated successfully\n   Token Name: %s\n   Account: %s "
-                        "(%s)\n   Type: %s\n   Status: %s",
+                        "Token %s validated: account %s (%s), type %s, status %s",
                         token_id,
-                        token_name,
                         account_name,
                         account_id,
                         account_type,
