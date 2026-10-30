@@ -10,7 +10,6 @@ from mpt_mcp.call_context import (
     NO_CREDENTIALS_ERROR,
     CallContext,
     get_call_context,
-    normalize_endpoint_url,
     read_call_context,
 )
 from mpt_mcp.config import config
@@ -162,28 +161,6 @@ async def test_create_api_client_for_caller_endpoint():
         "https://api.test.com",
         "Bearer idt:TKN-1234-5678:SECRET",
     )
-
-
-@pytest.mark.parametrize(
-    ("endpoint", "expected"),
-    [
-        ("https://api.s1.show/public", "https://api.s1.show"),
-        ("https://api.platform.softwareone.com/public", "https://api.platform.softwareone.com"),
-        ("https://api.s1.show/public/", "https://api.s1.show"),
-        ("https://api.s1.show", "https://api.s1.show"),
-        ("https://api.s1.show/", "https://api.s1.show"),
-        ("https://api.s1.show//", "https://api.s1.show"),
-        ("http://localhost:8080/public", "http://localhost:8080"),
-        ("https://api.example.com/api/v1", "https://api.example.com/api/v1"),
-        ("https://api.example.com/Public", "https://api.example.com/Public"),
-        ("/public", ""),
-        ("", ""),
-    ],
-)
-def test_normalize_endpoint_url(endpoint, expected):
-    result = normalize_endpoint_url(endpoint)
-
-    assert result == expected
 
 
 async def test_missing_authorization_header():

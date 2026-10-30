@@ -12,6 +12,26 @@ BEARER_PREFIX = "Bearer "
 DEFAULT_CONNECT_TIMEOUT = 30.0
 
 
+def normalize_endpoint_url(endpoint: str) -> str:
+    """
+    Normalize a Marketplace API endpoint to its base URL.
+
+    Every path is dropped, because the paths of the OpenAPI spec already start with /public/v1.
+
+    Args:
+        endpoint: Endpoint, e.g. https://api.s1.show/public/v1
+
+    Returns:
+        scheme://hostname[:port], e.g. https://api.s1.show, or the endpoint unchanged when it has
+        no scheme and host
+    """
+    parsed = urlparse(endpoint)
+    if not parsed.scheme or not parsed.netloc:
+        return endpoint
+
+    return f"{parsed.scheme}://{parsed.netloc}"
+
+
 class APIClient:
     """Client for making authenticated requests to the SoftwareOne Marketplace API."""
 
@@ -24,15 +44,8 @@ class APIClient:
             token: Authentication token (with or without "Bearer" prefix)
             timeout: Default request timeout in seconds
         """
-        # Normalize the base URL to only scheme://hostname[:port]
-        # This prevents path duplication when OpenAPI paths are absolute
-        # Examples:
-        #   https://api.s1.show/public -> https://api.s1.show
-        #   https://api.s1.show/v1 -> https://api.s1.show
-        #   https://api.s1.show/ -> https://api.s1.show
-        parsed = urlparse(base_url)
-        normalized_base_url = f"{parsed.scheme}://{parsed.netloc}"
-
+        # Paths come from the OpenAPI spec, so keep only scheme://hostname[:port]
+        normalized_base_url = normalize_endpoint_url(base_url)
         if base_url != normalized_base_url:
             logger.info(
                 "Base URL normalization: Stripped path from '%s' → '%s' (paths come from "

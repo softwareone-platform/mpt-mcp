@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-from mpt_mcp.api_client import APIClient
+from mpt_mcp.api_client import APIClient, normalize_endpoint_url
 
 API_BASE_URL = "https://api.example.com"
 
@@ -43,6 +43,27 @@ def test_api_client_normalizes_base_url(base_url, expected):
     result = APIClient(base_url=base_url, token="test-token")
 
     assert result.base_url == expected
+
+
+@pytest.mark.parametrize(
+    ("endpoint", "expected"),
+    [
+        ("https://api.s1.show/public", "https://api.s1.show"),
+        ("https://api.s1.show/public/", "https://api.s1.show"),
+        ("https://api.s1.show/public/v1", "https://api.s1.show"),
+        ("https://api.s1.show", "https://api.s1.show"),
+        ("https://api.s1.show//", "https://api.s1.show"),
+        ("http://localhost:8080/public", "http://localhost:8080"),
+        ("https://api.example.com/api/v1", "https://api.example.com"),
+        ("api.s1.show", "api.s1.show"),
+        ("/public", "/public"),
+        ("", ""),
+    ],
+)
+def test_normalize_endpoint_url(endpoint, expected):
+    result = normalize_endpoint_url(endpoint)
+
+    assert result == expected
 
 
 @pytest.mark.parametrize(

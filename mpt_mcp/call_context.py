@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 
 from fastmcp.server.dependencies import get_http_request
 
-from mpt_mcp.api_client import APIClient
+from mpt_mcp.api_client import APIClient, normalize_endpoint_url
 from mpt_mcp.config import config
 from mpt_mcp.token_validator import normalize_token, parse_token_id, validate_token
 
@@ -114,20 +114,3 @@ def read_call_context(request: Request) -> CallContext:
         token=normalize_token(raw_token) if raw_token else None,
         validate_fresh=validate_fresh,
     )
-
-
-def normalize_endpoint_url(endpoint: str) -> str:
-    """
-    Normalize a Marketplace API endpoint to its base URL.
-
-    Args:
-        endpoint: Endpoint from the X-MPT-Endpoint header, e.g. https://api.s1.show/public/
-
-    Returns:
-        Endpoint without trailing slashes or /public suffix, e.g. https://api.s1.show
-    """
-    if not endpoint:
-        return endpoint
-
-    endpoint = endpoint.rstrip("/")
-    return endpoint.removesuffix("/public")

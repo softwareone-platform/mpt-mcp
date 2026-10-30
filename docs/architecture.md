@@ -32,9 +32,9 @@ Tools report failures as an `{"error": ...}` payload instead of raising, so MCP 
 
 | Module | Responsibility |
 |---|---|
-| [`call_context.py`](../mpt_mcp/call_context.py) | Caller credentials from the `X-MPT-*` headers (HTTP) or the environment (stdio); endpoint normalization; token validation before creating the API client |
+| [`call_context.py`](../mpt_mcp/call_context.py) | Caller credentials from the `X-MPT-*` headers (HTTP) or the environment (stdio); token validation before creating the API client |
 | [`token_validator.py`](../mpt_mcp/token_validator.py) | API token (`idt:TKN-…`) and JWT validation against the Marketplace API, with an in-memory validation cache (10 minutes) and a JWKS cache (1 hour) |
-| [`api_client.py`](../mpt_mcp/api_client.py) | Authenticated Marketplace API client; RQL is sent as the raw query string |
+| [`api_client.py`](../mpt_mcp/api_client.py) | Authenticated Marketplace API client; RQL is sent as the raw query string; endpoints are normalized to `scheme://host[:port]` |
 | [`endpoint_registry.py`](../mpt_mcp/endpoint_registry.py) | Per-endpoint registry of GET resources built from the OpenAPI spec, cached in memory and on disk (`.cache/`, 24 hours) |
 | [`openapi_parser.py`](../mpt_mcp/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
 | [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add `select=audit` |
