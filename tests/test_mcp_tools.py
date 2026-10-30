@@ -532,6 +532,22 @@ async def test_query_replaces_path_params(
     assert api_client.get.call_args.args[0] == expected_path
 
 
+@pytest.mark.parametrize(
+    ("path_template", "expected"),
+    [
+        ("/public/v1/commerce/orders/{id}", {}),
+        ("/public/v1/commerce/orders/{orderId}/lines", {"limit": 10}),
+    ],
+)
+async def test_query_limits_only_collections(api_client, query_path, path_template, expected):
+    await query_path(path_template, {"id": "ORD-1234-5678", "orderId": "ORD-1234-5678"})  # act
+
+    query_params = api_client.get.call_args.kwargs["query_params"]
+    assert {
+        key: query_params[key] for key in ("limit", "offset") if key in query_params
+    } == expected
+
+
 async def test_query_reports_missing_path_params(api_client, query_path):
     result = await query_path(
         "/public/v1/commerce/orders/{orderId}/lines/{lineId}", {"orderId": "ORD-1234-5678"}

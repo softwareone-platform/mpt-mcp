@@ -393,7 +393,13 @@ async def execute_marketplace_query(
 
     # Apply default limit of 10 if not explicitly specified
     # Cap at 100 to avoid huge responses and context limit errors (platform default is 1000)
-    if limit is None:
+    # A path that ends in a parameter returns a single item, so it takes no limit or offset
+    if endpoint_info["path"].endswith("}"):
+        if limit is not None or offset is not None:
+            logger.info("   Ignored limit and offset: %s returns a single item", resource)
+        limit = None
+        offset = None
+    elif limit is None:
         limit = 10
         logger.info(
             "   Applied default limit=10 (platform default is 1000, too large for most use cases)"

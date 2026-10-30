@@ -235,8 +235,10 @@ async def marketplace_query(
             Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Pagination/selection: limit=100,
             select=+status, order=-created.
         limit: Max items to return (default 10, max 100). Use select= with only needed fields
-            (from marketplace_resource_schema) to avoid huge responses.
-        offset: Number of items to skip for pagination (e.g., 0, 20, 40)
+            (from marketplace_resource_schema) to avoid huge responses. Ignored for resources
+            that return a single item (path ending in a parameter, e.g. *.by_id).
+        offset: Number of items to skip for pagination (e.g., 0, 20, 40). Ignored for
+            resources that return a single item.
         select: Fields to include/exclude (+name,+description or -metadata). For audit
             fields include 'audit'. Nested: +subscriptions (full), +subscriptions.id,
             +subscriptions.id,+subscriptions.name.
