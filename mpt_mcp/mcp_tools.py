@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX, _get_item_schema, _resolve_schema
+from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX, get_item_schema, resolve_schema
 from mpt_mcp.query_templates import get_query_templates
 
 if TYPE_CHECKING:
@@ -102,7 +102,7 @@ def suggest_resources(resource: str, resources: Iterable[str]) -> list[str]:
     return list(dict.fromkeys(containing_resources + similar))[:SUGGESTION_COUNT]
 
 
-def _get_allowed_select_fields(
+def get_allowed_select_fields(
     openapi_spec: dict[str, Any],
     endpoints_registry: dict[str, Any],
     resource: str,
@@ -135,9 +135,9 @@ def _get_allowed_select_fields(
             if part and part != "#":
                 ref_schema = ref_schema.get(part, {})
         schema = ref_schema
-    item_schema = _get_item_schema(openapi_spec, schema)
+    item_schema = get_item_schema(openapi_spec, schema)
     item_schema = (
-        _resolve_schema(openapi_spec, item_schema) if isinstance(item_schema, dict) else item_schema
+        resolve_schema(openapi_spec, item_schema) if isinstance(item_schema, dict) else item_schema
     )
     if not isinstance(item_schema, dict):
         return set()
@@ -151,7 +151,7 @@ def _get_allowed_select_fields(
 _ALWAYS_INCLUDE_WHEN_IN_SCHEMA = ("id", "status", "name")
 
 
-def _sanitize_select(
+def sanitize_select(
     select: str | None,
     allowed_fields: set[str],
 ) -> str | None:
@@ -388,8 +388,8 @@ async def execute_marketplace_query(
 
     # Sanitize select: drop fields not in resource schema and ensure id is always included
     if select:
-        allowed = _get_allowed_select_fields(openapi_spec or {}, endpoints_registry, resource)
-        select = _sanitize_select(select, allowed) or select
+        allowed = get_allowed_select_fields(openapi_spec or {}, endpoints_registry, resource)
+        select = sanitize_select(select, allowed) or select
 
     # Apply default limit of 10 if not explicitly specified
     # Cap at 100 to avoid huge responses and context limit errors (platform default is 1000)

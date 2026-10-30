@@ -20,7 +20,7 @@ FALLBACK_STATIC_REGEX = re.compile(
 )
 
 
-def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
+def resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     """Resolve $ref (e.g. #/components/schemas/Order) to the schema object."""
     if not ref or not ref.startswith("#/"):
         return {}
@@ -32,7 +32,7 @@ def _resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
     return out if isinstance(out, dict) else {}
 
 
-def _resolve_schema(
+def resolve_schema(
     spec: dict[str, Any],
     schema: dict[str, Any],
 ) -> dict[str, Any]:
@@ -45,19 +45,19 @@ def _resolve_schema(
         return schema
 
     if "$ref" in schema:
-        return _resolve_schema(spec, _resolve_ref(spec, schema["$ref"]))
+        return resolve_schema(spec, resolve_ref(spec, schema["$ref"]))
 
     if "allOf" in schema:
         for part in schema["allOf"]:
             if isinstance(part, dict) and "$ref" in part:
-                resolved = _resolve_schema(spec, _resolve_ref(spec, part["$ref"]))
+                resolved = resolve_schema(spec, resolve_ref(spec, part["$ref"]))
                 if resolved:
                     return resolved
 
     return schema
 
 
-def _get_item_schema(
+def get_item_schema(
     spec: dict[str, Any],
     schema: dict[str, Any],
 ) -> dict[str, Any]:
@@ -70,13 +70,13 @@ def _get_item_schema(
     if schema.get("type") == "array" and "items" in schema:
         item_schema = schema["items"]
         if isinstance(item_schema, dict) and "$ref" in item_schema:
-            return _resolve_ref(spec, item_schema["$ref"])
+            return resolve_ref(spec, item_schema["$ref"])
 
         return item_schema if isinstance(item_schema, dict) else {}
 
     if "$ref" in schema:
-        resolved = _resolve_ref(spec, schema["$ref"])
-        return _get_item_schema(spec, resolved)
+        resolved = resolve_ref(spec, schema["$ref"])
+        return get_item_schema(spec, resolved)
 
     # List endpoints often return { "$meta", "data": [ items ] }; use item schema for audit
     # Some specs omit "type": "object", so check for "properties" with "data" as well
@@ -86,19 +86,19 @@ def _get_item_schema(
             if key in properties:
                 prop = properties[key]
                 if isinstance(prop, dict) and "$ref" in prop:
-                    prop = _resolve_ref(spec, prop["$ref"])
+                    prop = resolve_ref(spec, prop["$ref"])
                 is_array = isinstance(prop, dict) and prop.get("type") == "array"
                 if is_array and "items" in prop:
                     item_schema = prop["items"]
                     if isinstance(item_schema, dict) and "$ref" in item_schema:
-                        return _resolve_ref(spec, item_schema["$ref"])
+                        return resolve_ref(spec, item_schema["$ref"])
 
                     return item_schema if isinstance(item_schema, dict) else {}
 
     return schema
 
 
-def _collect_audit_events_and_paths_from_props(
+def collect_audit_events_and_paths_from_props(
     spec: dict[str, Any],
     properties: dict[str, Any],
 ) -> tuple[set[str], list[dict[str, str]]]:
@@ -114,7 +114,7 @@ def _collect_audit_events_and_paths_from_props(
         if "audit" not in prop_name.lower():
             continue
         audit_schema = (
-            _resolve_schema(spec, prop_schema) if isinstance(prop_schema, dict) else prop_schema
+            resolve_schema(spec, prop_schema) if isinstance(prop_schema, dict) else prop_schema
         )
         if not isinstance(audit_schema, dict):
             continue
@@ -122,7 +122,7 @@ def _collect_audit_events_and_paths_from_props(
         for event_name, event_schema in nested.items():
             if not isinstance(event_schema, dict):
                 continue
-            resolved_schema = _resolve_schema(spec, event_schema)
+            resolved_schema = resolve_schema(spec, event_schema)
             event_props = (
                 (resolved_schema.get("properties") or {})
                 if isinstance(resolved_schema, dict)
@@ -152,7 +152,7 @@ def get_audit_data_from_spec(
     - **By-id paths** (e.g. /public/v1/commerce/orders/{id}): 200 response is the object
       schema (e.g. Order) with audit.
     - **Collection paths** (e.g. /public/v1/commerce/orders): 200 response is a list wrapper
-      (e.g. { $meta, data: [items] }); we unwrap via _get_item_schema to get the same object
+      (e.g. { $meta, data: [items] }); we unwrap via get_item_schema to get the same object
       schema (Order) that has audit.
 
     So we always derive audit from the object schema; the collection returns those same objects.
@@ -177,14 +177,14 @@ def get_audit_data_from_spec(
         if not schema:
             continue
         if "$ref" in schema:
-            schema = _resolve_ref(spec, schema["$ref"])
-        schema = _get_item_schema(spec, schema)
+            schema = resolve_ref(spec, schema["$ref"])
+        schema = get_item_schema(spec, schema)
         properties = schema.get("properties") if isinstance(schema, dict) else {}
         if not properties:
             continue
         if not any("audit" in name.lower() for name in properties):
             continue
-        events, _ = _collect_audit_events_and_paths_from_props(spec, properties)
+        events, _ = collect_audit_events_and_paths_from_props(spec, properties)
         if not events:
             continue
         all_events |= events

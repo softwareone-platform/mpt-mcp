@@ -120,7 +120,7 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
         raise
 
 
-def _path_to_resource_id(path: str) -> str:
+def path_to_resource_id(path: str) -> str:
     """
     Convert an API path to a resource identifier.
 
@@ -172,7 +172,7 @@ async def get_endpoints_registry(
         # Parse the OpenAPI spec
         parser = OpenAPIParser()
         registry: dict[str, dict[str, Any]] = {
-            _path_to_resource_id(endpoint["path"]): endpoint
+            path_to_resource_id(endpoint["path"]): endpoint
             for endpoint in parser.extract_get_endpoints(spec)
         }
 
@@ -182,7 +182,7 @@ async def get_endpoints_registry(
         # Build audit fields cache from spec (for auto-add regex and marketplace_audit_fields tool)
         try:
             await asyncio.to_thread(
-                audit_fields.update_cache, api_base_url, spec, _path_to_resource_id
+                audit_fields.update_cache, api_base_url, spec, path_to_resource_id
             )
             logger.info("Audit fields cache updated for %s", api_base_url)
         except Exception as audit_err:

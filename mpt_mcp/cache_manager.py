@@ -15,7 +15,7 @@ DEFAULT_CONNECT_TIMEOUT = 30.0
 DEFAULT_FETCH_TIMEOUT = 30.0
 
 
-def _read_json_path(path: Path) -> dict[str, Any]:
+def read_json_path(path: Path) -> dict[str, Any]:
     """Read and parse a JSON file (sync; run via asyncio.to_thread from async code)."""
     with Path(path).open(encoding="utf-8") as json_file:
         return json.load(json_file)
@@ -241,7 +241,7 @@ async def fetch_with_cache(
         cache_path = cache_manager.get_cache_path(url)
         if cache_path.exists():
             logger.warning("Using expired cache as fallback")
-            return await asyncio.to_thread(_read_json_path, cache_path)
+            return await asyncio.to_thread(read_json_path, cache_path)
 
         # No cache available, re-raise the error
         raise

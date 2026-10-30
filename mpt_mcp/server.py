@@ -40,7 +40,7 @@ logger.info("Configured for %s:%s", server_host, server_port)
 mcp = create_mcp_server(analytics=True)
 
 
-async def _create_app() -> ASGIApp:
+async def create_app() -> ASGIApp:
     """
     Build the ASGI app (init + middleware).
 
@@ -173,7 +173,7 @@ async def _create_app() -> ASGIApp:
     return final_app
 
 
-def _build_app() -> ASGIApp:
+def build_app() -> ASGIApp:
     """
     Build the app once.
 
@@ -183,14 +183,14 @@ def _build_app() -> ASGIApp:
     try:
         asyncio.get_running_loop()
     except RuntimeError:
-        return asyncio.run(_create_app())
+        return asyncio.run(create_app())
 
     with ThreadPoolExecutor(max_workers=1) as pool:
-        future = pool.submit(asyncio.run, _create_app())
+        future = pool.submit(asyncio.run, create_app())
         return future.result()
 
 
-app = _build_app()
+app = build_app()
 
 
 def run_migrations() -> None:
@@ -217,7 +217,7 @@ def run_migrations() -> None:
         logger.info("   Server will continue, but analytics may not work correctly")
 
 
-def _run_uvicorn() -> None:
+def run_uvicorn() -> None:
     """Run uvicorn; use import string so reload works in dev."""
     enable_reload = os.getenv("DEBUG", "false").lower() == "true"
     reload_dirs = ["mpt_mcp", "config", "alembic"] if enable_reload else None
@@ -262,7 +262,7 @@ def main() -> None:
         logger.info("Health check: http://%s:%s/health", server_host, server_port)
         logger.info("=" * 60)
         run_migrations()
-        _run_uvicorn()
+        run_uvicorn()
     except KeyboardInterrupt:
         logger.info("Shutting down server...")
         sys.exit(0)

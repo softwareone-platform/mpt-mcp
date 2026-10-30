@@ -23,7 +23,7 @@ JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
 logger = logging.getLogger(__name__)
 
 
-def _hash_token(token: str, api_base_url: str) -> str:
+def hash_token(token: str, api_base_url: str) -> str:
     """
     Create a secure hash of token + endpoint for cache key.
 
@@ -79,7 +79,7 @@ class TokenValidationCache:
         Returns:
             Tuple of (is_valid, token_info) if cached and not expired, None otherwise
         """
-        cache_key = _hash_token(token, api_base_url)
+        cache_key = hash_token(token, api_base_url)
 
         async with self._lock:
             if cache_key in self._cache:
@@ -114,7 +114,7 @@ class TokenValidationCache:
             is_valid: Whether the token is valid
             token_info: Optional token metadata from API response
         """
-        cache_key = _hash_token(token, api_base_url)
+        cache_key = hash_token(token, api_base_url)
 
         async with self._lock:
             expiry = dt.datetime.now() + self.ttl
@@ -131,7 +131,7 @@ class TokenValidationCache:
             token: The API token to invalidate
             api_base_url: The API endpoint
         """
-        cache_key = _hash_token(token, api_base_url)
+        cache_key = hash_token(token, api_base_url)
 
         async with self._lock:
             if cache_key in self._cache:
@@ -179,7 +179,7 @@ _jwks_cache_ttl = dt.timedelta(minutes=60)
 _jwks_lock = asyncio.Lock()
 
 
-async def _fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
+async def fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
     """
     Fetch JWKS from URL with in-memory cache (TTL 1 hour).
 
@@ -215,7 +215,7 @@ async def _fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
     return jwks_dict
 
 
-def _extract_claims_from_payload(
+def extract_claims_from_payload(
     payload: dict[str, Any],
 ) -> tuple[str | None, str | None]:
     """Extract userId and accountId from SoftwareOne JWT payload."""
@@ -234,7 +234,7 @@ def _extract_claims_from_payload(
     return (user_id, account_id)
 
 
-def _get_signing_keys(token: str, jwks_dict: dict[str, Any]) -> list[jwt.PyJWK]:
+def get_signing_keys(token: str, jwks_dict: dict[str, Any]) -> list[jwt.PyJWK]:
     """
     Select the JWKS keys that may have signed the token.
 
@@ -255,7 +255,7 @@ def _get_signing_keys(token: str, jwks_dict: dict[str, Any]) -> list[jwt.PyJWK]:
         raise jwt.InvalidKeyError(f"No JWKS key matches kid {kid!r}") from None
 
 
-async def _verify_jwt_and_get_payload(
+async def verify_jwt_and_get_payload(
     token: str, jwks_url: str
 ) -> tuple[dict[str, Any] | None, str | None]:
     """
@@ -268,7 +268,7 @@ async def _verify_jwt_and_get_payload(
         (None, "Token expired") or (None, "JWT signature or claims invalid").
         If JWKS fetch failed: (None, None).
     """
-    jwks_dict = await _fetch_jwks_cached(jwks_url)
+    jwks_dict = await fetch_jwks_cached(jwks_url)
     if not jwks_dict:
         return (None, None)
 
@@ -276,7 +276,7 @@ async def _verify_jwt_and_get_payload(
 
     try:
         last_error: jwt.PyJWTError = jwt.InvalidKeyError("JWKS has no signing keys")
-        for signing_key in _get_signing_keys(token, jwks_dict):
+        for signing_key in get_signing_keys(token, jwks_dict):
             try:
                 payload = jwt.decode(
                     token,
@@ -318,13 +318,13 @@ def is_jwt_token(token: str) -> bool:
     return len(parts) == 3
 
 
-def _get_jwks_url_from_token(token: str) -> str | None:
+def get_jwks_url_from_token(token: str) -> str | None:
     """
     Derive JWKS URL from the token's issuer (iss) claim.
 
     Standard for OIDC/Auth0: {issuer}/.well-known/jwks.json
     We only read the payload segment to get iss for the URL; the token is verified
-    afterward via JWKS in _verify_jwt_and_get_payload (we do not trust claims here).
+    afterward via JWKS in verify_jwt_and_get_payload (we do not trust claims here).
     """
     try:
         parts = token.split(".")
@@ -458,7 +458,7 @@ async def validate_token(
     account_id_from_jwt: str | None = None
 
     if is_jwt:
-        jwks_url = config.jwt_jwks_url or _get_jwks_url_from_token(token)
+        jwks_url = config.jwt_jwks_url or get_jwks_url_from_token(token)
         if not jwks_url:
             error = (
                 "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. "
@@ -467,13 +467,13 @@ async def validate_token(
             logger.warning("%s", error)
             return (False, None, error)
 
-        payload, verify_error = await _verify_jwt_and_get_payload(token, jwks_url)
+        payload, verify_error = await verify_jwt_and_get_payload(token, jwks_url)
         if payload is None:
             error = verify_error or "JWT signature or claims invalid"
             logger.warning("%s", error)
             return (False, None, error)
 
-        user_id, account_id_from_jwt = _extract_claims_from_payload(payload)
+        user_id, account_id_from_jwt = extract_claims_from_payload(payload)
         if not user_id or not user_id.startswith("USR-"):
             error = "JWT missing or invalid userId claim"
             logger.warning("%s", error)
