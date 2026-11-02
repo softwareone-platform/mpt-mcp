@@ -216,7 +216,7 @@ async def marketplace_query(
 
     Available Resource Categories:
     - Catalog: catalog.products, catalog.items, catalog.listings, catalog.authorizations
-    - Commerce: commerce.orders, commerce.requests, commerce.agreements, commerce.subscriptions
+    - Commerce: commerce.orders, commerce.agreements, commerce.subscriptions
     - Billing: billing.invoices, billing.statements, billing.journals, billing.ledgers
     - Accounts: accounts.accounts, accounts.buyers, accounts.sellers, accounts.users
 
@@ -224,28 +224,28 @@ async def marketplace_query(
     - Pagination: limit=10, offset=0
     - Filter: rql=eq(status,Active), limit=20
     - Search: rql=ilike(name,*Microsoft*), limit=50
-    - Complex: rql=and(eq(status,Active),gt(price,100)), order=-created
-    - Sort: order=-created or order=+name
+    - Complex: rql=and(eq(status,Completed),ilike(product.name,*Microsoft*)),
+      order=-audit.created.at
+    - Sort: order=-audit.created.at or order=+name
 
     Use marketplace_resources() to see all available resources.
 
     Args:
         resource: The resource to query (e.g., catalog.products, commerce.orders)
         rql: Advanced RQL query string. Examples: eq(status,Active), ilike(name,*Microsoft*).
-            Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Pagination/selection: limit=100,
-            select=+status, order=-created.
+            Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Use the limit, offset, select and order
+            arguments for pagination, fields and sorting, not this string.
         limit: Max items to return (default 10, max 100). Use select= with only needed fields
             (from marketplace_resource_schema) to avoid huge responses. Ignored for resources
             that return a single item (path ending in a parameter, e.g. *.by_id).
         offset: Number of items to skip for pagination (e.g., 0, 20, 40). Ignored for
             resources that return a single item.
-        select: Fields to include/exclude (+name,+description or -metadata). For audit
-            fields include 'audit'. Nested: +subscriptions (full), +subscriptions.id,
-            +subscriptions.id,+subscriptions.name.
+        select: Fields to include/exclude (+name,+description or -metadata). 'audit' is added
+            automatically when rql or order use audit fields. Nested: +subscriptions (full),
+            +subscriptions.id, +subscriptions.id,+subscriptions.name.
             For catalog.products when including vendor use +vendor.id,+vendor.name (not +vendor).
             RQL filter fields must exist—use marketplace_resource_schema(resource) to check.
-        order: Sort order (e.g., -created for descending, +name for ascending). When using
-            audit fields (e.g., -audit.created.at), ensure select includes 'audit'.
+        order: Sort order (e.g., -audit.created.at for descending, +name for ascending)
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id
                      {orderId: ORD-1234-5678} for commerce.orders.{orderId}.lines
@@ -378,20 +378,19 @@ async def marketplace_resource_schema(
     resource: str, call_context: CallContext = Depends(get_call_context)
 ) -> dict[str, Any]:
     """
-    Get the full schema for a resource.
+    Get the response schema of a resource.
 
-    Returns detailed information about the resource including available parameters, example
-    queries, filterable fields, and response structure.
-
-    Example: marketplace_resource_schema(resource=catalog.products) returns full schema; for
-    products use select=+vendor.id,+vendor.name when including vendor.
+    Use marketplace_resource_info for its query and path parameters. For catalog.products use
+    select=+vendor.id,+vendor.name when including vendor.
 
     Args:
         resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
         call_context: Caller's credentials, injected by FastMCP (not a tool argument)
 
     Returns:
-        Complete JSON schema with field types, descriptions, enums, and examples
+        The response schema from the OpenAPI spec, its top-level fields with type, description,
+        enum values and format, RQL filter hints built from those fields, and common query
+        patterns
     """
     try:
         api_client = await call_context.create_api_client()

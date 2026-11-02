@@ -753,7 +753,10 @@ def execute_marketplace_resources(
                 "select= with only the fields you need (from marketplace_resource_schema); "
                 "otherwise the response may cause a context limit error."
             ),
-            "sorting": "Use order= parameter: order=-created (descending), order=+name (ascending)",
+            "sorting": (
+                "Use order= parameter: order=-audit.created.at (descending), order=+name "
+                "(ascending)"
+            ),
             "field_selection": (
                 "Use select=: select=+id,+name,+status or select=-metadata. Many fields omitted "
                 "by default "
