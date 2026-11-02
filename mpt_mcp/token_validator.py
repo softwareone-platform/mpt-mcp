@@ -85,10 +85,10 @@ class TokenValidationCache:
             if cache_key in self._cache:
                 is_valid, expiry, token_info = self._cache[cache_key]
 
-                if dt.datetime.now() < expiry:
+                if dt.datetime.now(dt.UTC) < expiry:
                     logger.debug(
                         "Token validation cache hit (expires in %ss)",
-                        (expiry - dt.datetime.now()).seconds,
+                        (expiry - dt.datetime.now(dt.UTC)).seconds,
                     )
                     return (is_valid, token_info)
 
@@ -117,7 +117,7 @@ class TokenValidationCache:
         cache_key = hash_token(token, api_base_url)
 
         async with self._lock:
-            expiry = dt.datetime.now() + self.ttl
+            expiry = dt.datetime.now(dt.UTC) + self.ttl
             self._cache[cache_key] = (is_valid, expiry, token_info)
             logger.debug(
                 "Cached token validation (valid=%s, expires in %ss)", is_valid, self.ttl.seconds
@@ -146,7 +146,7 @@ class TokenValidationCache:
 
     def get_stats(self) -> dict[str, Any]:
         """Get cache statistics."""
-        now = dt.datetime.now()
+        now = dt.datetime.now(dt.UTC)
         expiries = [expiry for _, expiry, _ in self._cache.values()]
         valid_count = sum(1 for expiry in expiries if expiry > now)
         expired_count = len(self._cache) - valid_count
@@ -189,7 +189,7 @@ async def fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
     async with _jwks_lock:
         if jwks_url in _jwks_cache:
             jwks_dict, expiry = _jwks_cache[jwks_url]
-            if dt.datetime.now() < expiry:
+            if dt.datetime.now(dt.UTC) < expiry:
                 return jwks_dict
 
             del _jwks_cache[jwks_url]
@@ -210,7 +210,7 @@ async def fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
         return None
 
     async with _jwks_lock:
-        _jwks_cache[jwks_url] = (jwks_dict, dt.datetime.now() + _jwks_cache_ttl)
+        _jwks_cache[jwks_url] = (jwks_dict, dt.datetime.now(dt.UTC) + _jwks_cache_ttl)
 
     return jwks_dict
 

@@ -11,6 +11,8 @@ from mpt_mcp.log_config import current_session_id, current_user_id
 logger = logging.getLogger(__name__)
 
 ACTIVITY_LOG_COOLDOWN_SECONDS = 30
+# Last activity log of a caller that was never logged
+NEVER_LOGGED = dt.datetime.min.replace(tzinfo=dt.UTC)
 
 
 class RequestContextMiddleware(Middleware):
@@ -43,8 +45,8 @@ class RequestContextMiddleware(Middleware):
     def _log_activity(self, call_context: CallContext) -> None:
         caller = call_context.user_id or "anonymous"
         log_key = f"{caller}@{call_context.endpoint}"
-        now = dt.datetime.now()
-        if now - self._last_activity_log.get(log_key, dt.datetime.min) < self.activity_log_cooldown:
+        now = dt.datetime.now(dt.UTC)
+        if now - self._last_activity_log.get(log_key, NEVER_LOGGED) < self.activity_log_cooldown:
             return
 
         endpoint_display = call_context.endpoint

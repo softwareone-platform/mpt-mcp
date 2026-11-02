@@ -21,6 +21,27 @@ def read_json_path(path: Path) -> dict[str, Any]:
         return json.load(json_file)
 
 
+def read_cached_at(cached_at: str) -> dt.datetime:
+    """
+    Read the time a cache entry was written.
+
+    Entries written before times were stored in UTC have no time zone; they are read as UTC.
+
+    Args:
+        cached_at: ISO 8601 time from the entry's metadata
+
+    Returns:
+        Time in UTC
+
+    Raises:
+        ValueError: The time is not in ISO 8601 format
+    """
+    written_at = dt.datetime.fromisoformat(cached_at)
+    if written_at.tzinfo is None:
+        return written_at.replace(tzinfo=dt.UTC)
+    return written_at
+
+
 class CacheManager:
     """Manages caching of OpenAPI specs and endpoint metadata."""
 
@@ -58,10 +79,10 @@ class CacheManager:
             with Path(meta_path).open(encoding="utf-8") as meta_handle:
                 metadata = json.load(meta_handle)
 
-            cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
+            cached_at = read_cached_at(metadata["cached_at"])
             expires_at = cached_at + self.ttl
 
-            return dt.datetime.now() < expires_at
+            return dt.datetime.now(dt.UTC) < expires_at
         except KeyError, ValueError:
             return False
 
@@ -106,7 +127,7 @@ class CacheManager:
 
         # Write metadata
         metadata = {
-            "cached_at": dt.datetime.now().isoformat(),
+            "cached_at": dt.datetime.now(dt.UTC).isoformat(),
             "key": key,
             "size": len(json.dumps(data)),
         }
@@ -156,10 +177,10 @@ class CacheManager:
                     with Path(meta_file).open(encoding="utf-8") as meta_handle:
                         metadata = json.load(meta_handle)
 
-                    cached_at = dt.datetime.fromisoformat(metadata.get("cached_at"))
+                    cached_at = read_cached_at(metadata["cached_at"])
                     expires_at = cached_at + self.ttl
 
-                    if dt.datetime.now() < expires_at:
+                    if dt.datetime.now(dt.UTC) < expires_at:
                         valid_count += 1
                     else:
                         expired_count += 1

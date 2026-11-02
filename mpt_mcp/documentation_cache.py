@@ -59,7 +59,7 @@ class DocumentationCache:
         if self._space_content is None or self._last_refresh is None:
             return True
 
-        return dt.datetime.now() - self._last_refresh > self.refresh_interval
+        return dt.datetime.now(dt.UTC) - self._last_refresh > self.refresh_interval
 
     async def refresh(self, *, force: bool = False) -> bool:
         """
@@ -90,7 +90,7 @@ class DocumentationCache:
             space_content = await self.gitbook_client.fetch_space_content()
 
             self._space_content = space_content
-            self._last_refresh = dt.datetime.now()
+            self._last_refresh = dt.datetime.now(dt.UTC)
 
             self._build_resource_index()
 

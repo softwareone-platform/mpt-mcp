@@ -195,9 +195,7 @@ ignore = [
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "call-datetime-now-without-tzinfo",  # 13
     "complex-structure",  # 20
-    "datetime-min-max",  # 1
     "global-statement",  # 12
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 17

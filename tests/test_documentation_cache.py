@@ -376,7 +376,7 @@ async def test_needs_refresh_false_right_after_refresh(mock_gitbook_client):
 async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeypatch):
     cache = DocumentationCache(gitbook_client=mock_gitbook_client, refresh_interval_hours=1)
     await cache.refresh()
-    two_hours_later = dt.datetime.now() + dt.timedelta(hours=2)
+    two_hours_later = dt.datetime.now(dt.UTC) + dt.timedelta(hours=2)
     monkeypatch.setattr(
         "mpt_mcp.documentation_cache.dt",
         Mock(datetime=Mock(now=Mock(return_value=two_hours_later))),
