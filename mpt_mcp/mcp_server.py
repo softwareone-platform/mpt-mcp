@@ -12,8 +12,9 @@ Read-only access to the SoftwareOne Marketplace API, with the caller's credentia
 Marketplace documentation.
 
 To answer questions about Marketplace data:
-1. Find the resource with marketplace_resources. Resources are named after their API path, \
-for example commerce.orders or catalog.products.by_id.
+1. Find the resource with marketplace_resources: narrow it with search (for example order) or \
+category (for example commerce), since the full list has hundreds of resources. Resources are \
+named after their API path, for example commerce.orders or catalog.products.by_id.
 2. Check its parameters and enum values with marketplace_resource_info, its response fields \
 with marketplace_resource_schema, and its audit events (audit.<event>.at and \
 audit.<event>.by) with marketplace_audit_fields when filtering by date or user.

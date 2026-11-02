@@ -28,7 +28,7 @@ Both servers serve the same tools:
 | Tool | Purpose |
 |---|---|
 | `marketplace_query` | Query a Marketplace API resource with RQL, `select`, `order` and pagination |
-| `marketplace_resources` | List the queryable resources, grouped by category |
+| `marketplace_resources` | List the queryable resources by category, with their name and summary; `category` adds their path, description and filterable fields, and `search` filters by name or summary |
 | `marketplace_resource_info` | Describe a resource: filterable fields, enum values, path parameters, examples |
 | `marketplace_resource_schema` | Return the full response schema of a resource |
 | `marketplace_audit_fields` | List the audit events (`created`, `updated`, `failed`…) of each resource |

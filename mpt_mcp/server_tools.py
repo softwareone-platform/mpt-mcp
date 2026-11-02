@@ -438,13 +438,23 @@ async def marketplace_resource_schema(
 
 
 async def marketplace_resources(
+    category: str | None = None,
+    search: str | None = None,
     call_context: CallContext = Depends(get_call_context),
 ) -> ResourcesResponse:
     """
-    List all available API resources.
+    List the queryable API resources, grouped by category.
+
+    Without a category, each resource comes with its name and summary only. Pass a category to
+    get the path, description and filterable fields of its resources.
+
+    Args:
+        category: Only resources of this category, with their details (e.g. commerce, catalog)
+        search: Only resources whose name or summary contains this text (e.g. order)
+        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
 
     Returns:
-        A categorized list of all available API endpoints
+        Resources by category
     """
     try:
         api_client = await call_context.create_api_client()
@@ -462,6 +472,8 @@ async def marketplace_resources(
             api_base_url=api_base_url,
             user_id=call_context.user_id,
             endpoints_registry=endpoints_registry_data,
+            category=category,
+            search=search,
         )
     )
 

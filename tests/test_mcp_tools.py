@@ -397,6 +397,91 @@ def test_resource_info_select_documents_omitted(endpoints_registry):
     assert "select=+field" in select_doc or "+field" in select_doc
 
 
+@pytest.fixture
+def resources_registry():
+    return {
+        "catalog.products": {
+            "path": "/public/v1/catalog/products",
+            "summary": "List products",
+            "description": "Products of the catalog",
+            "parameters": [
+                {"name": "status", "in": "query", "schema": {"enum": ["Draft", "Published"]}}
+            ],
+        },
+        "commerce.orders": {
+            "path": "/public/v1/commerce/orders",
+            "summary": "List orders",
+            "parameters": [],
+        },
+        "commerce.orders.by_id": {
+            "path": "/public/v1/commerce/orders/{id}",
+            "summary": "Get an order",
+            "parameters": [{"name": "id", "in": "path"}],
+        },
+    }
+
+
+def test_resources_lists_names_and_summaries(resources_registry):
+    result = execute_marketplace_resources(
+        api_base_url="https://api.test.com", user_id=None, endpoints_registry=resources_registry
+    )
+
+    assert result["categories"] == {
+        "catalog": [{"resource": "catalog.products", "summary": "List products"}],
+        "commerce": [
+            {"resource": "commerce.orders", "summary": "List orders"},
+            {"resource": "commerce.orders.by_id", "summary": "Get an order"},
+        ],
+    }
+
+
+def test_resources_category_adds_details(resources_registry):
+    result = execute_marketplace_resources(
+        api_base_url="https://api.test.com",
+        user_id=None,
+        endpoints_registry=resources_registry,
+        category="catalog",
+    )
+
+    assert result["categories"] == {
+        "catalog": [
+            {
+                "resource": "catalog.products",
+                "summary": "List products",
+                "path": "/public/v1/catalog/products",
+                "description": "Products of the catalog",
+                "filterable_fields": ["status"],
+                "enum_fields": {"status": ["Draft", "Published"]},
+            }
+        ]
+    }
+
+
+def test_resources_search_matches_name_or_summary(resources_registry):
+    result = execute_marketplace_resources(
+        api_base_url="https://api.test.com",
+        user_id=None,
+        endpoints_registry=resources_registry,
+        search="ORDER",
+    )
+
+    assert result["total_resources"] == 2
+    assert list(result["categories"]) == ["commerce"]
+
+
+def test_resources_unknown_category_fails(resources_registry):
+    with pytest.raises(ToolError, match="Unknown category: commrce") as error:
+        execute_marketplace_resources(
+            api_base_url="https://api.test.com",
+            user_id=None,
+            endpoints_registry=resources_registry,
+            category="commrce",
+        )
+
+    _, error_details = str(error.value).split("\n", 1)
+    assert json.loads(error_details) == {"available_categories": ["catalog", "commerce"]}
+
+
 def test_resources_tips_mention_omitted_fields():
     mock_registry = {
         "commerce.orders": {

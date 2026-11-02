@@ -100,18 +100,16 @@ class QuickQueriesResponse(ToolResponse):
 
 
 class ResourceEntry(ToolResponse):
-    """Queryable resource."""
+    """Queryable resource; its path, description and query parameters come with a category."""
 
     resource: str = Field(description="Resource name to pass to marketplace_query")
     summary: str = Field(description="What the resource returns")
-    path: str = Field(description="API path, with its path parameters in braces")
+    path: str | None = optional_field("API path, with its path parameters in braces")
     description: str | None = optional_field("Longer description from the OpenAPI spec")
     filterable_fields: list[str] | None = optional_field("First query parameters of the resource")
     enum_fields: dict[str, list[Any]] | None = optional_field(
         "Query parameters with a fixed set of values, and those values"
     )
-    example_queries: list[str] = Field(description="marketplace_query calls for the resource")
-    get_full_schema: str = Field(description="marketplace_resource_schema call for the resource")
 
 
 class ResourcesResponse(ToolResponse):
@@ -119,7 +117,7 @@ class ResourcesResponse(ToolResponse):
 
     api_endpoint: str = Field(description="Marketplace API endpoint the resources belong to")
     user: str = Field(description="Caller's user or token ID, or unknown")
-    total_resources: int = Field(description="Number of resources across all categories")
+    total_resources: int = Field(description="Number of resources returned")
     categories: dict[str, list[ResourceEntry]] = Field(
         description="Resources by category, the first segment of the resource name"
     )

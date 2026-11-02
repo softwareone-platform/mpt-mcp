@@ -28,6 +28,9 @@ KEY_META = "$meta"
 
 API_ERROR_TEXT_MAX_LENGTH = 500
 
+# Query parameters listed per resource by marketplace_resources(category=...)
+MAX_FILTERABLE_FIELDS = 5
+
 RQL_LOG_LENGTH = 80
 
 # Suggestions for an unknown resource: how many, and how close a misspelled name must be (0-1)
@@ -681,104 +684,100 @@ def execute_marketplace_quick_queries() -> dict[str, Any]:
 # ============================================================================
 
 
+def describe_resource(resource_name: str, endpoint_info: dict[str, Any]) -> dict[str, Any]:
+    """
+    Describe a resource for marketplace_resources: its path, description and query parameters.
+
+    Args:
+        resource_name: Resource name
+        endpoint_info: Registry entry of the resource
+
+    Returns:
+        Resource entry with its name, summary, path, description, filterable and enum fields
+    """
+    resource_entry = {
+        "resource": resource_name,
+        "summary": endpoint_info["summary"],
+        "path": endpoint_info["path"],
+    }
+    if endpoint_info.get("description"):
+        resource_entry["description"] = endpoint_info["description"]
+
+    filterable_fields = []
+    enum_fields = {}
+    for param_spec in endpoint_info.get("parameters", []):
+        param_name = param_spec.get("name", "")
+        if param_spec.get("in") == "query" and param_name:
+            filterable_fields.append(param_name)
+            param_schema = param_spec.get("schema", {})
+            if "enum" in param_schema:
+                enum_fields[param_name] = param_schema["enum"]
+
+    if filterable_fields:
+        resource_entry["filterable_fields"] = filterable_fields[:MAX_FILTERABLE_FIELDS]
+    if enum_fields:
+        resource_entry["enum_fields"] = enum_fields
+
+    return resource_entry
+
+
 def execute_marketplace_resources(
     api_base_url: str,
     user_id: str | None,
     endpoints_registry: dict[str, Any],
+    category: str | None = None,
+    search: str | None = None,
 ) -> dict[str, Any]:
     """
     Core logic for marketplace_resources tool.
+
+    Without a category, every resource has only its name and summary, so the whole catalog fits
+    in a tool response; a category adds the details of its resources.
 
     Args:
         api_base_url: The API base URL
         user_id: Current user ID (for display)
         endpoints_registry: Registry of available endpoints
+        category: Only resources of this category, with their details
+        search: Only resources whose name or summary contains this text (case-insensitive)
 
     Returns:
-        Detailed resource catalog organized by category
+        Resource catalog organized by category
+
+    Raises:
+        ToolError: The category does not exist
     """
-    # Build enhanced categories with more metadata
+    all_categories = sorted({resource_name.split(".")[0] for resource_name in endpoints_registry})
+    if category is not None and category not in all_categories:
+        raise tool_error(f"Unknown category: {category}", available_categories=all_categories)
+
+    search_lower = search.lower() if search else None
     categories: dict[str, list[dict[str, Any]]] = {}
     for resource_name, endpoint_info in endpoints_registry.items():
-        category = resource_name.split(".")[0]
-        if category not in categories:
-            categories[category] = []
+        resource_category = resource_name.split(".")[0]
+        if category is not None and resource_category != category:
+            continue
 
-        # Build resource entry with enhanced information
-        resource_entry = {
-            "resource": resource_name,
-            "summary": endpoint_info["summary"],
-            "path": endpoint_info["path"],
-        }
+        summary = endpoint_info["summary"]
+        if search_lower and search_lower not in f"{resource_name} {summary}".lower():
+            continue
 
-        # Add description if available
-        if endpoint_info.get("description"):
-            resource_entry["description"] = endpoint_info["description"]
+        if category is None:
+            resource_entry = {"resource": resource_name, "summary": summary}
+        else:
+            resource_entry = describe_resource(resource_name, endpoint_info)
+        categories.setdefault(resource_category, []).append(resource_entry)
 
-        # Extract common filterable fields from parameters
-        param_specs = endpoint_info.get("parameters", [])
-        filterable_fields = []
-        enum_fields = {}
-
-        for param_spec in param_specs:
-            param_name = param_spec.get("name", "")
-            if param_spec.get("in") == "query" and param_name:
-                filterable_fields.append(param_name)
-
-                # Check for enum values
-                param_schema = param_spec.get("schema", {})
-                if "enum" in param_schema:
-                    enum_fields[param_name] = param_schema["enum"]
-
-        if filterable_fields:
-            resource_entry["filterable_fields"] = filterable_fields[:5]  # Limit to first 5
-
-        if enum_fields:
-            resource_entry["enum_fields"] = enum_fields
-
-        # Add common query examples based on resource type
-        examples = []
-
-        # Basic listing
-        examples.append(f"marketplace_query(resource='{resource_name}', limit=10)")
-
-        # Add filter examples if we know common fields
-        if "status" in filterable_fields or any("status" in ef for ef in enum_fields):
-            if "status" in enum_fields:
-                status_value = enum_fields["status"][0] if enum_fields["status"] else "Active"
-            else:
-                status_value = "Active"
-            examples.append(
-                f"marketplace_query(resource='{resource_name}', rql='eq(status,{status_value})', "
-                "limit=20)"
-            )
-
-        # Add search example for resources that likely have name fields
-        if "name" in filterable_fields or resource_name.endswith((
-            ".products",
-            ".items",
-            ".vendors",
-        )):
-            examples.append(
-                f"marketplace_query(resource='{resource_name}', rql='ilike(name,*keyword*)', "
-                "limit=10)"
-            )
-
-        resource_entry["example_queries"] = examples
-
-        # Add hint about getting full schema
-        resource_entry["get_full_schema"] = (
-            f"marketplace_resource_schema(resource='{resource_name}')"
-        )
-
-        categories[category].append(resource_entry)
+    total_resources = sum(len(entries) for entries in categories.values())
 
     return {
         "api_endpoint": api_base_url,
         "user": user_id or "unknown",
-        "total_resources": len(endpoints_registry),
+        "total_resources": total_resources,
         "categories": categories,
         "usage": {
+            "list_category": "Use marketplace_resources(category='...') for the descriptions, "
+            "paths and filterable fields of a category's resources",
             "query_resource": "Use marketplace_query(resource='category.resource', ...) to query "
             "any resource",
             "get_schema": "Use marketplace_resource_schema(resource='...') to see full field "
