@@ -256,16 +256,20 @@ async def marketplace_query(
         rql: Advanced RQL query string. Examples: eq(status,Active), ilike(name,*Microsoft*).
             Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Use the limit, offset, select and order
             arguments for pagination, fields and sorting, not this string.
-        limit: Max items to return (default 10, max 100). Use select= with only needed fields
-            (from marketplace_resource_schema) to avoid huge responses. Ignored for resources
-            that return a single item (path ending in a parameter, e.g. *.by_id).
+        limit: Max items to return (default 10, max 100). With many items, return only the
+            fields you need (select=-*,+field1,+field2) to avoid huge responses. Ignored for
+            resources that return a single item (path ending in a parameter, e.g. *.by_id).
         offset: Number of items to skip for pagination (e.g., 0, 20, 40). Ignored for
             resources that return a single item.
-        select: Fields to include/exclude (+name,+description or -metadata). 'audit' is added
-            automatically when rql or order use audit fields. Nested: +subscriptions (full),
-            +subscriptions.id, +subscriptions.id,+subscriptions.name.
-            For catalog.products when including vendor use +vendor.id,+vendor.name (not +vendor).
-            RQL filter fields must exist—use marketplace_resource_schema(resource) to check.
+        select: Fields of each item. The API returns a default set of fields:
+            -*,+id,+product.name returns only the listed fields (start with -* to keep
+            responses small); +lines adds a field omitted by default (see $meta.omitted) to the
+            default set; -price removes one. Nested: +subscriptions (full), +subscriptions.id.
+            id, status and name are always included when the resource has them, fields the
+            resource does not have are dropped, and 'audit' is added when rql or order use
+            audit fields. For catalog.products include vendor as +vendor.id,+vendor.name (not
+            +vendor). Without select, catalog.products returns only id, status, name and
+            shortDescription.
         order: Sort order (e.g., -audit.created.at for descending, +name for ascending)
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id

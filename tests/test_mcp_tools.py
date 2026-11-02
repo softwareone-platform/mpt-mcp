@@ -345,7 +345,7 @@ async def test_default_limit_logs_message(send_query, products_page_response, ca
 async def test_catalog_products_default_select(send_query, products_page_response):
     result = await send_query(response=products_page_response, resource="catalog.products")
 
-    assert {"id", "name", "+shortDescription"} <= set(result["select"].split(","))
+    assert result["select"] == "-*,+id,+name,+shortDescription"
 
 
 @pytest.fixture
@@ -390,11 +390,9 @@ def test_resource_info_select_documents_omitted(endpoints_registry):
         endpoints_registry=endpoints_registry,
     )
 
-    # Verify select parameter documentation mentions omitted fields
-    assert "common_parameters" in result
     select_doc = result["common_parameters"]["select"]
-    assert "omitted" in select_doc.lower() or "$meta.omitted" in select_doc
-    assert "select=+field" in select_doc or "+field" in select_doc
+    assert "select=-*,+id,+name" in select_doc
+    assert "$meta.omitted" in select_doc
 
 
 @pytest.fixture

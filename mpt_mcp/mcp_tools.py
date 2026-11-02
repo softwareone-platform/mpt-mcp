@@ -422,9 +422,9 @@ async def execute_marketplace_query(
     # When listing catalog.products without select, default to table-friendly fields to avoid
     # huge payloads and markdown table breaks (URLs, nested objects with "|" in values).
     if resource == "catalog.products" and (not select or not select.strip()):
-        select = "+id,+name,+shortDescription"
+        select = "-*,+id,+name,+shortDescription"
         logger.info(
-            "Default select for catalog.products: +id,+name,+shortDescription (omit select "
+            "Default select for catalog.products: -*,+id,+name,+shortDescription (omit select "
             "for full fields)"
         )
 
@@ -798,9 +798,10 @@ def execute_marketplace_resources(
                 "(ascending)"
             ),
             "field_selection": (
-                "Use select=: select=+id,+name,+status or select=-metadata. Many fields omitted "
-                "by default "
-                f"({KEY_META}.omitted). Use select=+field for lines, parameters, subscriptions. "
+                "Start select with -* to return only the listed fields: select=-*,+id,+status. "
+                "Without -*, +field adds a field to the default ones and -field removes one. "
+                f"Many fields are omitted by default ({KEY_META}.omitted): add them with "
+                "select=+lines, +parameters or +subscriptions. "
                 "Nested: "
                 "+subscriptions (full), +subscriptions.id (ids only), "
                 "+subscriptions.id,+subscriptions.name. "
@@ -935,7 +936,7 @@ def execute_marketplace_resource_info(
         example_params = {param_name: f"<{param_name}_value>" for param_name in path_params_info}
         examples.append(
             f"marketplace_query(resource='{resource}', path_params={example_params}, "
-            "select='+id,+name')"
+            "select='-*,+id,+name')"
         )
 
     result = {
@@ -950,10 +951,11 @@ def execute_marketplace_resource_info(
             "limit": "Maximum number of items to return",
             "offset": "Number of items to skip",
             "select": (
-                "Fields to include/exclude. Use select=+field for omitted fields (see "
-                f"{KEY_META}.omitted). Example: select=+lines,+parameters."
+                "Fields of each item. select=-*,+id,+name returns only the listed fields; "
+                "select=+lines,+parameters adds fields omitted by default (see "
+                f"{KEY_META}.omitted) to the default ones."
             ),
-            "order": "Sort order (e.g., -created for descending, +name for ascending)",
+            "order": "Sort order (e.g., -audit.created.at for descending, +name for ascending)",
             "path_params": "Dictionary of path parameters (e.g., {id: PRD-1234-5678})",
         },
         "omitted_fields_note": (
@@ -1133,7 +1135,9 @@ def execute_marketplace_resource_schema(
         "basic": f"{resource}?limit=10",
         "with_filters": f"{resource}?eq(status,Active)&limit=20",
         "with_sorting": f"{resource}?order=-id&limit=10",
-        "full_example": f"{resource}?eq(status,Active)&order=-id&select=+id,+name,+status&limit=50",
+        "full_example": (
+            f"{resource}?eq(status,Active)&order=-id&select=-*,+id,+name,+status&limit=50"
+        ),
     }
 
     return schema_info

@@ -54,7 +54,7 @@ Resources are named after their API path: `/public/v1/catalog/products` is `cata
 
 ```text
 marketplace_query(resource="catalog.products", limit=10)
-marketplace_query(resource="catalog.products", rql="eq(status,Published)", select="+id,+name")
+marketplace_query(resource="catalog.products", rql="eq(status,Published)", select="-*,+id,+name")
 marketplace_query(resource="commerce.orders", rql="ilike(product.name,*Microsoft*)", order="-audit.created.at")
 marketplace_query(resource="catalog.products.by_id", path_params={"id": "PRD-1234-5678"})
 ```
@@ -62,7 +62,8 @@ marketplace_query(resource="catalog.products.by_id", path_params={"id": "PRD-123
 Query behaviour:
 
 - `limit` defaults to 10 and is capped at 100; use `offset` to paginate. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
-- `catalog.products` returns `+id,+name,+shortDescription` when no `select` is given.
+- Each item comes with the resource's default fields. `select` starting with `-*` returns only the listed fields (`-*,+id,+product.name`); without it, `+field` adds a field omitted by default (listed in `$meta.omitted`) and `-field` removes one. `id`, `status` and `name` are always kept when the resource has them.
+- `catalog.products` returns only `id`, `status`, `name` and `shortDescription` when no `select` is given.
 - Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds `audit` to `select`, which the API requires; if the API rejects it, the query is retried without it.
 - `select` fields that are not in the resource schema are dropped when the schema is known.
 - Resources with path parameters fail with an example `path_params` when they are missing.

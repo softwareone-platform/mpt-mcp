@@ -18,8 +18,9 @@ named after their API path, for example commerce.orders or catalog.products.by_i
 2. Check its parameters and enum values with marketplace_resource_info, its response fields \
 with marketplace_resource_schema, and its audit events (audit.<event>.at and \
 audit.<event>.by) with marketplace_audit_fields when filtering by date or user.
-3. Query it with marketplace_query: filter with rql, choose fields with select, sort with \
-order, and paginate with limit and offset (10 items by default, 100 at most).
+3. Query it with marketplace_query: filter with rql, sort with order, and paginate with limit \
+and offset (10 items by default, 100 at most). Every item comes with a default set of fields: \
+to return only the fields you need, start select with -* (select=-*,+id,+status).
 marketplace_quick_queries has ready-made queries for common questions.
 
 To answer questions about how the Marketplace works, browse marketplace_docs_index or search \
