@@ -33,6 +33,16 @@ async def test_get_openapi_spec_fetches_spec(fetch_openapi_spec, unique_endpoint
     assert result == {"openapi": "3.0.0", "info": {"title": unique_endpoint}}
 
 
+async def test_get_openapi_spec_retries_after_failure(fetch_openapi_spec, unique_endpoint):
+    fetch_openapi_spec.side_effect = [RuntimeError("Connection refused"), {"openapi": "3.0.0"}]
+    with pytest.raises(RuntimeError):
+        await get_openapi_spec(unique_endpoint)
+
+    result = await get_openapi_spec(unique_endpoint)
+
+    assert result == {"openapi": "3.0.0"}
+
+
 async def test_get_openapi_spec_caches_per_endpoint(fetch_openapi_spec, unique_endpoint):
     await get_openapi_spec(unique_endpoint)
     await get_openapi_spec(f"{unique_endpoint}.other")

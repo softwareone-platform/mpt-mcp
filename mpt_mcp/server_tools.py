@@ -335,13 +335,16 @@ async def marketplace_refresh_cache(
         raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     logger.info("Force refreshing OpenAPI spec cache...")
-    endpoints_registry_data = await endpoint_registry.get_endpoints_registry(
-        api_client.base_url, force_refresh=True
-    )
-    if not endpoints_registry_data:
-        raise tool_error(
-            OPENAPI_SPEC_LOAD_ERROR, hint="Failed to refresh cache. Check network connection."
+    try:
+        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(
+            api_client.base_url, force_refresh=True
         )
+    except Exception as error:
+        raise tool_error(
+            OPENAPI_SPEC_LOAD_ERROR,
+            details=str(error),
+            hint="Failed to refresh cache. Check network connection.",
+        ) from error
 
     return {
         "success": True,

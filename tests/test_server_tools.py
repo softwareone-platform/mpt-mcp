@@ -513,7 +513,7 @@ async def test_refresh_cache_reloads_registry(call_context, endpoints_registry, 
 
 
 async def test_refresh_cache_reports_failed_load(call_context, endpoints_registry, api_client):
-    endpoints_registry.return_value = {}
+    endpoints_registry.side_effect = httpx.ConnectError("Connection refused")
 
     with pytest.raises(ToolError, match="Failed to load OpenAPI spec"):
         await server_tools.marketplace_refresh_cache(call_context=call_context)

@@ -154,6 +154,9 @@ async def get_endpoints_registry(
 
     Returns:
         Dictionary mapping resource IDs to endpoint information
+
+    Raises:
+        Exception: The OpenAPI spec could not be fetched or parsed
     """
     # Check if we already have this registry cached
     if api_base_url in _endpoint_registries and not force_refresh:
@@ -194,10 +197,9 @@ async def get_endpoints_registry(
         return registry
 
     except Exception:
+        # Nothing is cached, so the next call retries the spec instead of serving no resources
         logger.exception("Failed to initialize endpoints registry for %s", api_base_url)
-        # Return empty registry on failure
-        _endpoint_registries[api_base_url] = {}
-        return {}
+        raise
 
 
 async def get_openapi_spec(api_base_url: str, *, force_refresh: bool = False) -> dict[str, Any]:
