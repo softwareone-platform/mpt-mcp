@@ -22,6 +22,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 MEDIA_TYPE_JSON = "application/json"
+UNFILTERABLE_TYPES = frozenset(("array", "object", "unknown"))
 # SoftwareOne API response key for metadata (pagination, omitted fields, etc.)
 KEY_META = "$meta"
 
@@ -127,17 +128,40 @@ def get_allowed_select_fields(
     resource: str,
 ) -> set[str]:
     """Return the top-level fields allowed in select, from the GET response item schema."""
+    item_schema = get_response_item_schema(openapi_spec, endpoints_registry, resource)
+    return set((item_schema.get("properties") or {}).keys())
+
+
+def get_response_item_schema(
+    openapi_spec: dict[str, Any],
+    endpoints_registry: dict[str, Any],
+    resource: str,
+) -> dict[str, Any]:
+    """
+    Return the schema of one item of a resource's GET response.
+
+    List responses wrap their items as {"$meta": ..., "data": [items]}; the item schema is the
+    one inside data, and single-item responses are the item themselves.
+
+    Args:
+        openapi_spec: The full OpenAPI specification
+        endpoints_registry: Registry of available endpoints
+        resource: The resource to get the item schema for
+
+    Returns:
+        Item schema with its $ref and allOf resolved, or {} when the spec does not describe it
+    """
     if resource not in endpoints_registry or not openapi_spec:
-        return set()
+        return {}
 
     endpoint_info = endpoints_registry[resource]
     path = endpoint_info.get("path")
     if not path:
-        return set()
+        return {}
 
     paths = openapi_spec.get("paths") or {}
     if path not in paths or "get" not in paths[path]:
-        return set()
+        return {}
 
     get_op = paths[path]["get"]
     responses = get_op.get("responses") or {}
@@ -145,7 +169,7 @@ def get_allowed_select_fields(
     json_content = response_content.get(MEDIA_TYPE_JSON) or {}
     schema = json_content.get("schema")
     if not schema or not isinstance(schema, dict):
-        return set()
+        return {}
 
     if "$ref" in schema:
         ref_path = schema["$ref"].split("/")
@@ -158,11 +182,7 @@ def get_allowed_select_fields(
     item_schema = (
         resolve_schema(openapi_spec, item_schema) if isinstance(item_schema, dict) else item_schema
     )
-    if not isinstance(item_schema, dict):
-        return set()
-
-    properties = item_schema.get("properties") or {}
-    return set(properties.keys())
+    return item_schema if isinstance(item_schema, dict) else {}
 
 
 # When present in schema, these fields are always added to select so responses are usable (id,
@@ -1046,13 +1066,19 @@ def execute_marketplace_resource_schema(
 
                 schema_info["response_schema"] = schema
 
-                # Extract field information from properties
-                if "properties" in schema:
+                # Fields are those of one item: list responses wrap their items in data
+                item_schema = get_response_item_schema(openapi_spec, endpoints_registry, resource)
+                if "properties" in item_schema:
                     fields = {}
-                    for field_name, field_schema in schema["properties"].items():
+                    for field_name, declared_schema in item_schema["properties"].items():
+                        field_schema = resolve_schema(openapi_spec, declared_schema)
+                        field_type = field_schema.get("type")
+                        if not field_type:
+                            field_type = "object" if "properties" in field_schema else "unknown"
                         field_info = {
-                            "type": field_schema.get("type", "unknown"),
-                            "description": field_schema.get("description", ""),
+                            "type": field_type,
+                            "description": declared_schema.get("description")
+                            or field_schema.get("description", ""),
                         }
 
                         if "enum" in field_schema:
@@ -1066,7 +1092,7 @@ def execute_marketplace_resource_schema(
                             field_info["format"] = field_schema["format"]
 
                         # For nested objects, show structure
-                        if field_schema.get("type") == "object" and "properties" in field_schema:
+                        if "properties" in field_schema:
                             nested_fields = {}
                             for nested_name, nested_schema in list(
                                 field_schema["properties"].items()
@@ -1081,16 +1107,21 @@ def execute_marketplace_resource_schema(
 
                     schema_info["fields"] = fields
 
-                    # Add filtering hints
+                    # Filter hints only for fields RQL compares directly, not objects or arrays
+                    scalar_fields = [
+                        field_name
+                        for field_name, field_info in fields.items()
+                        if field_info["type"] not in UNFILTERABLE_TYPES
+                    ]
                     schema_info["filtering_hints"] = {
                         "simple_filters": [
-                            f"eq({filter_field},value)" for filter_field in list(fields.keys())[:5]
+                            f"eq({filter_field},value)" for filter_field in scalar_fields[:5]
                         ],
                         "search_fields": [
                             f"ilike({filter_field},*keyword*)"
-                            for filter_field, filter_info in list(fields.items())[:3]
-                            if filter_info.get("type") == "string"
-                        ],
+                            for filter_field in scalar_fields
+                            if fields[filter_field]["type"] == "string"
+                        ][:3],
                         "enum_filters": [
                             f"eq({filter_field},{filter_info['enum'][0]})"
                             for filter_field, filter_info in fields.items()

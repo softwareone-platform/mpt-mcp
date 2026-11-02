@@ -11,6 +11,7 @@ from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.mcp_tools import (
     execute_marketplace_query,
     execute_marketplace_resource_info,
+    execute_marketplace_resource_schema,
     execute_marketplace_resources,
     suggest_resources,
     tool_error,
@@ -443,6 +444,40 @@ def openapi_spec_with_fields():
         return {"paths": {"/public/v1/commerce/orders": {"get": {"responses": response}}}}
 
     return _openapi_spec_with_fields
+
+
+def test_resource_schema_lists_item_fields(endpoints_registry, openapi_spec_with_fields):
+    result = execute_marketplace_resource_schema(
+        resource="commerce.orders",
+        openapi_spec=openapi_spec_with_fields(["id", "status"]),
+        endpoints_registry=endpoints_registry,
+    )
+
+    assert list(result["fields"]) == ["id", "status"]
+
+
+def test_resource_schema_resolves_field_refs(endpoints_registry):
+    order_schema = {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "audit": {"allOf": [{"$ref": "#/components/schemas/Audit"}]},
+        },
+    }
+    list_schema = {"properties": {"data": {"type": "array", "items": {"$ref": "#/order"}}}}
+    response = {"200": {"content": {"application/json": {"schema": list_schema}}}}
+    openapi_spec = {
+        "order": order_schema,
+        "components": {"schemas": {"Audit": {"properties": {"created": {"type": "object"}}}}},
+        "paths": {"/public/v1/commerce/orders": {"get": {"responses": response}}},
+    }
+
+    result = execute_marketplace_resource_schema(
+        resource="commerce.orders", openapi_spec=openapi_spec, endpoints_registry=endpoints_registry
+    )
+
+    assert result["fields"]["audit"]["type"] == "object"
+    assert result["filtering_hints"]["simple_filters"] == ["eq(id,value)"]
 
 
 @pytest.fixture
