@@ -38,12 +38,24 @@ class Pagination(ToolResponse):
     total: int | None = optional_field("Items that match the query across all pages")
 
 
+class QueryTruncation(ToolResponse):
+    """Items left out of a page that did not fit in the result size limit."""
+
+    returned: int = Field(description="Items in this page")
+    requested: int = Field(description="Items the API returned for the page")
+    next_offset: int = Field(description="Offset to continue with")
+    hint: str = Field(description="How to get the rest of the items")
+
+
 class QueryMeta(ToolResponse):
     """Metadata of a Marketplace API response."""
 
     pagination: Pagination | None = optional_field("Pagination of a list response")
     omitted: list[str] | None = optional_field(
         "Fields left out by default; request them with select=+field"
+    )
+    truncated: QueryTruncation | None = optional_field(
+        "Set when the page was cut to fit the result size limit"
     )
 
 
@@ -103,7 +115,7 @@ class ResourceEntry(ToolResponse):
     """Queryable resource; its path, description and query parameters come with a category."""
 
     resource: str = Field(description="Resource name to pass to marketplace_query")
-    summary: str = Field(description="What the resource returns")
+    summary: str | None = optional_field("What the resource returns, unless the list is too long")
     path: str | None = optional_field("API path, with its path parameters in braces")
     description: str | None = optional_field("Longer description from the OpenAPI spec")
     filterable_fields: list[str] | None = optional_field("First query parameters of the resource")
@@ -123,6 +135,7 @@ class ResourcesResponse(ToolResponse):
     )
     usage: dict[str, str] = Field(description="Which tool to use for each next step")
     tips: dict[str, str] = Field(description="How to filter, paginate, sort and select fields")
+    note: str | None = optional_field("Set when the list was shortened to fit in one result")
 
 
 class RelatedResource(ToolResponse):

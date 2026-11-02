@@ -9,10 +9,12 @@ from httpx import HTTPStatusError, Request, Response
 
 from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.mcp_tools import (
+    CHARACTER_LIMIT,
     execute_marketplace_query,
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
+    fit_result_to_budget,
     suggest_resources,
     tool_error,
 )
@@ -20,6 +22,12 @@ from mpt_mcp.mcp_tools import (
 PRODUCTS_PAGE_SIZE = 10
 
 QUERY_LIMIT = 50
+
+PAGE_OFFSET = 20
+
+# Resources that make the marketplace_resources list longer than one result
+LONG_REGISTRY_SIZE = 300
+LONG_CATEGORY_SIZE = 80
 
 AUDIT_RQL = 'gt(audit.created.at,"2026-01-22T00:00:00Z")'
 
@@ -481,6 +489,48 @@ def test_resources_search_matches_name_or_summary(resources_registry):
     assert list(result["categories"]) == ["commerce"]
 
 
+@pytest.fixture
+def long_registry():
+    summary = "x" * 100
+    endpoint_info = {"path": "/public/v1/commerce/resource", "summary": summary}
+    endpoint_info.update(description=summary, parameters=[])
+    resource_names = [f"commerce.resource{index}" for index in range(LONG_REGISTRY_SIZE)]
+    return dict.fromkeys(resource_names, endpoint_info)
+
+
+def test_resources_long_list_keeps_names(long_registry):
+    result = execute_marketplace_resources(
+        api_base_url="https://api.test.com", user_id=None, endpoints_registry=long_registry
+    )
+
+    entries = result["categories"]["commerce"]
+    assert len(json.dumps(result)) <= CHARACTER_LIMIT
+    assert len(entries) == LONG_REGISTRY_SIZE
+    assert entries[0] == {"resource": "commerce.resource0"}
+    assert "category or search" in result["note"]
+
+
+def test_resources_long_category_keeps_summaries(long_registry):
+    result = execute_marketplace_resources(
+        api_base_url="https://api.test.com",
+        user_id=None,
+        endpoints_registry=dict(list(long_registry.items())[:LONG_CATEGORY_SIZE]),
+        category="commerce",
+    )
+
+    entries = result["categories"]["commerce"]
+    assert entries[0] == {"resource": "commerce.resource0", "summary": "x" * 100}
+    assert "marketplace_resource_info" in result["note"]
+
+
+def test_resources_short_list_has_no_note(resources_registry):
+    result = execute_marketplace_resources(
+        api_base_url="https://api.test.com", user_id=None, endpoints_registry=resources_registry
+    )
+
+    assert "note" not in result
+
+
 def test_resources_unknown_category_fails(resources_registry):
     with pytest.raises(ToolError, match="Unknown category: commrce") as error:
         execute_marketplace_resources(
@@ -736,3 +786,47 @@ def test_suggest_resources_closest_first():
     result = suggest_resources("catalog.product", resources)
 
     assert result[0] == "catalog.products"
+
+
+def big_page(item_count):
+    return {
+        "$meta": {"pagination": {"offset": PAGE_OFFSET, "limit": item_count, "total": 500}},
+        "data": [{"id": f"ORD-{index}", "notes": "x" * 1000} for index in range(item_count)],
+    }
+
+
+def test_fit_result_keeps_short_page():
+    page = big_page(3)
+
+    result = fit_result_to_budget(page, offset=PAGE_OFFSET)
+
+    assert result == page
+
+
+def test_fit_result_cuts_long_page():
+    page = big_page(100)
+
+    result = fit_result_to_budget(page, offset=PAGE_OFFSET)
+
+    returned = len(result["data"])
+    assert 0 < returned < 100
+    assert len(json.dumps(result)) <= CHARACTER_LIMIT
+    assert result["data"] == page["data"][:returned]
+    assert result["$meta"]["pagination"] == page["$meta"]["pagination"]
+    assert result["$meta"]["truncated"]["next_offset"] == PAGE_OFFSET + returned
+    assert result["$meta"]["truncated"]["requested"] == 100
+
+
+def test_fit_result_ignores_single_item():
+    order = {"id": "ORD-1", "notes": "x" * (CHARACTER_LIMIT * 2)}
+
+    result = fit_result_to_budget(order, offset=None)
+
+    assert result == order
+
+
+def test_fit_result_too_long_item_fails():
+    page = {"data": [{"id": "ORD-1", "notes": "x" * (CHARACTER_LIMIT * 2)}]}
+
+    with pytest.raises(ToolError, match="One item takes more than"):
+        fit_result_to_budget(page, offset=0)

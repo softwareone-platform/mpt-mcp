@@ -20,6 +20,7 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
+    fit_result_to_budget,
     tool_error,
 )
 from mpt_mcp.token_validator import get_token_cache
@@ -257,8 +258,10 @@ async def marketplace_query(
             Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Use the limit, offset, select and order
             arguments for pagination, fields and sorting, not this string.
         limit: Max items to return (default 10, max 100). With many items, return only the
-            fields you need (select=-*,+field1,+field2) to avoid huge responses. Ignored for
-            resources that return a single item (path ending in a parameter, e.g. *.by_id).
+            fields you need (select=-*,+field1,+field2) to avoid huge responses. A page too long
+            for one result is cut, and $meta.truncated gives the offset to continue with.
+            Ignored for resources that return a single item (path ending in a parameter, e.g.
+            *.by_id).
         offset: Number of items to skip for pagination (e.g., 0, 20, 40). Ignored for
             resources that return a single item.
         select: Fields of each item. The API returns a default set of fields:
@@ -316,7 +319,7 @@ async def marketplace_query(
     if not isinstance(result, dict):
         return QueryResponse(result=result)
 
-    return QueryResponse.model_validate(result)
+    return QueryResponse.model_validate(fit_result_to_budget(result, offset))
 
 
 def marketplace_quick_queries() -> QuickQueriesResponse:
@@ -450,7 +453,8 @@ async def marketplace_resources(
     List the queryable API resources, grouped by category.
 
     Without a category, each resource comes with its name and summary only. Pass a category to
-    get the path, description and filterable fields of its resources.
+    get the path, description and filterable fields of its resources. A list too long for one
+    result is shortened to fewer fields, and note says how to narrow it.
 
     Args:
         category: Only resources of this category, with their details (e.g. commerce, catalog)

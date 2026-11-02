@@ -31,6 +31,12 @@ API_ERROR_TEXT_MAX_LENGTH = 500
 # Query parameters listed per resource by marketplace_resources(category=...)
 MAX_FILTERABLE_FIELDS = 5
 
+# Characters of a tool result: long results fill the model's context, and some MCP clients reject
+# them. Results that may be longer are cut or come in parts
+CHARACTER_LIMIT = 25_000
+# Room left in the result for the truncation note
+TRUNCATION_NOTE_CHARACTERS = 400
+
 RQL_LOG_LENGTH = 80
 
 # Suggestions for an unknown resource: how many, and how close a misspelled name must be (0-1)
@@ -93,6 +99,61 @@ def log_query_result(result: Any) -> None:
         "yes" if meta else "no",
         omitted or "none",
     )
+
+
+def fit_result_to_budget(result: Any, offset: int | None) -> Any:
+    """
+    Cut a page of items to the ones that fit in CHARACTER_LIMIT.
+
+    A cut page says in $meta.truncated how many items it returns and the offset to continue with,
+    so the caller can page on instead of getting a result its MCP client rejects.
+
+    Args:
+        result: Marketplace API response
+        offset: Offset of the page
+
+    Returns:
+        The response, with only the items that fit when it is too long
+
+    Raises:
+        ToolError: Not even the first item of the page fits
+    """
+    page_items = result.get("data") if isinstance(result, dict) else None
+    if not isinstance(page_items, list):
+        return result
+    if len(json.dumps(result, default=str)) <= CHARACTER_LIMIT:
+        return result
+
+    used_characters = len(json.dumps({**result, "data": []}, default=str))
+    used_characters += TRUNCATION_NOTE_CHARACTERS
+    kept_items: list[Any] = []
+    for page_item in page_items:
+        used_characters += len(json.dumps(page_item, default=str)) + 1
+        if used_characters > CHARACTER_LIMIT:
+            break
+        kept_items.append(page_item)
+
+    if not kept_items:
+        raise tool_error(
+            f"One item takes more than {CHARACTER_LIMIT} characters",
+            hint="Return only the fields you need: select=-*,+id,+name",
+        )
+
+    next_offset = (offset or 0) + len(kept_items)
+    logger.info(
+        "Cut the page to %s of %s items to fit the result size", len(kept_items), len(page_items)
+    )
+    meta = result.get(KEY_META) or {}
+    truncated = {
+        "returned": len(kept_items),
+        "requested": len(page_items),
+        "next_offset": next_offset,
+        "hint": (
+            f"The page was cut to fit the result size limit. Continue with offset={next_offset}, "
+            "or return only the fields you need (select=-*,+id,+field) to get more items per page."
+        ),
+    }
+    return {**result, KEY_META: {**meta, "truncated": truncated}, "data": kept_items}
 
 
 def tool_error(message: str, **details: Any) -> ToolError:
@@ -747,8 +808,9 @@ def execute_marketplace_resources(
     """
     Core logic for marketplace_resources tool.
 
-    Without a category, every resource has only its name and summary, so the whole catalog fits
-    in a tool response; a category adds the details of its resources.
+    Without a category, every resource has only its name and summary; a category adds the
+    details of its resources. A list longer than CHARACTER_LIMIT is shortened, with a note that
+    says so: names only without a category, names and summaries with one.
 
     Args:
         api_base_url: The API base URL
@@ -786,7 +848,7 @@ def execute_marketplace_resources(
 
     total_resources = sum(len(entries) for entries in categories.values())
 
-    return {
+    resources_response = {
         "api_endpoint": api_base_url,
         "user": user_id or "unknown",
         "total_resources": total_resources,
@@ -828,6 +890,37 @@ def execute_marketplace_resources(
             ),
         },
     }
+    if len(json.dumps(resources_response, default=str)) > CHARACTER_LIMIT:
+        compact_resources(resources_response, has_category=category is not None)
+    return resources_response
+
+
+def compact_resources(resources_response: dict[str, Any], *, has_category: bool) -> None:
+    """
+    Keep only the names of the listed resources, and their summaries when a category was asked.
+
+    Args:
+        resources_response: marketplace_resources result, changed in place
+        has_category: Whether the list is one category's resources, with their details
+    """
+    kept_keys = ("resource", "summary") if has_category else ("resource",)
+    resources_response["categories"] = {
+        category_name: [
+            {key: resource_entry[key] for key in kept_keys} for resource_entry in resource_entries
+        ]
+        for category_name, resource_entries in resources_response["categories"].items()
+    }
+    if has_category:
+        resources_response["note"] = (
+            "The category is too long for one result, so only names and summaries are listed: "
+            "use marketplace_resource_info(resource) for a resource's details, or narrow the "
+            "list with search."
+        )
+    else:
+        resources_response["note"] = (
+            "The list is too long for one result, so only names are listed: narrow it with "
+            "category or search to get the summaries."
+        )
 
 
 # ============================================================================

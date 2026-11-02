@@ -30,6 +30,11 @@ Tools report failures by raising `ToolError`, built with `tool_error()` ([`mcp_t
 
 Every tool returns a Pydantic model from [`tool_responses.py`](../mpt_mcp/tool_responses.py), and FastMCP publishes it as the tool's `outputSchema`, with a description per field, and sends the result as structured content. The models keep keys they do not declare (`extra="allow"`), so a response never loses data the API returns: `QueryResponse` only types the `$meta` and `data` envelope, and the fields of a single item stay as they come. Optional fields without a value are left out of the response. Resources that return a plain value instead of an object are sent as `{"result": ...}`.
 
+Tool results are kept under `CHARACTER_LIMIT` (25,000 characters) ([`mcp_tools.py`](../mpt_mcp/mcp_tools.py)). Every result stays in the model's context for the rest of the conversation, and some MCP clients reject long ones, so the limit leaves room for several results in any client. It is still high enough for a page of dozens of compact items, for most documentation pages and for the schema of the largest resources. The results that can be longer are shortened, and say so:
+
+- `marketplace_query` cuts a page to the items that fit, with the offset to continue with in `$meta.truncated`.
+- `marketplace_resources` lists only resource names (or, for one category, names and summaries) when the full list does not fit, and adds a `note`.
+
 Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in.
 
 ## Modules

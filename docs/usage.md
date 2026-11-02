@@ -28,7 +28,7 @@ Both servers serve the same tools:
 | Tool | Purpose |
 |---|---|
 | `marketplace_query` | Query a Marketplace API resource with RQL, `select`, `order` and pagination |
-| `marketplace_resources` | List the queryable resources by category, with their name and summary; `category` adds their path, description and filterable fields, and `search` filters by name or summary |
+| `marketplace_resources` | List the queryable resources by category, with their name and summary; `category` adds their path, description and filterable fields, and `search` filters by name or summary. A list longer than 25,000 characters keeps fewer fields and adds a `note` |
 | `marketplace_resource_info` | Describe a resource: filterable fields, enum values, path parameters, examples |
 | `marketplace_resource_schema` | Return the full response schema of a resource |
 | `marketplace_audit_fields` | List the audit events (`created`, `updated`, `failed`…) of each resource |
@@ -62,6 +62,7 @@ marketplace_query(resource="catalog.products.by_id", path_params={"id": "PRD-123
 Query behaviour:
 
 - `limit` defaults to 10 and is capped at 100; use `offset` to paginate. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
+- A page longer than 25,000 characters is cut to the items that fit, so it does not fill the model's context or go over the tool result limit of clients that have one. `$meta.truncated` gives the items returned, the items the API returned and the `next_offset` to continue with. A page whose first item alone is longer fails and asks for a narrower `select`.
 - Each item comes with the resource's default fields. `select` starting with `-*` returns only the listed fields (`-*,+id,+product.name`); without it, `+field` adds a field omitted by default (listed in `$meta.omitted`) and `-field` removes one. `id`, `status` and `name` are always kept when the resource has them.
 - `catalog.products` returns only `id`, `status`, `name` and `shortDescription` when no `select` is given.
 - Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds that field to `select` (`+audit.created.at`), so the result shows the values it was sorted or filtered by. If the API answers 400 Bad Request, the query is sent again with the original `select`.
