@@ -29,6 +29,7 @@ Then inspect the code paths relevant to the task:
 - [`mpt_mcp/server_stdio.py`](mpt_mcp/server_stdio.py): stdio server entry point
 - [`mpt_mcp/mcp_server.py`](mpt_mcp/mcp_server.py): the MCP server both transports serve, with its middlewares and debug tool visibility
 - [`mpt_mcp/mcp_tools.py`](mpt_mcp/mcp_tools.py): tool logic shared by both servers (query, resources, schema)
+- [`mpt_mcp/tool_responses.py`](mpt_mcp/tool_responses.py): Pydantic response models, which give each tool its output schema
 - [`mpt_mcp/call_context.py`](mpt_mcp/call_context.py): per-request credentials injected with FastMCP dependencies
 - [`mpt_mcp/server_middleware.py`](mpt_mcp/server_middleware.py) and [`mpt_mcp/log_config.py`](mpt_mcp/log_config.py): request log context and logging setup
 - [`mpt_mcp/analytics/`](mpt_mcp/analytics): analytics middleware, lifespan, logger and table model

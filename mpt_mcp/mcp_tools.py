@@ -66,6 +66,32 @@ def obfuscate_token_values(data: Any) -> Any:
     return data
 
 
+def log_query_result(result: Any) -> None:
+    """
+    Log what marketplace_query returns, so agents can check that $meta and omitted are present.
+
+    Args:
+        result: API response; resources that return a plain value are logged as such
+    """
+    if not isinstance(result, dict):
+        logger.info("   Returning: %s value", type(result).__name__)
+        return
+
+    data = result.get("data")
+    data_list = data if isinstance(data, list) else []
+    result_meta = result.get(KEY_META)
+    meta = result_meta if isinstance(result_meta, dict) else {}
+    meta_omitted = meta.get("omitted")
+    omitted = meta_omitted if isinstance(meta_omitted, list) else []
+    logger.info(
+        "   Returning: data len=%s, %s=%s, omitted=%s",
+        len(data_list),
+        KEY_META,
+        "yes" if meta else "no",
+        omitted or "none",
+    )
+
+
 def tool_error(message: str, **details: Any) -> ToolError:
     """
     Build a tool error that carries its hints, so MCP clients mark the result as an error.
@@ -283,7 +309,7 @@ async def execute_marketplace_query(
     config: Any = None,
     audit_regex: re.Pattern[str] | None = None,
     openapi_spec: dict[str, Any] | None = None,
-) -> dict[str, Any]:
+) -> Any:
     """
     Core logic for marketplace_query tool.
 
@@ -303,7 +329,7 @@ async def execute_marketplace_query(
         openapi_spec: OpenAPI spec used to validate select fields against the response schema
 
     Returns:
-        API response
+        API response: usually an object, but some resources return a plain value
 
     Raises:
         ToolError: The resource is unknown, path parameters are missing or the API call failed
@@ -476,7 +502,7 @@ async def execute_marketplace_query(
     try:
         result = await api_client.get(api_path, query_params=query_params)
         result_count = None
-        if KEY_META in result:
+        if isinstance(result, dict) and KEY_META in result:
             result_count = result[KEY_META].get("pagination", {}).get("total")
             logger.info("   Result: %s total items", result_count or "?")
 
@@ -506,20 +532,7 @@ async def execute_marketplace_query(
                 tool_name="marketplace_query",
             )
 
-        # Log what we return so agent-side can verify $meta/omitted are present
-        data = result.get("data")
-        data_list = data if isinstance(data, list) else []
-        result_meta = result.get(KEY_META)
-        meta = result_meta if isinstance(result_meta, dict) else {}
-        meta_omitted = meta.get("omitted")
-        omitted = meta_omitted if isinstance(meta_omitted, list) else []
-        logger.info(
-            "   Returning: data len=%s, %s=%s, omitted=%s",
-            len(data_list),
-            KEY_META,
-            "yes" if meta else "no",
-            omitted or "none",
-        )
+        log_query_result(result)
 
         return result
     except Exception as error:
@@ -592,7 +605,7 @@ async def execute_marketplace_query(
             try:
                 result = await api_client.get(api_path, query_params=retry_params)
                 result_count = None
-                if KEY_META in result:
+                if isinstance(result, dict) and KEY_META in result:
                     result_count = result[KEY_META].get("pagination", {}).get("total")
                     logger.info("   Retry successful: %s total items", result_count or "?")
 
@@ -622,20 +635,7 @@ async def execute_marketplace_query(
                         tool_name="marketplace_query",
                     )
 
-                # Log what we return so agent-side can verify $meta/omitted are present
-                data = result.get("data")
-                data_list = data if isinstance(data, list) else []
-                result_meta = result.get(KEY_META)
-                meta = result_meta if isinstance(result_meta, dict) else {}
-                meta_omitted = meta.get("omitted")
-                omitted = meta_omitted if isinstance(meta_omitted, list) else []
-                logger.info(
-                    "   Returning: data len=%s, %s=%s, omitted=%s",
-                    len(data_list),
-                    KEY_META,
-                    "yes" if meta else "no",
-                    omitted or "none",
-                )
+                log_query_result(result)
 
                 return result
             except Exception as retry_e:

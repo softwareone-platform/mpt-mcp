@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
@@ -24,6 +23,20 @@ from mpt_mcp.mcp_tools import (
     tool_error,
 )
 from mpt_mcp.token_validator import get_token_cache
+from mpt_mcp.tool_responses import (
+    AuditFieldsResponse,
+    CacheInfoResponse,
+    DocsIndexResponse,
+    DocsListResponse,
+    DocsReadResponse,
+    QueryResponse,
+    QuickQueriesResponse,
+    RefreshCacheResponse,
+    ResourceInfoResponse,
+    ResourceSchemaResponse,
+    ResourcesInfoResponse,
+    ResourcesResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +64,7 @@ REFRESHES_CACHE = ToolAnnotations(
 
 async def marketplace_audit_fields(
     resource: str | None = None, call_context: CallContext = Depends(get_call_context)
-) -> dict[str, Any]:
+) -> AuditFieldsResponse:
     """
     Get audit event names per resource for filtering by "when" something happened.
 
@@ -66,9 +79,7 @@ async def marketplace_audit_fields(
         call_context: Caller's credentials, injected by FastMCP (not a tool argument)
 
     Returns:
-        If resource is set: { "resource": str, "events": [ "created", "updated", ... ] }.
-        If resource is omitted:
-            { "by_resource": { resource_id: [ "event1", "event2", ... ], ... } }.
+        Audit events of the resource, or of every resource
     """
     try:
         api_client = await call_context.create_api_client()
@@ -89,10 +100,10 @@ async def marketplace_audit_fields(
     if "error" in result:
         raise tool_error(result.pop("error"), **result)
 
-    return result
+    return AuditFieldsResponse.model_validate(result)
 
 
-def marketplace_cache_info() -> dict[str, Any]:
+def marketplace_cache_info() -> CacheInfoResponse:
     """
     Get information about the OpenAPI spec cache.
 
@@ -101,15 +112,15 @@ def marketplace_cache_info() -> dict[str, Any]:
     Returns:
         Cache statistics: cached files, their total size and how many are valid or expired
     """
-    return {
+    return CacheInfoResponse.model_validate({
         "cache_status": "enabled",
         "cache_info": endpoint_registry.get_cache_manager().get_cache_info(),
         "note": "Cache reduces startup time and allows offline operation. Cache is automatically "
         "refreshed every 24 hours.",
-    }
+    })
 
 
-async def marketplace_docs_index() -> dict[str, Any]:
+async def marketplace_docs_index() -> DocsIndexResponse:
     """
     Get the documentation table of contents.
 
@@ -121,7 +132,7 @@ async def marketplace_docs_index() -> dict[str, Any]:
     if not dc or not dc.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
-    return await dc.get_documentation_index()
+    return DocsIndexResponse.model_validate(await dc.get_documentation_index())
 
 
 async def marketplace_docs_list(
@@ -129,7 +140,7 @@ async def marketplace_docs_list(
     subsection: str | None = None,
     search: str | None = None,
     limit: int = 100,
-) -> dict[str, Any]:
+) -> DocsListResponse:
     """
     List documentation pages, optionally filtered.
 
@@ -180,10 +191,10 @@ async def marketplace_docs_list(
     elif len(resources) > MANY_DOCS_RESULTS:
         result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
 
-    return result
+    return DocsListResponse.model_validate(result)
 
 
-async def marketplace_docs_read(uri: str) -> dict[str, Any]:
+async def marketplace_docs_read(uri: str) -> DocsReadResponse:
     """
     Read a documentation page.
 
@@ -191,7 +202,7 @@ async def marketplace_docs_read(uri: str) -> dict[str, Any]:
         uri: Page uri from marketplace_docs_list (e.g. docs://help-and-support/contact-support)
 
     Returns:
-        {"text": "<markdown content>", "count": 1}
+        Page content in markdown
     """
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
@@ -205,7 +216,7 @@ async def marketplace_docs_read(uri: str) -> dict[str, Any]:
             hint="Use marketplace_docs_list() to see available pages.",
         )
 
-    return {"text": page_content, "count": 1}
+    return DocsReadResponse(text=page_content, count=1)
 
 
 async def marketplace_query(
@@ -217,7 +228,7 @@ async def marketplace_query(
     order: str | None = None,
     path_params: dict[str, str] | None = None,
     call_context: CallContext = Depends(get_call_context),
-) -> dict[str, Any]:
+) -> QueryResponse:
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
 
@@ -262,7 +273,7 @@ async def marketplace_query(
         call_context: Caller's credentials, injected by FastMCP (not a tool argument)
 
     Returns:
-        API response with data and pagination information
+        Marketplace API response: a page of items, or a single item
     """
     try:
         api_client = await call_context.create_api_client()
@@ -283,7 +294,7 @@ async def marketplace_query(
         ) from error
 
     audit_regex = audit_fields_module.get_audit_regex(api_base_url)
-    return await execute_marketplace_query(
+    result = await execute_marketplace_query(
         resource=resource,
         rql=rql,
         limit=limit,
@@ -298,9 +309,13 @@ async def marketplace_query(
         audit_regex=audit_regex,
         openapi_spec=openapi_spec,
     )
+    if not isinstance(result, dict):
+        return QueryResponse(result=result)
+
+    return QueryResponse.model_validate(result)
 
 
-def marketplace_quick_queries() -> dict[str, Any]:
+def marketplace_quick_queries() -> QuickQueriesResponse:
     """
     Get pre-built query templates for common use cases.
 
@@ -313,12 +328,12 @@ def marketplace_quick_queries() -> dict[str, Any]:
     Returns:
         Dictionary of query templates organized by category
     """
-    return execute_marketplace_quick_queries()
+    return QuickQueriesResponse.model_validate(execute_marketplace_quick_queries())
 
 
 async def marketplace_refresh_cache(
     call_context: CallContext = Depends(get_call_context),
-) -> dict[str, Any]:
+) -> RefreshCacheResponse:
     """
     Force refresh the OpenAPI spec cache of your endpoint.
 
@@ -346,18 +361,16 @@ async def marketplace_refresh_cache(
             hint="Failed to refresh cache. Check network connection.",
         ) from error
 
-    return {
-        "success": True,
-        "message": (
-            f"Cache refreshed successfully. Loaded {len(endpoints_registry_data)} endpoints."
-        ),
-        "endpoints_count": len(endpoints_registry_data),
-    }
+    return RefreshCacheResponse(
+        success=True,
+        message=f"Cache refreshed successfully. Loaded {len(endpoints_registry_data)} endpoints.",
+        endpoints_count=len(endpoints_registry_data),
+    )
 
 
 async def marketplace_resource_info(
     resource: str, call_context: CallContext = Depends(get_call_context)
-) -> dict[str, Any]:
+) -> ResourceInfoResponse:
     """
     Get detailed information about a specific resource.
 
@@ -379,15 +392,17 @@ async def marketplace_resource_info(
     except Exception as error:
         raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
 
-    return execute_marketplace_resource_info(
-        resource=resource,
-        endpoints_registry=endpoints_registry_data,
+    return ResourceInfoResponse.model_validate(
+        execute_marketplace_resource_info(
+            resource=resource,
+            endpoints_registry=endpoints_registry_data,
+        )
     )
 
 
 async def marketplace_resource_schema(
     resource: str, call_context: CallContext = Depends(get_call_context)
-) -> dict[str, Any]:
+) -> ResourceSchemaResponse:
     """
     Get the response schema of a resource.
 
@@ -399,9 +414,7 @@ async def marketplace_resource_schema(
         call_context: Caller's credentials, injected by FastMCP (not a tool argument)
 
     Returns:
-        The response schema from the OpenAPI spec, its top-level fields with type, description,
-        enum values and format, RQL filter hints built from those fields, and common query
-        patterns
+        Response schema, item fields and RQL filter hints of the resource
     """
     try:
         api_client = await call_context.create_api_client()
@@ -415,16 +428,18 @@ async def marketplace_resource_schema(
     except Exception as error:
         raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
 
-    return execute_marketplace_resource_schema(
-        resource=resource,
-        openapi_spec=spec,
-        endpoints_registry=endpoints_registry_data,
+    return ResourceSchemaResponse.model_validate(
+        execute_marketplace_resource_schema(
+            resource=resource,
+            openapi_spec=spec,
+            endpoints_registry=endpoints_registry_data,
+        )
     )
 
 
 async def marketplace_resources(
     call_context: CallContext = Depends(get_call_context),
-) -> dict[str, Any]:
+) -> ResourcesResponse:
     """
     List all available API resources.
 
@@ -442,14 +457,16 @@ async def marketplace_resources(
     except Exception as error:
         raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
 
-    return execute_marketplace_resources(
-        api_base_url=api_base_url,
-        user_id=call_context.user_id,
-        endpoints_registry=endpoints_registry_data,
+    return ResourcesResponse.model_validate(
+        execute_marketplace_resources(
+            api_base_url=api_base_url,
+            user_id=call_context.user_id,
+            endpoints_registry=endpoints_registry_data,
+        )
     )
 
 
-def marketplace_resources_info() -> dict[str, Any]:
+def marketplace_resources_info() -> ResourcesInfoResponse:
     """
     Get the state of the documentation and token validation caches.
 
@@ -480,7 +497,7 @@ def marketplace_resources_info() -> dict[str, Any]:
     except Exception as e_inner:
         result["token_validation"] = {"enabled": False, "error": str(e_inner)}
 
-    return result
+    return ResourcesInfoResponse.model_validate(result)
 
 
 def register_tools(mcp: FastMCP) -> None:

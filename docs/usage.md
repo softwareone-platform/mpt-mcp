@@ -42,6 +42,8 @@ Both servers serve the same tools:
 
 The documentation tools need GitBook to be configured on the server; otherwise they fail with a message saying it is not available.
 
+Every tool publishes an output schema that describes the fields of its result, which is also sent as structured content. `marketplace_query` returns the API response as it comes: a page of items in `data` with `$meta` pagination, or the fields of a single item; resources that return a plain value are wrapped as `{"result": ...}`.
+
 Every tool is read-only except `marketplace_refresh_cache`, and declares it with the MCP `readOnlyHint` annotation. Failures are MCP tool errors (`isError: true`): the text is the error message, followed by its hints as JSON when there are any. The server's MCP `instructions` describe the order to use the tools in.
 
 Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`).

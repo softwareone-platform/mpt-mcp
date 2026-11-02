@@ -86,6 +86,31 @@ async def test_instructions_name_every_production_tool(production_server):
     assert not result
 
 
+async def test_every_tool_has_an_output_schema(debug_server):
+    tools = await debug_server.list_tools()
+
+    result = [tool.name for tool in tools if not tool.output_schema.get("properties")]
+
+    assert not result
+
+
+async def test_tool_result_matches_its_output_schema(production_server, monkeypatch):
+    monkeypatch.setattr(server_docs, "initialize_documentation_cache", AsyncMock())
+    monkeypatch.setattr(server_docs, "documentation_cache", None)
+
+    async with Client(production_server) as client:
+        result = await client.call_tool("marketplace_quick_queries", {})
+
+    assert set(result.structured_content) == {
+        "orders",
+        "products",
+        "agreements",
+        "subscriptions",
+        "accounts",
+        "tips",
+    }
+
+
 async def test_tool_failure_is_an_error_result(production_server, monkeypatch):
     monkeypatch.setattr(server_docs, "initialize_documentation_cache", AsyncMock())
     monkeypatch.setattr(server_docs, "documentation_cache", None)

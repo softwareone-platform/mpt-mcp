@@ -28,6 +28,8 @@ The stdio server has no HTTP request: `get_call_context()` builds the `CallConte
 
 Tools report failures by raising `ToolError`, built with `tool_error()` ([`mcp_tools.py`](../mpt_mcp/mcp_tools.py)): MCP clients receive an error result (`isError: true`) whose text is the message followed by its hints (`hint`, `did_you_mean`, `example`…) as JSON. FastMCP never masks `ToolError` messages. Errors are not detected from the response payload, because some Marketplace resources, such as orders, have an `error` field of their own.
 
+Every tool returns a Pydantic model from [`tool_responses.py`](../mpt_mcp/tool_responses.py), and FastMCP publishes it as the tool's `outputSchema`, with a description per field, and sends the result as structured content. The models keep keys they do not declare (`extra="allow"`), so a response never loses data the API returns: `QueryResponse` only types the `$meta` and `data` envelope, and the fields of a single item stay as they come. Optional fields without a value are left out of the response. Resources that return a plain value instead of an object are sent as `{"result": ...}`.
+
 Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in.
 
 ## Modules
@@ -44,6 +46,7 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`query_templates.py`](../mpt_mcp/query_templates.py) | Example queries returned by `marketplace_quick_queries` |
 | [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server: middlewares, analytics lifespan (HTTP), tools, resources and debug tool visibility |
 | [`server_tools.py`](../mpt_mcp/server_tools.py), [`server_resources.py`](../mpt_mcp/server_resources.py) | Tool and resource functions and their registration |
+| [`tool_responses.py`](../mpt_mcp/tool_responses.py) | One Pydantic response model per tool, with the nested models of its fields, from which FastMCP builds the tool's output schema |
 | [`server_docs.py`](../mpt_mcp/server_docs.py), [`documentation_cache.py`](../mpt_mcp/documentation_cache.py), [`gitbook_client.py`](../mpt_mcp/gitbook_client.py) | GitBook documentation cache, created once per process |
 | [`server_middleware.py`](../mpt_mcp/server_middleware.py), [`log_config.py`](../mpt_mcp/log_config.py) | Request log context and logging configuration |
 | [`analytics/`](../mpt_mcp/analytics) | Analytics lifespan, middleware, buffered logger and `mcp_events` table |

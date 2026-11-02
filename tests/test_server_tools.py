@@ -50,6 +50,19 @@ async def test_query_without_credentials_fails(call_context, endpoints_registry)
     assert details == {"hint": server_tools.AUTH_HEADER_HINT}
 
 
+async def test_query_wraps_plain_values(call_context, endpoints_registry, api_client):
+    endpoints_registry.return_value = {
+        "commerce.orders.render": {"path": "/public/v1/commerce/orders/render", "parameters": []}
+    }
+    api_client.get = AsyncMock(return_value="<h1>Order</h1>")
+
+    result = (
+        await server_tools.marketplace_query("commerce.orders.render", call_context=call_context)
+    ).model_dump()
+
+    assert result == {"result": "<h1>Order</h1>"}
+
+
 async def test_unknown_resource_suggests_similar(call_context, endpoints_registry, api_client):
     # Mock the endpoint registry with some sample resources
     mock_registry = {
@@ -172,9 +185,9 @@ async def test_resource_info_shows_children(call_context, endpoints_registry, ap
 
     endpoints_registry.return_value = mock_registry
 
-    result = await server_tools.marketplace_resource_info(
-        "catalog.products", call_context=call_context
-    )
+    result = (
+        await server_tools.marketplace_resource_info("catalog.products", call_context=call_context)
+    ).model_dump()
 
     # Should include child resources
     assert "related_resources" in result
@@ -199,9 +212,11 @@ async def test_resource_info_shows_parent(call_context, endpoints_registry, api_
 
     endpoints_registry.return_value = mock_registry
 
-    result = await server_tools.marketplace_resource_info(
-        "catalog.products.by_id", call_context=call_context
-    )
+    result = (
+        await server_tools.marketplace_resource_info(
+            "catalog.products.by_id", call_context=call_context
+        )
+    ).model_dump()
 
     # Should include parent resource
     assert "related_resources" in result
@@ -226,9 +241,9 @@ async def test_resource_info_shows_multiple_examples(call_context, endpoints_reg
 
     endpoints_registry.return_value = mock_registry
 
-    result = await server_tools.marketplace_resource_info(
-        "commerce.orders", call_context=call_context
-    )
+    result = (
+        await server_tools.marketplace_resource_info("commerce.orders", call_context=call_context)
+    ).model_dump()
 
     # Should include multiple examples
     assert "example_queries" in result
@@ -252,9 +267,9 @@ async def test_resource_info_shows_filtering_tips(call_context, endpoints_regist
 
     endpoints_registry.return_value = mock_registry
 
-    result = await server_tools.marketplace_resource_info(
-        "commerce.orders", call_context=call_context
-    )
+    result = (
+        await server_tools.marketplace_resource_info("commerce.orders", call_context=call_context)
+    ).model_dump()
 
     # Should include filtering tips
     assert "filtering_tips" in result
@@ -353,7 +368,7 @@ async def test_docs_list_exposes_browser_url_and_note():
         patch("mpt_mcp.server_docs.documentation_cache", mock_cache),
         patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()),
     ):
-        result = await server_tools.marketplace_docs_list(search="contact support")
+        result = (await server_tools.marketplace_docs_list(search="contact support")).model_dump()
 
     assert result["total"] == 1
     assert len(result["resources"]) == 1
@@ -383,11 +398,28 @@ async def test_docs_list_without_browser_url_metadata():
         patch("mpt_mcp.server_docs.documentation_cache", mock_cache),
         patch("mpt_mcp.server_docs.initialize_documentation_cache", AsyncMock()),
     ):
-        result = await server_tools.marketplace_docs_list(search="some")
+        result = (await server_tools.marketplace_docs_list(search="some")).model_dump()
 
     assert result["total"] == 1
     assert "browser_url" not in result["resources"][0]
     assert "Prefer showing users the browser_url" in result["usage"]
+
+
+@pytest.fixture
+def doc_page():
+    def _doc_page(uri, browser_url=None):
+        metadata = {"id": "7qHvpiUID0CAu2h8cXUr", "path": uri.removeprefix("docs://"), "title": uri}
+        if browser_url:
+            metadata["browser_url"] = browser_url
+        return {
+            "uri": uri,
+            "name": uri,
+            "description": f"Documentation page: {uri}",
+            "mimeType": "text/markdown",
+            "metadata": metadata,
+        }
+
+    return _doc_page
 
 
 @pytest.fixture
@@ -433,23 +465,22 @@ async def test_docs_index_returns_cache_index(docs_cache):
     }
     docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}], index=index)
 
-    result = await server_tools.marketplace_docs_index()
+    result = (await server_tools.marketplace_docs_index()).model_dump()
 
     assert result == index
 
 
-async def test_docs_list_includes_browser_url_and_usage(docs_cache):
+async def test_docs_list_includes_browser_url_and_usage(docs_cache, doc_page):
     docs_cache(
         resources=[
-            {
-                "uri": "docs://help-and-support/contact-support",
-                "name": "Contact Support",
-                "metadata": {"browser_url": "https://example.test/contact-support"},
-            }
+            doc_page(
+                "docs://help-and-support/contact-support",
+                browser_url="https://example.test/contact-support",
+            )
         ]
     )
 
-    result = await server_tools.marketplace_docs_list(search="contact", limit=100)
+    result = (await server_tools.marketplace_docs_list(search="contact", limit=100)).model_dump()
 
     assert (result["total"], result["resources"][0]["browser_url"]) == (
         1,
@@ -458,19 +489,19 @@ async def test_docs_list_includes_browser_url_and_usage(docs_cache):
     assert "Prefer showing users the browser_url" in result["usage"]
 
 
-async def test_marketplace_docs_list_tip_when_limited(docs_cache):
-    resources = [{"uri": f"docs://p/{index}", "metadata": {}} for index in range(10)]
+async def test_marketplace_docs_list_tip_when_limited(docs_cache, doc_page):
+    resources = [doc_page(f"docs://p/{index}") for index in range(10)]
     docs_cache(resources=resources)
 
-    result = await server_tools.marketplace_docs_list(limit=5)
+    result = (await server_tools.marketplace_docs_list(limit=5)).model_dump()
 
     assert "tip" in result
 
 
-async def test_docs_list_uses_live_docs_cache(docs_cache):
-    docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
+async def test_docs_list_uses_live_docs_cache(docs_cache, doc_page):
+    docs_cache(resources=[doc_page("docs://readme")])
 
-    result = await server_tools.marketplace_docs_list(limit=5)
+    result = (await server_tools.marketplace_docs_list(limit=5)).model_dump()
 
     first_uri = result["resources"][0]["uri"]
     assert (result["total"], first_uri) == (1, "docs://readme")
@@ -481,7 +512,9 @@ async def test_docs_read_returns_text_and_count(docs_cache):
         content_by_uri={"docs://help-and-support/contact-support": "# Contact\n\nHello from docs."}
     )
 
-    result = await server_tools.marketplace_docs_read(uri="docs://help-and-support/contact-support")
+    result = (
+        await server_tools.marketplace_docs_read(uri="docs://help-and-support/contact-support")
+    ).model_dump()
 
     assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
 
@@ -493,11 +526,11 @@ async def test_docs_read_not_found_fails(docs_cache):
         await server_tools.marketplace_docs_read(uri="docs://missing/page")
 
 
-def test_resources_info_reflects_docs_cache(docs_cache, monkeypatch):
-    cache = docs_cache(resources=[{"uri": "docs://readme", "metadata": {}}])
+def test_resources_info_reflects_docs_cache(docs_cache, doc_page, monkeypatch):
+    cache = docs_cache(resources=[doc_page("docs://readme")])
     monkeypatch.setattr(server_docs, "documentation_cache", cache)
 
-    result = server_tools.marketplace_resources_info()
+    result = (server_tools.marketplace_resources_info()).model_dump()
 
     documentation = result["documentation"]
     assert (documentation["enabled"], documentation["total_pages"]) == (True, 1)
@@ -506,7 +539,7 @@ def test_resources_info_reflects_docs_cache(docs_cache, monkeypatch):
 async def test_refresh_cache_reloads_registry(call_context, endpoints_registry, api_client):
     endpoints_registry.return_value = {"catalog.products": {}}
 
-    result = await server_tools.marketplace_refresh_cache(call_context=call_context)
+    result = (await server_tools.marketplace_refresh_cache(call_context=call_context)).model_dump()
 
     assert (result["success"], result["endpoints_count"]) == (True, 1)
     endpoints_registry.assert_called_once_with("https://api.test.com", force_refresh=True)
