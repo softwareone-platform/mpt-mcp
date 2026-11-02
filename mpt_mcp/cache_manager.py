@@ -218,12 +218,12 @@ async def fetch_with_cache(
                 logger.info("Followed %s redirect(s)", len(response.history))
                 for position, redirect in enumerate(response.history, 1):
                     logger.info(
-                        "   %s. %s → %s",
+                        "%s. %s → %s",
                         position,
                         redirect.status_code,
                         redirect.headers.get("Location", "unknown"),
                     )
-                logger.info("   Final: %s", response.url)
+                logger.info("Final: %s", response.url)
 
             response.raise_for_status()
             data = response.json()

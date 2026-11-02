@@ -214,7 +214,7 @@ def run_migrations() -> None:
         logger.info("Database migrations completed successfully")
     except Exception as error:
         logger.warning("Migration warning: %s", error)
-        logger.info("   Server will continue, but analytics may not work correctly")
+        logger.info("Server will continue, but analytics may not work correctly")
 
 
 def run_uvicorn() -> None:
@@ -251,13 +251,13 @@ def main() -> None:
         logger.info("Endpoint path: /mcp (registered at startup, not per-request)")
         logger.info("Default API endpoint: %s", config.http_default_base_url)
         logger.info("Multi-tenant Authentication:")
-        logger.info("   - Clients MUST provide X-MPT-Authorization header")
-        logger.info("   - Optional X-MPT-Endpoint header for custom endpoints")
+        logger.info("- Clients MUST provide X-MPT-Authorization header")
+        logger.info("- Optional X-MPT-Endpoint header for custom endpoints")
         logger.info(
-            "   - Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token "
+            "- Optional X-MPT-Validate-Fresh: true to bypass token cache (if you see 'Token "
             "invalid (cached)')"
         )
-        logger.info("   - Headers are case-insensitive")
+        logger.info("- Headers are case-insensitive")
         logger.info("Server URL: http://%s:%s/mcp", server_host, server_port)
         logger.info("Health check: http://%s:%s/health", server_host, server_port)
         logger.info("=" * 60)

@@ -132,7 +132,7 @@ class GitBookClient:
                 if isinstance(space_content["pages"], list)
                 else "unknown"
             )
-            logger.info("   Pages: %s", page_count)
+            logger.info("Pages: %s", page_count)
         return space_content
 
     async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
