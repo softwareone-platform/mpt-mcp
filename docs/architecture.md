@@ -33,6 +33,7 @@ Every tool returns a Pydantic model from [`tool_responses.py`](../mpt_mcp/tool_r
 Tool results are kept under `CHARACTER_LIMIT` (25,000 characters) ([`mcp_tools.py`](../mpt_mcp/mcp_tools.py)). Every result stays in the model's context for the rest of the conversation, and some MCP clients reject long ones, so the limit leaves room for several results in any client. It is still high enough for a page of dozens of compact items, for most documentation pages and for the schema of the largest resources. The results that can be longer are shortened, and say so:
 
 - `marketplace_query` cuts a page to the items that fit, with the offset to continue with in `$meta.truncated`.
+- `marketplace_docs_read` returns long pages in parts, cut at a line break, with the `next_offset` of the next part.
 - `marketplace_resources` lists only resource names (or, for one category, names and summaries) when the full list does not fit, and adds a `note`.
 
 Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in.

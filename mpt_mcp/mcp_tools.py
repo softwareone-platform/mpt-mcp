@@ -156,6 +156,37 @@ def fit_result_to_budget(result: Any, offset: int | None) -> Any:
     return {**result, KEY_META: {**meta, "truncated": truncated}, "data": kept_items}
 
 
+def cut_text_to_budget(text: str, offset: int) -> tuple[str, int | None]:
+    """
+    Cut a text from offset to at most CHARACTER_LIMIT, at the end of a line when possible.
+
+    Args:
+        text: Full text
+        offset: Character to start from
+
+    Returns:
+        The cut text, and the offset of the rest, or None when the text ends in this part
+
+    Raises:
+        ToolError: The offset is outside the text
+    """
+    if offset < 0 or (offset > 0 and offset >= len(text)):
+        raise tool_error(
+            f"offset {offset} is outside the page ({len(text)} characters)",
+            hint="Read the page from offset=0",
+        )
+
+    end = offset + CHARACTER_LIMIT
+    if end >= len(text):
+        return text[offset:], None
+
+    # Cut after the last line break, unless it would leave less than half of the budget
+    line_end = text.rfind("\n", offset, end)
+    if line_end > offset + CHARACTER_LIMIT // 2:
+        end = line_end + 1
+    return text[offset:end], end
+
+
 def tool_error(message: str, **details: Any) -> ToolError:
     """
     Build a tool error that carries its hints, so MCP clients mark the result as an error.

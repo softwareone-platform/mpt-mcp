@@ -15,6 +15,7 @@ from mpt_mcp.analytics import get_analytics_logger
 from mpt_mcp.call_context import CallContext, get_call_context
 from mpt_mcp.config import config
 from mpt_mcp.mcp_tools import (
+    cut_text_to_budget,
     execute_marketplace_query,
     execute_marketplace_quick_queries,
     execute_marketplace_resource_info,
@@ -195,15 +196,18 @@ async def marketplace_docs_list(
     return DocsListResponse.model_validate(result)
 
 
-async def marketplace_docs_read(uri: str) -> DocsReadResponse:
+async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
     """
     Read a documentation page.
 
+    Long pages come in parts: next_offset is set when there is more to read.
+
     Args:
         uri: Page uri from marketplace_docs_list (e.g. docs://help-and-support/contact-support)
+        offset: Character to start reading from, the next_offset of the previous part
 
     Returns:
-        Page content in markdown
+        Page content in markdown, or one part of it
     """
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
@@ -217,7 +221,20 @@ async def marketplace_docs_read(uri: str) -> DocsReadResponse:
             hint="Use marketplace_docs_list() to see available pages.",
         )
 
-    return DocsReadResponse(text=page_content, count=1)
+    page_part, next_offset = cut_text_to_budget(page_content, offset)
+    if next_offset is None:
+        return DocsReadResponse(text=page_part, count=1)
+
+    return DocsReadResponse(
+        text=page_part,
+        count=1,
+        total_characters=len(page_content),
+        next_offset=next_offset,
+        hint=(
+            f"The page is longer than one result. Read the rest with offset={next_offset}, "
+            "or give the user the page's browser_url from marketplace_docs_list."
+        ),
+    )
 
 
 async def marketplace_query(

@@ -35,12 +35,12 @@ Both servers serve the same tools:
 | `marketplace_quick_queries` | Return ready-to-use query templates by category |
 | `marketplace_docs_index` | Return the documentation table of contents |
 | `marketplace_docs_list` | List documentation pages, filtered by section, subsection or search |
-| `marketplace_docs_read` | Read a documentation page by `docs://` URI |
+| `marketplace_docs_read` | Read a documentation page by `docs://` URI; pages longer than 25,000 characters come in parts, read with `offset` |
 | `marketplace_cache_info` | `DEBUG=true` only: show the OpenAPI spec cache state |
 | `marketplace_refresh_cache` | `DEBUG=true` only: reload the OpenAPI spec and the endpoint registry |
 | `marketplace_resources_info` | `DEBUG=true` only: show the state of the documentation and token validation caches |
 
-The documentation tools need GitBook to be configured on the server; otherwise they fail with a message saying it is not available.
+The documentation tools need GitBook to be configured on the server; otherwise they fail with a message saying it is not available. A part of a long page sets `total_characters`, the `next_offset` to read the rest with and a `hint`; the last part has no `next_offset`.
 
 Every tool publishes an output schema that describes the fields of its result, which is also sent as structured content. `marketplace_query` returns the API response as it comes: a page of items in `data` with `$meta` pagination, or the fields of a single item; resources that return a plain value are wrapped as `{"result": ...}`.
 

@@ -8,6 +8,11 @@ from fastmcp.exceptions import ToolError
 
 from mpt_mcp import server_docs, server_tools
 from mpt_mcp.call_context import CallContext
+from mpt_mcp.mcp_tools import CHARACTER_LIMIT
+
+# Documentation page of about 100,000 characters, in lines of about 100
+LINE_COUNT = 1000
+LINE_LENGTH = 95
 
 
 @pytest.fixture
@@ -517,6 +522,43 @@ async def test_docs_read_returns_text_and_count(docs_cache):
     ).model_dump()
 
     assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
+
+
+async def test_docs_read_splits_long_page(docs_cache):
+    line = "x" * LINE_LENGTH
+    page = "\n".join(f"{index} {line}" for index in range(LINE_COUNT))
+    docs_cache(content_by_uri={"docs://billing/charges": page})
+
+    first = await server_tools.marketplace_docs_read(uri="docs://billing/charges")
+    second = await server_tools.marketplace_docs_read(
+        uri="docs://billing/charges", offset=first.next_offset
+    )
+
+    assert len(first.text) <= CHARACTER_LIMIT
+    assert first.text.endswith("\n")
+    assert first.total_characters == len(page)
+    assert page.startswith(first.text + second.text)
+
+
+async def test_docs_read_last_part_has_no_next_offset(docs_cache):
+    page = "x" * (CHARACTER_LIMIT + 10)
+    docs_cache(content_by_uri={"docs://billing/charges": page})
+
+    result = (
+        await server_tools.marketplace_docs_read(
+            uri="docs://billing/charges", offset=CHARACTER_LIMIT
+        )
+    ).model_dump()
+
+    assert result == {"text": "x" * 10, "count": 1}
+
+
+@pytest.mark.parametrize("offset", [-1, 100])
+async def test_docs_read_offset_outside_page_fails(docs_cache, offset):
+    docs_cache(content_by_uri={"docs://readme": "# Readme"})
+
+    with pytest.raises(ToolError, match="is outside the page"):
+        await server_tools.marketplace_docs_read(uri="docs://readme", offset=offset)
 
 
 async def test_docs_read_not_found_fails(docs_cache):

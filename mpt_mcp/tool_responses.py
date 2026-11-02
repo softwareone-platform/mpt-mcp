@@ -300,8 +300,11 @@ class DocsListResponse(ToolResponse):
 class DocsReadResponse(ToolResponse):
     """Content of a documentation page."""
 
-    text: str = Field(description="Page content in markdown")
+    text: str = Field(description="Page content in markdown, or one part of a long page")
     count: int = Field(description="Number of pages returned, always 1")
+    total_characters: int | None = optional_field("Length of the page, when it comes in parts")
+    next_offset: int | None = optional_field("Offset of the next part, when there is more to read")
+    hint: str | None = optional_field("How to read the rest of the page")
 
 
 class SpecCacheInfo(ToolResponse):
