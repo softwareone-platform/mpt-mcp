@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 from fastmcp import Client
+from fastmcp.exceptions import ResourceError
 
 from mpt_mcp import server_docs
 from mpt_mcp.call_context import CallContext
@@ -42,27 +43,38 @@ async def test_get_openapi_spec_resource_success():
 
 
 async def test_get_openapi_spec_resource_no_token():
-
     call_context = CallContext(endpoint="https://api.test.com", token=None)
-    result = await get_openapi_spec(call_context=call_context)
-    result_dict = json.loads(result)
-    assert "error" in result_dict
-    assert result_dict["error"] == "Authentication required"
+
+    with pytest.raises(ResourceError, match="Authentication required"):
+        await get_openapi_spec(call_context=call_context)
+
+
+async def test_get_openapi_spec_resource_invalid_token():
+    call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
+    with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
+        mock_validate.return_value = (False, None, "Token expired")
+
+        with pytest.raises(ResourceError, match="Token validation failed: Token expired"):
+            await get_openapi_spec(call_context=call_context)
 
 
 async def test_get_openapi_spec_resource_fetch_error():
-
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
     with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
         with patch(
             "mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
         ) as mock_get_spec:
-            mock_get_spec.side_effect = Exception("Failed to fetch OpenAPI spec")
+            mock_get_spec.side_effect = RuntimeError("Connection refused")
 
-            result = await get_openapi_spec(call_context=call_context)
-            result_dict = json.loads(result)
-            assert "error" in result_dict
+            with pytest.raises(ResourceError, match="Connection refused"):
+                await get_openapi_spec(call_context=call_context)
+
+
+async def test_openapi_resource_error_reaches_client():
+    async with Client(mcp) as client:
+        with pytest.raises(Exception, match="Authentication required"):
+            await client.read_resource("api://openapi.json")
 
 
 async def test_openapi_resource_listed_in_resources():
@@ -127,9 +139,8 @@ async def test_docs_resource_reads_from_live_docs_cache(docs_cache):
 async def test_docs_resource_not_found_when_missing(docs_cache):
     docs_cache({})
 
-    result = await get_documentation_page("readme")
-
-    assert result == "Documentation page not found: docs://readme"
+    with pytest.raises(ResourceError, match="Documentation page not found: docs://readme"):
+        await get_documentation_page("readme")
 
 
 async def test_docs_resource_reads_nested_paths(docs_cache):

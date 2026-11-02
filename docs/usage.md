@@ -46,7 +46,7 @@ Every tool publishes an output schema that describes the fields of its result, w
 
 Every tool is read-only except `marketplace_refresh_cache`, and declares it with the MCP `readOnlyHint` annotation. Failures are MCP tool errors (`isError: true`): the text is the error message, followed by its hints as JSON when there are any. The server's MCP `instructions` describe the order to use the tools in.
 
-Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`).
+Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`). A resource that cannot be read, because the caller has no valid token, the spec cannot be loaded or the page does not exist, fails with an MCP error instead of returning an error message as its content.
 
 ## Querying
 
