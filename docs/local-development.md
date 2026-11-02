@@ -49,6 +49,20 @@ MARKETPLACE_API_TOKEN=idt:TKN-XXXX-XXXX:secret uv run python -m mpt_mcp.server_s
 
 Connect clients as described in [usage.md](usage.md), pointing the HTTP examples to `http://localhost:8080/mcp`. A `session_id` query parameter (`/mcp?session_id=…`) is added to the log prefix and to the analytics events.
 
+## Testing With Claude Code
+
+1. Start the HTTP server with `make run`.
+2. In the folder you open in Claude Code, add the local server. Without `-s`, Claude Code stores it in your user configuration (`~/.claude.json`) for that folder only, so the token does not end up in a `.mcp.json` file:
+
+   ```bash
+   claude mcp add --transport http mpt-local http://localhost:8080/mcp --header "X-MPT-Authorization: idt:TKN-XXXX-XXXX:secret"
+   ```
+
+   Add `--header "X-MPT-Endpoint: https://api.s1.show"` to test against another Marketplace endpoint.
+3. Start a new Claude Code session in that folder, or reconnect `mpt-local` with `/mcp`. Claude Code loads the tools when it connects, so reconnect after changing a tool's parameters or description too.
+
+With `DEBUG=true`, the default in `compose.yaml`, uvicorn restarts the server whenever a file changes, and the restart disconnects Claude Code: reconnect with `/mcp`. `DEBUG=false` in `.env` avoids the restarts, but also hides the debug tools.
+
 ## Troubleshooting
 
 - `curl http://localhost:8080/health` must return `{"status": "healthy", …}`.

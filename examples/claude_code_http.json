@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "softwareone-marketplace": {
+      "type": "http",
+      "url": "https://mcp.platform.softwareone.com/mcp",
+      "headers": {
+        "X-MPT-Authorization": "${MPT_API_TOKEN}",
+        "X-MPT-Endpoint": "https://api.platform.softwareone.com"
+      }
+    }
+  }
+}

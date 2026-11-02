@@ -20,7 +20,7 @@ This file documents repository-specific documentation rules only.
 - [`README.md`](../README.md): human entry point, quick start and documentation map
 - [`AGENTS.md`](../AGENTS.md): AI entry point and reading order
 - [`architecture.md`](architecture.md): transports, request flow, modules and design decisions
-- [`local-development.md`](local-development.md): configuration, running the servers and connecting clients
+- [`local-development.md`](local-development.md): configuration, running the servers, connecting clients and testing with Claude Code
 - [`usage.md`](usage.md): connecting to the server, the tools and query examples
 - [`contributing.md`](contributing.md): repository-specific workflow and lint configuration
 - [`testing.md`](testing.md): test layout, commands and conventions

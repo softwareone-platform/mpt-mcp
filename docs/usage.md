@@ -19,7 +19,7 @@ HTTP headers:
 | `X-MPT-Endpoint` | no | Marketplace API endpoint; defaults to production. Any path is ignored: `https://api.s1.show/public/v1` is read as `https://api.s1.show` |
 | `X-MPT-Validate-Fresh` | no | `true` bypasses the 10-minute token validation cache |
 
-Client configurations for Cursor, Claude Desktop and VS Code are in [`examples/`](../examples/README.md).
+Client configurations for Claude Code, Cursor, Claude Desktop and VS Code are in [`examples/`](../examples/README.md).
 
 ## Tools
 

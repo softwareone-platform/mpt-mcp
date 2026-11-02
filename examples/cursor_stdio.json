@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "softwareone-marketplace": {
-      "command": "/absolute/path/to/mpt-mcp/venv/bin/python",
+      "command": "/absolute/path/to/mpt-mcp/.venv/bin/python",
       "args": [
         "-m",
         "mpt_mcp.server_stdio"
