@@ -2,6 +2,7 @@ import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from fastmcp.exceptions import ToolError
 from fastmcp.resources import ResourceContent, ResourceResult
 from fastmcp.tools import ToolResult
 from starlette.datastructures import Headers
@@ -69,9 +70,9 @@ async def test_on_call_tool_logs_success(middleware, analytics, tool_context):
     )
 
 
-async def test_on_call_tool_logs_error_payload(middleware, analytics, tool_context):
+async def test_on_call_tool_ignores_error_field(middleware, analytics, tool_context):
     call_next = AsyncMock(
-        return_value=ToolResult(structured_content={"error": "Missing X-MPT-Authorization header"})
+        return_value=ToolResult(structured_content={"id": "ORD-1234", "error": {"id": "ERR"}})
     )
 
     await middleware.on_call_tool(tool_context, call_next)  # act
@@ -79,7 +80,22 @@ async def test_on_call_tool_logs_error_payload(middleware, analytics, tool_conte
     analytics.log_tool_call.assert_awaited_once_with(
         tool_name="marketplace_query",
         response_time_ms=RESPONSE_TIME_MS,
+        success=True,
+        error_message=None,
+    )
+
+
+async def test_on_call_tool_logs_tool_error(middleware, analytics, tool_context):
+    call_next = AsyncMock(side_effect=ToolError("Missing X-MPT-Authorization header"))
+
+    with pytest.raises(ToolError):
+        await middleware.on_call_tool(tool_context, call_next)
+
+    analytics.log_tool_call.assert_awaited_once_with(
+        tool_name="marketplace_query",
+        response_time_ms=RESPONSE_TIME_MS,
         success=False,
+        error_type="tool_error",
         error_message="Missing X-MPT-Authorization header",
     )
 

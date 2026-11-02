@@ -1,8 +1,10 @@
+import json
 from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
+from fastmcp.exceptions import ToolError
 
 from mpt_mcp import server_docs, server_tools
 from mpt_mcp.call_context import CallContext
@@ -29,6 +31,23 @@ def api_client():
         CallContext, "create_api_client", new_callable=AsyncMock, return_value=client
     ):
         yield client
+
+
+async def test_query_without_credentials_fails(call_context, endpoints_registry):
+    with (
+        patch.object(
+            CallContext,
+            "create_api_client",
+            new_callable=AsyncMock,
+            side_effect=ValueError("Missing X-MPT-Authorization header"),
+        ),
+        pytest.raises(ToolError, match="Missing X-MPT-Authorization header") as error,
+    ):
+        await server_tools.marketplace_query("catalog.products", call_context=call_context)
+
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert details == {"hint": server_tools.AUTH_HEADER_HINT}
 
 
 async def test_unknown_resource_suggests_similar(call_context, endpoints_registry, api_client):
@@ -58,14 +77,12 @@ async def test_unknown_resource_suggests_similar(call_context, endpoints_registr
 
     endpoints_registry.return_value = mock_registry
 
-    # Try to query "catalog.product" (typo - missing 's')
-    result = await server_tools.marketplace_query("catalog.product", call_context=call_context)
+    with pytest.raises(ToolError, match=r"Unknown resource: 'catalog\.product'") as error:
+        await server_tools.marketplace_query("catalog.product", call_context=call_context)
 
-    # Should return error with suggestions
-    assert "error" in result
-    assert "catalog.product" in result["error"]
-    assert "did_you_mean" in result
-    assert "catalog.products" in result["did_you_mean"]
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert "catalog.products" in details["did_you_mean"]
 
 
 async def test_unknown_resource_shows_categories(call_context, endpoints_registry, api_client):
@@ -84,11 +101,12 @@ async def test_unknown_resource_shows_categories(call_context, endpoints_registr
 
     endpoints_registry.return_value = mock_registry
 
-    result = await server_tools.marketplace_query("invalid.resource", call_context=call_context)
+    with pytest.raises(ToolError) as error:
+        await server_tools.marketplace_query("invalid.resource", call_context=call_context)
 
-    assert "available_categories" in result
-    assert "catalog" in result["available_categories"]
-    assert "commerce" in result["available_categories"]
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert sorted(details["available_categories"]) == ["catalog", "commerce"]
 
 
 async def test_missing_path_params_shows_example(call_context, endpoints_registry, api_client):
@@ -102,18 +120,16 @@ async def test_missing_path_params_shows_example(call_context, endpoints_registr
 
     endpoints_registry.return_value = mock_registry
 
-    # Query without providing path_params
-    result = await server_tools.marketplace_query(
-        "catalog.products.by_id", call_context=call_context
-    )
+    with pytest.raises(ToolError, match="requires path parameters: id") as error:
+        await server_tools.marketplace_query("catalog.products.by_id", call_context=call_context)
 
-    # Should include helpful error
-    assert "error" in result
-    assert "path parameters" in result["error"].lower()
-    assert "example" in result
-    assert "marketplace_query" in result["example"]
-    assert "path_params" in result["example"]
-    assert "hint" in result
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert details["example"] == (
+        "marketplace_query(resource='catalog.products.by_id', "
+        "path_params={'id': 'PRD-1234-5678'}, limit=10)"
+    )
+    assert "hint" in details
 
 
 async def test_path_params_error_has_realistic_values(call_context, endpoints_registry, api_client):
@@ -127,12 +143,12 @@ async def test_path_params_error_has_realistic_values(call_context, endpoints_re
 
     endpoints_registry.return_value = mock_registry
 
-    result = await server_tools.marketplace_query(
-        "commerce.orders.by_id", call_context=call_context
-    )
+    with pytest.raises(ToolError) as error:
+        await server_tools.marketplace_query("commerce.orders.by_id", call_context=call_context)
 
-    # Should use realistic example value
-    assert "ORD-" in result["example"]  # Realistic order ID format
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert "'orderId': 'ORD-1234-5678-9012'" in details["example"]
 
 
 async def test_resource_info_shows_children(call_context, endpoints_registry, api_client):
@@ -271,14 +287,13 @@ async def test_api_error_includes_status_code(call_context, endpoints_registry, 
 
     api_client.get = AsyncMock(side_effect=http_error)
 
-    result = await server_tools.marketplace_query("catalog.products", call_context=call_context)
+    with pytest.raises(ToolError, match="400 Bad Request") as error:
+        await server_tools.marketplace_query("catalog.products", call_context=call_context)
 
-    # Should preserve API error details
-    assert "error" in result
-    assert "status_code" in result
-    assert result["status_code"] == HTTPStatus.BAD_REQUEST
-    assert "api_error_details" in result
-    assert "Invalid RQL" in result["api_error_details"]["message"]
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert details["status_code"] == HTTPStatus.BAD_REQUEST
+    assert details["api_error_details"]["message"] == "Invalid RQL"
 
 
 async def test_api_error_includes_request_url(call_context, endpoints_registry, api_client):
@@ -307,11 +322,12 @@ async def test_api_error_includes_request_url(call_context, endpoints_registry, 
 
     api_client.get = AsyncMock(side_effect=http_error)
 
-    result = await server_tools.marketplace_query("catalog.products", call_context=call_context)
+    with pytest.raises(ToolError) as error:
+        await server_tools.marketplace_query("catalog.products", call_context=call_context)
 
-    # Should include request URL
-    assert "request_url" in result
-    assert "api.test.com" in result["request_url"]
+    _, error_details = str(error.value).split("\n", 1)
+    details = json.loads(error_details)
+    assert details["request_url"] == "https://api.test.com/public/v1/catalog/products"
 
 
 async def test_docs_list_exposes_browser_url_and_note():
@@ -402,6 +418,14 @@ def docs_cache(monkeypatch):
     return _docs_cache
 
 
+async def test_docs_index_without_cache_fails(monkeypatch):
+    monkeypatch.setattr(server_docs, "initialize_documentation_cache", AsyncMock())
+    monkeypatch.setattr(server_docs, "documentation_cache", None)
+
+    with pytest.raises(ToolError, match="Documentation cache is not available"):
+        await server_tools.marketplace_docs_index()
+
+
 async def test_docs_index_returns_cache_index(docs_cache):
     index = {
         "total_pages": 1,
@@ -462,13 +486,11 @@ async def test_docs_read_returns_text_and_count(docs_cache):
     assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
 
 
-async def test_docs_read_not_found_returns_zero_count(docs_cache):
+async def test_docs_read_not_found_fails(docs_cache):
     docs_cache()
 
-    result = await server_tools.marketplace_docs_read(uri="docs://missing/page")
-
-    text = result["text"].lower()
-    assert (result["count"], "not found" in text) == (0, True)
+    with pytest.raises(ToolError, match="Documentation page not found: docs://missing/page"):
+        await server_tools.marketplace_docs_read(uri="docs://missing/page")
 
 
 def test_resources_info_reflects_docs_cache(docs_cache, monkeypatch):
@@ -493,6 +515,5 @@ async def test_refresh_cache_reloads_registry(call_context, endpoints_registry, 
 async def test_refresh_cache_reports_failed_load(call_context, endpoints_registry, api_client):
     endpoints_registry.return_value = {}
 
-    result = await server_tools.marketplace_refresh_cache(call_context=call_context)
-
-    assert result["success"] is False
+    with pytest.raises(ToolError, match="Failed to load OpenAPI spec"):
+        await server_tools.marketplace_refresh_cache(call_context=call_context)

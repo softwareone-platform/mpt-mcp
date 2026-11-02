@@ -7,6 +7,24 @@ from mpt_mcp.server_resources import register_resources
 from mpt_mcp.server_tools import DEBUG_TAG, register_tools
 
 SERVER_NAME = "softwareone-marketplace"
+SERVER_INSTRUCTIONS = """\
+Read-only access to the SoftwareOne Marketplace API, with the caller's credentials, and to the \
+Marketplace documentation.
+
+To answer questions about Marketplace data:
+1. Find the resource with marketplace_resources. Resources are named after their API path, \
+for example commerce.orders or catalog.products.by_id.
+2. Check its parameters and enum values with marketplace_resource_info, its response fields \
+with marketplace_resource_schema, and its audit events (audit.<event>.at and \
+audit.<event>.by) with marketplace_audit_fields when filtering by date or user.
+3. Query it with marketplace_query: filter with rql, choose fields with select, sort with \
+order, and paginate with limit and offset (10 items by default, 100 at most).
+marketplace_quick_queries has ready-made queries for common questions.
+
+To answer questions about how the Marketplace works, browse marketplace_docs_index or search \
+with marketplace_docs_list, then read a page with marketplace_docs_read. Show users the \
+browser_url of a page, not its docs:// uri.
+"""
 
 
 def create_mcp_server(*, analytics: bool) -> FastMCP:
@@ -23,11 +41,16 @@ def create_mcp_server(*, analytics: bool) -> FastMCP:
     if analytics:
         mcp = FastMCP(
             SERVER_NAME,
+            instructions=SERVER_INSTRUCTIONS,
             lifespan=analytics_lifespan,
             middleware=[RequestContextMiddleware(), AnalyticsMiddleware()],
         )
     else:
-        mcp = FastMCP(SERVER_NAME, middleware=[RequestContextMiddleware()])
+        mcp = FastMCP(
+            SERVER_NAME,
+            instructions=SERVER_INSTRUCTIONS,
+            middleware=[RequestContextMiddleware()],
+        )
     register_tools(mcp)
     register_resources(mcp)
     # Debug tools are only listed and callable in development

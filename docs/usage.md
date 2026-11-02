@@ -40,7 +40,9 @@ Both servers serve the same tools:
 | `marketplace_refresh_cache` | `DEBUG=true` only: reload the OpenAPI spec and the endpoint registry |
 | `marketplace_resources_info` | `DEBUG=true` only: show the state of the documentation and token validation caches |
 
-The documentation tools need GitBook to be configured on the server; otherwise they return a message saying it is not available.
+The documentation tools need GitBook to be configured on the server; otherwise they fail with a message saying it is not available.
+
+Every tool is read-only except `marketplace_refresh_cache`, and declares it with the MCP `readOnlyHint` annotation. Failures are MCP tool errors (`isError: true`): the text is the error message, followed by its hints as JSON when there are any. The server's MCP `instructions` describe the order to use the tools in.
 
 Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`).
 
@@ -61,6 +63,6 @@ Query behaviour:
 - `catalog.products` returns `+id,+name,+shortDescription` when no `select` is given.
 - Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds `audit` to `select`, which the API requires; if the API rejects it, the query is retried without it.
 - `select` fields that are not in the resource schema are dropped when the schema is known.
-- Resources with path parameters return an error with an example `path_params` when they are missing.
+- Resources with path parameters fail with an example `path_params` when they are missing.
 
 RQL syntax is described in the [Marketplace documentation](https://docs.platform.softwareone.com/developer-resources/rest-api/resource-query-language).

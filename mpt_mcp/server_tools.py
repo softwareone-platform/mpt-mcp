@@ -3,6 +3,7 @@ from typing import Any
 
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
+from mcp_types import ToolAnnotations
 
 from mpt_mcp import (
     audit_fields as audit_fields_module,
@@ -20,6 +21,7 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
+    tool_error,
 )
 from mpt_mcp.token_validator import get_token_cache
 
@@ -38,6 +40,14 @@ OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
 
 MANY_DOCS_RESULTS = 50
 
+# Every tool only reads: they differ in whether they reach the Marketplace API or GitBook
+READ_ONLY_LOCAL = ToolAnnotations(read_only_hint=True, open_world_hint=False)
+READ_ONLY_REMOTE = ToolAnnotations(read_only_hint=True, open_world_hint=True)
+# Refreshing rewrites the server's spec cache: it changes state, but repeating it is harmless
+REFRESHES_CACHE = ToolAnnotations(
+    read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True
+)
+
 
 async def marketplace_audit_fields(
     resource: str | None = None, call_context: CallContext = Depends(get_call_context)
@@ -48,7 +58,7 @@ async def marketplace_audit_fields(
     Derived from the OpenAPI spec. Returns event names (e.g. created, updated, failed); paths are
     always audit.<event>.at (when) and audit.<event>.by (who). Use for queries like "orders failed
     starting when" (audit.failed.at) or "agreements created after X" (audit.created.at).
-    Include select=audit when filtering or sorting by these fields.
+    marketplace_query adds audit to select when rql or order use these fields.
 
     Args:
         resource: Optional. If provided, returns events for this resource only
@@ -63,19 +73,23 @@ async def marketplace_audit_fields(
     try:
         api_client = await call_context.create_api_client()
     except ValueError as error:
-        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     api_base_url = api_client.base_url
     try:
         await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as error:
-        return {
-            "error": f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
-            "details": str(error),
-            "api_endpoint": api_base_url,
-        }
+        raise tool_error(
+            f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
+            details=str(error),
+            api_endpoint=api_base_url,
+        ) from error
 
-    return audit_fields_module.get_audit_fields(api_base_url, resource)
+    result = audit_fields_module.get_audit_fields(api_base_url, resource)
+    if "error" in result:
+        raise tool_error(result.pop("error"), **result)
+
+    return result
 
 
 def marketplace_cache_info() -> dict[str, Any]:
@@ -105,7 +119,7 @@ async def marketplace_docs_index() -> dict[str, Any]:
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
     if not dc or not dc.is_enabled:
-        return {"total_pages": 0, "sections": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
+        raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
     return await dc.get_documentation_index()
 
@@ -131,7 +145,7 @@ async def marketplace_docs_list(
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
     if not dc or not dc.is_enabled:
-        return {"total": 0, "resources": [], "error": DOCUMENTATION_CACHE_UNAVAILABLE_MSG}
+        raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
     resources = await dc.list_resources(
         section=section, subsection=subsection, search=search, limit=limit
@@ -177,23 +191,19 @@ async def marketplace_docs_read(uri: str) -> dict[str, Any]:
         uri: Page uri from marketplace_docs_list (e.g. docs://help-and-support/contact-support)
 
     Returns:
-        {"text": "<markdown content>", "count": 1}, or count 0 with the reason in text when the
-        page is not available
+        {"text": "<markdown content>", "count": 1}
     """
     await server_docs.initialize_documentation_cache()
     dc = server_docs.documentation_cache
     if not dc or not dc.is_enabled:
-        return {"text": DOCUMENTATION_CACHE_UNAVAILABLE_MSG, "count": 0}
+        raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
     page_content = await dc.get_resource(uri)
     if page_content is None:
-        return {
-            "text": (
-                f"Documentation page not found: {uri}\n\n"
-                "Use marketplace_docs_list() to see available pages."
-            ),
-            "count": 0,
-        }
+        raise tool_error(
+            f"Documentation page not found: {uri}",
+            hint="Use marketplace_docs_list() to see available pages.",
+        )
 
     return {"text": page_content, "count": 1}
 
@@ -257,7 +267,7 @@ async def marketplace_query(
     try:
         api_client = await call_context.create_api_client()
     except ValueError as error:
-        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     api_base_url = api_client.base_url
     logger.info("Using API endpoint: %s", api_base_url)
@@ -265,12 +275,12 @@ async def marketplace_query(
         endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
         openapi_spec = await endpoint_registry.get_openapi_spec(api_base_url)
     except Exception as error:
-        return {
-            "error": f"{OPENAPI_SPEC_LOAD_ERROR} for your endpoint",
-            "api_endpoint": api_base_url,
-            "details": str(error),
-            "hint": f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
-        }
+        raise tool_error(
+            f"{OPENAPI_SPEC_LOAD_ERROR} for your endpoint",
+            api_endpoint=api_base_url,
+            details=str(error),
+            hint=f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
+        ) from error
 
     audit_regex = audit_fields_module.get_audit_regex(api_base_url)
     return await execute_marketplace_query(
@@ -322,18 +332,16 @@ async def marketplace_refresh_cache(
     try:
         api_client = await call_context.create_api_client()
     except ValueError as error:
-        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     logger.info("Force refreshing OpenAPI spec cache...")
     endpoints_registry_data = await endpoint_registry.get_endpoints_registry(
         api_client.base_url, force_refresh=True
     )
     if not endpoints_registry_data:
-        return {
-            "success": False,
-            "error": OPENAPI_SPEC_LOAD_ERROR,
-            "message": "Failed to refresh cache. Check network connection.",
-        }
+        raise tool_error(
+            OPENAPI_SPEC_LOAD_ERROR, hint="Failed to refresh cache. Check network connection."
+        )
 
     return {
         "success": True,
@@ -360,13 +368,13 @@ async def marketplace_resource_info(
     try:
         api_client = await call_context.create_api_client()
     except ValueError as error:
-        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     api_base_url = api_client.base_url
     try:
         endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as error:
-        return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
+        raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
 
     return execute_marketplace_resource_info(
         resource=resource,
@@ -395,14 +403,14 @@ async def marketplace_resource_schema(
     try:
         api_client = await call_context.create_api_client()
     except ValueError as error:
-        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     api_base_url = api_client.base_url
     try:
         spec = await endpoint_registry.get_openapi_spec(api_base_url)
         endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as error:
-        return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
+        raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
 
     return execute_marketplace_resource_schema(
         resource=resource,
@@ -423,13 +431,13 @@ async def marketplace_resources(
     try:
         api_client = await call_context.create_api_client()
     except ValueError as error:
-        return {"error": str(error), "hint": AUTH_HEADER_HINT}
+        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 
     api_base_url = api_client.base_url
     try:
         endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
     except Exception as error:
-        return {"error": OPENAPI_SPEC_LOAD_ERROR, "details": str(error)}
+        raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
 
     return execute_marketplace_resources(
         api_base_url=api_base_url,
@@ -474,21 +482,21 @@ def marketplace_resources_info() -> dict[str, Any]:
 
 def register_tools(mcp: FastMCP) -> None:
     """Register the Marketplace, documentation and debug tools."""
-    for tool in (
-        marketplace_query,
-        marketplace_quick_queries,
-        marketplace_resources,
-        marketplace_resource_info,
-        marketplace_resource_schema,
-        marketplace_audit_fields,
-        marketplace_docs_index,
-        marketplace_docs_list,
-        marketplace_docs_read,
+    for tool, title, annotations in (
+        (marketplace_query, "Query a Marketplace resource", READ_ONLY_REMOTE),
+        (marketplace_quick_queries, "Marketplace query templates", READ_ONLY_LOCAL),
+        (marketplace_resources, "List Marketplace resources", READ_ONLY_REMOTE),
+        (marketplace_resource_info, "Describe a Marketplace resource", READ_ONLY_REMOTE),
+        (marketplace_resource_schema, "Marketplace resource schema", READ_ONLY_REMOTE),
+        (marketplace_audit_fields, "Marketplace audit events", READ_ONLY_REMOTE),
+        (marketplace_docs_index, "Documentation index", READ_ONLY_REMOTE),
+        (marketplace_docs_list, "List documentation pages", READ_ONLY_REMOTE),
+        (marketplace_docs_read, "Read a documentation page", READ_ONLY_REMOTE),
     ):
-        mcp.tool()(tool)
-    for debug_tool in (
-        marketplace_cache_info,
-        marketplace_refresh_cache,
-        marketplace_resources_info,
+        mcp.tool(title=title, annotations=annotations)(tool)
+    for debug_tool, title, annotations in (
+        (marketplace_cache_info, "OpenAPI spec cache state", READ_ONLY_LOCAL),
+        (marketplace_refresh_cache, "Refresh the OpenAPI spec cache", REFRESHES_CACHE),
+        (marketplace_resources_info, "Documentation and token cache state", READ_ONLY_LOCAL),
     ):
-        mcp.tool(tags={DEBUG_TAG})(debug_tool)
+        mcp.tool(title=title, tags={DEBUG_TAG}, annotations=annotations)(debug_tool)

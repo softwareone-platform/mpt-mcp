@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import difflib
+import json
 import logging
 import re
 import time
@@ -8,6 +9,7 @@ from http import HTTPStatus
 from typing import TYPE_CHECKING, Any
 
 import httpx
+from fastmcp.exceptions import ToolError
 
 from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX, get_item_schema, resolve_schema
 from mpt_mcp.query_templates import get_query_templates
@@ -61,6 +63,23 @@ def obfuscate_token_values(data: Any) -> Any:
         return [obfuscate_token_values(element) for element in data]
 
     return data
+
+
+def tool_error(message: str, **details: Any) -> ToolError:
+    """
+    Build a tool error that carries its hints, so MCP clients mark the result as an error.
+
+    Args:
+        message: What failed
+        details: Hints for the caller, such as an example or similar resources
+
+    Returns:
+        Tool error with the message followed by the hints as JSON
+    """
+    if not details:
+        return ToolError(message)
+
+    return ToolError(f"{message}\n{json.dumps(details, default=str)}")
 
 
 # ============================================================================
@@ -264,7 +283,10 @@ async def execute_marketplace_query(
         openapi_spec: OpenAPI spec used to validate select fields against the response schema
 
     Returns:
-        API response or error dictionary
+        API response
+
+    Raises:
+        ToolError: The resource is unknown, path parameters are missing or the API call failed
     """
     # Tool-call diagnostics at INFO so they appear in docker logs (log_level=info)
     logger.info(
@@ -287,8 +309,7 @@ async def execute_marketplace_query(
     # Check if resource exists
     if resource not in endpoints_registry:
         similar_resources = suggest_resources(resource, endpoints_registry)
-        error_response = {
-            "error": f"Unknown resource: '{resource}'",
+        hints: dict[str, Any] = {
             "hint": "Use marketplace_resources() to see all available resources",
             "available_categories": list({
                 resource.split(".")[0] for resource in endpoints_registry
@@ -296,9 +317,9 @@ async def execute_marketplace_query(
         }
 
         if similar_resources:
-            error_response["did_you_mean"] = similar_resources
+            hints["did_you_mean"] = similar_resources
 
-        return error_response
+        raise tool_error(f"Unknown resource: '{resource}'", **hints)
 
     endpoint_info = endpoints_registry[resource]
     api_path = endpoint_info["path"]
@@ -339,15 +360,15 @@ async def execute_marketplace_query(
         hint = f"You must provide path_params dictionary. For example: path_params={{{hint_dict}}}"
 
         required_params = ", ".join(remaining_params)
-        return {
-            "error": f"This resource requires path parameters: {required_params}",
-            "resource": resource,
-            "path_template": endpoint_info["path"],
-            "example": (
+        raise tool_error(
+            f"This resource requires path parameters: {required_params}",
+            resource=resource,
+            path_template=endpoint_info["path"],
+            example=(
                 f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)"
             ),
-            "hint": hint,
-        }
+            hint=hint,
+        )
 
     # When listing catalog.products without select, default to table-friendly fields to avoid
     # huge payloads and markdown table breaks (URLs, nested objects with "|" in values).
@@ -484,7 +505,7 @@ async def execute_marketplace_query(
     except Exception as error:
         logger.warning("   Error: %s", error)
 
-        error_response = {"error": str(error), "resource": resource, "path": api_path}
+        error_response: dict[str, Any] = {"resource": resource, "path": api_path}
         response_code = None
         should_retry_without_audit = False
 
@@ -617,7 +638,7 @@ async def execute_marketplace_query(
                 tool_name="marketplace_query",
             )
 
-        return error_response
+        raise tool_error(str(error), **error_response) from error
 
 
 # ============================================================================
@@ -791,12 +812,15 @@ def execute_marketplace_resource_info(
 
     Returns:
         Detailed resource information
+
+    Raises:
+        ToolError: The resource is unknown
     """
     if resource not in endpoints_registry:
-        return {
-            "error": f"Unknown resource: {resource}",
-            "hint": "Use marketplace_resources() to see all available resources",
-        }
+        raise tool_error(
+            f"Unknown resource: {resource}",
+            hint="Use marketplace_resources() to see all available resources",
+        )
 
     endpoint_info = endpoints_registry[resource]
 
@@ -968,15 +992,16 @@ def execute_marketplace_resource_schema(
 
     Returns:
         Complete JSON schema with field types and descriptions
+
+    Raises:
+        ToolError: The resource is unknown or its GET operation is not in the OpenAPI spec
     """
     if resource not in endpoints_registry:
-        return {
-            "error": f"Unknown resource: {resource}",
-            "hint": "Use marketplace_resources() to see all available resources",
-            "available_categories": list({
-                resource.split(".")[0] for resource in endpoints_registry
-            }),
-        }
+        raise tool_error(
+            f"Unknown resource: {resource}",
+            hint="Use marketplace_resources() to see all available resources",
+            available_categories=list({resource.split(".")[0] for resource in endpoints_registry}),
+        )
 
     endpoint_info = endpoints_registry[resource]
     path = endpoint_info["path"]
@@ -984,11 +1009,11 @@ def execute_marketplace_resource_schema(
     # Find the endpoint in the OpenAPI spec
     paths = openapi_spec.get("paths", {})
     if path not in paths:
-        return {"error": f"Path {path} not found in OpenAPI spec", "resource": resource}
+        raise tool_error(f"Path {path} not found in OpenAPI spec", resource=resource)
 
     path_item = paths[path]
     if "get" not in path_item:
-        return {"error": f"GET operation not found for {path}", "resource": resource}
+        raise tool_error(f"GET operation not found for {path}", resource=resource)
 
     get_op = path_item["get"]
 

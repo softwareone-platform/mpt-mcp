@@ -2,6 +2,7 @@ import json
 import time
 from typing import TYPE_CHECKING, Any
 
+from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
@@ -49,17 +50,16 @@ class AnalyticsMiddleware(Middleware):
                 tool_name=context.message.name,
                 response_time_ms=self._elapsed_ms(start_time),
                 success=False,
-                error_type="exception",
+                error_type="tool_error" if isinstance(error, ToolError) else "exception",
                 error_message=str(error),
             )
             raise
 
-        error_message = self._tool_error(result)
         await analytics.log_tool_call(
             tool_name=context.message.name,
             response_time_ms=self._elapsed_ms(start_time),
-            success=error_message is None,
-            error_message=error_message,
+            success=not result.is_error,
+            error_message="Tool returned an error result" if result.is_error else None,
         )
 
         return result
@@ -162,11 +162,3 @@ class AnalyticsMiddleware(Middleware):
             return None
 
         return payload.get("error") if isinstance(payload, dict) else None
-
-    @staticmethod
-    def _tool_error(result: ToolResult) -> str | None:
-        # Tools report failures as an {"error": ...} payload instead of raising
-        if isinstance(result.structured_content, dict) and result.structured_content.get("error"):
-            return str(result.structured_content["error"])
-
-        return "Tool returned an error result" if result.is_error else None

@@ -26,7 +26,9 @@ The HTTP app is built once at import time (`server.app`, which uvicorn loads as 
 
 The stdio server has no HTTP request: `get_call_context()` builds the `CallContext` from `MARKETPLACE_API_BASE_URL` and `MARKETPLACE_API_TOKEN`, and the tools run the same way.
 
-Tools report failures as an `{"error": ...}` payload instead of raising, so MCP clients always get a readable message.
+Tools report failures by raising `ToolError`, built with `tool_error()` ([`mcp_tools.py`](../mpt_mcp/mcp_tools.py)): MCP clients receive an error result (`isError: true`) whose text is the message followed by its hints (`hint`, `did_you_mean`, `example`…) as JSON. FastMCP never masks `ToolError` messages. Errors are not detected from the response payload, because some Marketplace resources, such as orders, have an `error` field of their own.
+
+Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in.
 
 ## Modules
 

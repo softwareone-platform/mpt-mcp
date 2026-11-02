@@ -21,7 +21,7 @@ The HTTP server reads the Marketplace documentation from a GitBook space when `G
 - requests are limited to `GITBOOK_MAX_CONCURRENT_REQUESTS` and retried on 429/503
 - `GITBOOK_PUBLIC_URL` adds a public `browser_url` to each page
 
-Without GitBook credentials the documentation tools return an error explaining how to enable them.
+Without GitBook credentials the documentation tools fail with an error explaining how to enable them.
 
 ## Analytics Database (PostgreSQL)
 

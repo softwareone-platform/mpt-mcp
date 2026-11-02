@@ -1,8 +1,10 @@
+import json
 import logging
 from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock
 
 import pytest
+from fastmcp.exceptions import ToolError
 from httpx import HTTPStatusError, Request, Response
 
 from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX
@@ -11,6 +13,7 @@ from mpt_mcp.mcp_tools import (
     execute_marketplace_resource_info,
     execute_marketplace_resources,
     suggest_resources,
+    tool_error,
 )
 
 PRODUCTS_PAGE_SIZE = 10
@@ -418,14 +421,11 @@ def test_resources_tips_mention_omitted_fields():
 
 
 def test_resource_info_handles_unknown_resource(endpoints_registry):
-    result = execute_marketplace_resource_info(
-        resource="unknown.resource",
-        endpoints_registry=endpoints_registry,
-    )
-
-    # Should return error, not crash
-    assert "error" in result
-    assert "Unknown resource" in result["error"]
+    with pytest.raises(ToolError, match=r"Unknown resource: unknown\.resource"):
+        execute_marketplace_resource_info(
+            resource="unknown.resource",
+            endpoints_registry=endpoints_registry,
+        )
 
 
 @pytest.fixture
@@ -549,13 +549,27 @@ async def test_query_limits_only_collections(api_client, query_path, path_templa
 
 
 async def test_query_reports_missing_path_params(api_client, query_path):
-    result = await query_path(
-        "/public/v1/commerce/orders/{orderId}/lines/{lineId}", {"orderId": "ORD-1234-5678"}
-    )
+    with pytest.raises(ToolError) as error:
+        await query_path(
+            "/public/v1/commerce/orders/{orderId}/lines/{lineId}", {"orderId": "ORD-1234-5678"}
+        )
 
-    assert result["error"] == "This resource requires path parameters: lineId"
-    assert "'lineId': 'LIN-1234-5678'" in result["hint"]
+    message, details = str(error.value).split("\n", 1)
+    assert message == "This resource requires path parameters: lineId"
+    assert "'lineId': 'LIN-1234-5678'" in json.loads(details)["hint"]
     api_client.get.assert_not_called()
+
+
+def test_tool_error_without_details():
+    result = tool_error("Unknown resource: x")
+
+    assert str(result) == "Unknown resource: x"
+
+
+def test_tool_error_appends_details_as_json():
+    result = tool_error("Unknown resource: x", did_you_mean=["catalog.products"])
+
+    assert str(result) == 'Unknown resource: x\n{"did_you_mean": ["catalog.products"]}'
 
 
 @pytest.mark.parametrize(
