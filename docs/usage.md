@@ -64,7 +64,7 @@ Query behaviour:
 - `limit` defaults to 10 and is capped at 100; use `offset` to paginate. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
 - Each item comes with the resource's default fields. `select` starting with `-*` returns only the listed fields (`-*,+id,+product.name`); without it, `+field` adds a field omitted by default (listed in `$meta.omitted`) and `-field` removes one. `id`, `status` and `name` are always kept when the resource has them.
 - `catalog.products` returns only `id`, `status`, `name` and `shortDescription` when no `select` is given.
-- Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds `audit` to `select`, which the API requires; if the API rejects it, the query is retried without it.
+- Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds that field to `select` (`+audit.created.at`), so the result shows the values it was sorted or filtered by. If the API answers 400 Bad Request, the query is sent again with the original `select`.
 - `select` fields that are not in the resource schema are dropped when the schema is known.
 - Resources with path parameters fail with an example `path_params` when they are missing.
 

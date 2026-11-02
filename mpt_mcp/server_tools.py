@@ -266,10 +266,10 @@ async def marketplace_query(
             responses small); +lines adds a field omitted by default (see $meta.omitted) to the
             default set; -price removes one. Nested: +subscriptions (full), +subscriptions.id.
             id, status and name are always included when the resource has them, fields the
-            resource does not have are dropped, and 'audit' is added when rql or order use
-            audit fields. For catalog.products include vendor as +vendor.id,+vendor.name (not
-            +vendor). Without select, catalog.products returns only id, status, name and
-            shortDescription.
+            resource does not have are dropped, and the audit fields rql or order use are added
+            (+audit.created.at). For catalog.products include vendor as
+            +vendor.id,+vendor.name (not +vendor). Without select, catalog.products returns only
+            id, status, name and shortDescription.
         order: Sort order (e.g., -audit.created.at for descending, +name for ascending)
         path_params: Path parameters for resources requiring IDs
             Examples: {id: PRD-1234-5678} for catalog.products.by_id

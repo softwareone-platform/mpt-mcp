@@ -41,7 +41,7 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`api_client.py`](../mpt_mcp/api_client.py) | Authenticated Marketplace API client; RQL is sent as the raw query string; endpoints are normalized to `scheme://host[:port]` |
 | [`endpoint_registry.py`](../mpt_mcp/endpoint_registry.py) | Per-endpoint registry of GET resources built from the OpenAPI spec, cached in memory and on disk (`.cache/`, 24 hours); a spec that fails to load is not cached, so the next call retries it |
 | [`openapi_parser.py`](../mpt_mcp/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
-| [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add `select=audit` |
+| [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
 | [`mcp_tools.py`](../mpt_mcp/mcp_tools.py) | Tool logic shared by both servers: query execution, select sanitization, resource info and schemas |
 | [`query_templates.py`](../mpt_mcp/query_templates.py) | Example queries returned by `marketplace_quick_queries` |
 | [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server: middlewares, analytics lifespan (HTTP), tools, resources and debug tool visibility |

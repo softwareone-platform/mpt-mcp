@@ -175,7 +175,7 @@ def send_select(send_query):
 async def test_adds_audit_to_select_for_audit_fields(send_select, rql, order):
     result = await send_select(rql=rql, order=order)
 
-    assert "audit" in result
+    assert any(part.startswith("audit.") for part in result)
 
 
 @pytest.mark.parametrize("select", ["audit,+id,+name", "+audit,+id,+name"])
@@ -201,13 +201,27 @@ async def test_skips_audit_without_audit_fields(send_select):
 async def test_appends_audit_to_existing_select(send_select):
     result = await send_select(rql=AUDIT_RQL, select="+id,+name,+status")
 
-    assert {"audit", "id", "name", "status"} <= set(result)
+    assert {"audit.created.at", "id", "name", "status"} <= set(result)
 
 
 async def test_creates_audit_select_without_select(send_query):
     result = await send_query(rql=AUDIT_RQL)
 
-    assert result["select"] == "id,audit"
+    assert result["select"] == "id,+audit.created.at"
+
+
+async def test_adds_used_audit_fields_with_exclude_all(send_select):
+    result = await send_select(
+        rql=AUDIT_RQL, select="-*,+id,+status", order="-audit.updated.at,-audit.created.at"
+    )
+
+    assert result == ["-*", "id", "status", "audit.created.at", "audit.updated.at"]
+
+
+async def test_adds_used_audit_fields_to_default(send_select):
+    result = await send_select(rql=AUDIT_RQL, select="+id,+status")
+
+    assert result == ["id", "status", "audit.created.at"]
 
 
 @pytest.mark.parametrize(
@@ -243,7 +257,7 @@ async def test_real_world_date_range_query(send_query):
     )
 
     select_fields = {part.lstrip("+") for part in result["select"].split(",")}
-    assert {"audit", "id", "product.id", "product.name"} <= select_fields
+    assert {"audit.created.at", "id", "product.id", "product.name"} <= select_fields
     assert result["order"] == "-audit.created.at"
 
 
@@ -252,7 +266,7 @@ async def test_real_world_recent_orders_query(send_select):
         limit=QUERY_LIMIT, select="+id,+status,+product.name", order="-audit.created.at"
     )
 
-    assert {"audit", "id", "status", "product.name"} <= set(result)
+    assert {"audit.created.at", "id", "status", "product.name"} <= set(result)
 
 
 async def test_retries_without_audit_on_bad_request(

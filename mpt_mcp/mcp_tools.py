@@ -219,6 +219,26 @@ def get_response_item_schema(
 _ALWAYS_INCLUDE_WHEN_IN_SCHEMA = ("id", "status", "name")
 
 
+def get_used_audit_paths(rql: str, order: str | None, audit_pattern: re.Pattern[str]) -> list[str]:
+    """
+    List the audit fields a query filters or sorts by, in the order they first appear.
+
+    Args:
+        rql: RQL query string
+        order: Sort order, such as -audit.created.at
+        audit_pattern: Audit fields of the resource, such as audit.created.at
+
+    Returns:
+        Audit fields such as audit.created.at, or audit when order sorts by the whole object
+    """
+    audit_paths = [match.group(0) for match in audit_pattern.finditer(rql or "")]
+    for order_part in (order or "").split(","):
+        order_field = order_part.strip().lstrip("+-")
+        if order_field.lower().startswith("audit"):
+            audit_paths.append(order_field)
+    return list(dict.fromkeys(audit_paths))
+
+
 def sanitize_select(
     select: str | None,
     allowed_fields: set[str],
@@ -328,7 +348,7 @@ async def execute_marketplace_query(
         endpoints_registry: Registry of available endpoints
         analytics_logger: Optional analytics logger instance
         config: Optional config object for checking if analytics is enabled
-        audit_regex: Audit fields that need select=audit (falls back to the static pattern)
+        audit_regex: Audit fields added to select when used (falls back to the static pattern)
         openapi_spec: OpenAPI spec used to validate select fields against the response schema
 
     Returns:
@@ -428,12 +448,10 @@ async def execute_marketplace_query(
             "for full fields)"
         )
 
-    # Auto-detect audit field usage in RQL and ensure audit is selected
-    # The API requires select=audit when filtering/sorting by audit fields
+    # Select the audit fields used to filter or sort, so the result shows their values
     # Use dynamic regex from spec-derived cache if provided, else fallback (includes failed)
     audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
-    uses_audit_fields = bool(rql and audit_pattern.search(rql))
-    uses_audit_in_order = bool(order and "audit" in order.lower())
+    audit_paths = get_used_audit_paths(rql, order, audit_pattern)
 
     # Store original select value for potential retry
     original_select = select
@@ -449,12 +467,12 @@ async def execute_marketplace_query(
             for part in select_parts
         )
 
-    # Auto-add audit to select if needed
-    if (uses_audit_fields or uses_audit_in_order) and not has_audit_in_select:
+    # Only the fields in use: the whole audit object doubles the size of small items
+    if audit_paths and not has_audit_in_select:
         auto_added_audit = True
-        # Append audit to the existing select, or create one with audit
-        select = f"{select},audit" if select else "audit"
-        logger.info("Auto-added 'audit' to select (required for audit field filtering/sorting)")
+        audit_select = ",".join(f"+{audit_path}" for audit_path in audit_paths)
+        select = f"{select},{audit_select}" if select else audit_select
+        logger.info("Auto-added %s to select (audit fields used to filter or sort)", audit_select)
 
     # Sanitize select: drop fields not in resource schema and ensure id is always included
     if select:
@@ -573,10 +591,8 @@ async def execute_marketplace_query(
                             )
                         ):
                             error_response["hint"] = (
-                                "When filtering or sorting by audit fields (e.g., "
-                                "audit.created.at), "
-                                "you must include 'audit' in the select parameter. "
-                                "Example: select='audit' or select='+id,+name,audit'"
+                                "The resource does not have this audit field: list its audit "
+                                "events with marketplace_audit_fields(resource)"
                             )
                             break
             except Exception:
