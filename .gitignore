@@ -1,13 +1,9 @@
-# Environment files
-.env
-.env.local
-.env.*.local
-
-# Python
+# Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
 *$py.class
-*.so
+
+# Distribution / packaging
 .Python
 build/
 develop-eggs/
@@ -21,72 +17,58 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
 *.egg
 MANIFEST
 
-# Virtual environments
-venv/
-ENV/
-env/
-.venv
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
-.cursor/
+# Unit test / coverage reports
+htmlcov/
+.coverage
+.coverage.*
+.cache
+coverage.xml
+out.xml
+*.cover
+*.py,cover
+.pytest_cache/
+cover/
 
 # Logs
 *.log
-logs/
 
-# Cache & Data
-.pytest_cache/
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# mypy
 .mypy_cache/
-.coverage
-.cache/
-cache-data/
-*.db
-*.sqlite
-*.sqlite3
+.dmypy.json
+dmypy.json
 
-# Test reports
-htmlcov/
-.tox/
-.nox/
-coverage.xml
-*.cover
-.hypothesis/
+.devcontainer/
+.vscode
 
-# OS
 .DS_Store
-Thumbs.db
+.ruff_cache
+.idea
 
-# Docker volumes (if running docker compose with local volumes)
-.docker-data/
-data/
+# Makefile
+make/local.mk
 
-# Temporary files
-*.tmp
-*.temp
-.~*
-
-# Documentation (keep only essential docs)
-archive/
-*_SUMMARY.md
-*_FIXES.md
-*_NOTES.md
-CHANGELOG*.md
-
-# Operational docs and scripts (deployment info - not published)
-docs/
-scripts/
-
-# Agent UI/Backend (separate project, not committed)
+# mpt-mcp
+.env.local
+.env.*.local
+.cursor/
+cache-data/
 agent/
+
+# Claude
+.claude/*
+!.claude/settings.json

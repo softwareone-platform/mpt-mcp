@@ -1,0 +1,75 @@
+name: PR build and merge
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - main
+      - "release/**"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+    - name: "Checkout"
+      uses: actions/checkout@v7
+      with:
+        fetch-depth: 0
+
+    - name: "Create environment file"
+      run: touch .env
+
+    - name: "Build test containers"
+      run: make build
+
+    - name: "Run validation & test"
+      run: make check-all
+
+    - name: "Compute added/removed lines for notification"
+      if: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+      id: diff
+      run: |
+        PR_DATA=$(gh pr view "${{ github.event.pull_request.number }}" --json additions,deletions -q '.')
+        ADDITIONS=$(echo "$PR_DATA" | jq '.additions')
+        DELETIONS=$(echo "$PR_DATA" | jq '.deletions')
+        echo "additions=$ADDITIONS" >> $GITHUB_OUTPUT
+        echo "deletions=$DELETIONS" >> $GITHUB_OUTPUT
+      env:
+        GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: "Notify Microsoft Teams"
+      if: ${{ github.event_name == 'pull_request' && github.actor != 'dependabot[bot]' }}
+      uses: softwareone-platform/notify-pr-teams-action@v4
+      with:
+        webhook_url: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        bot_image_url: https://raw.githubusercontent.com/softwareone-platform/mpt-mcp/main/.github/workflows/assets/turing_team_pr_bot.png
+        repo: ${{ github.repository }}
+        pr_url: ${{ github.event.pull_request.html_url }}
+        pr_title: ${{ github.event.pull_request.title }}
+        pr_author: ${{ github.event.pull_request.user.login }}
+        head_ref: ${{ github.event.pull_request.head.ref }}
+        base_ref: ${{ github.event.pull_request.base.ref }}
+        commits: ${{ github.event.pull_request.commits }}
+        changed_files: ${{ github.event.pull_request.changed_files }}
+        additions: ${{ steps.diff.outputs.additions }}
+        deletions: ${{ steps.diff.outputs.deletions }}
+        pr_number: ${{ github.event.pull_request.number }}
+        pr_status: ${{ github.event.pull_request.state }}
+        is_merged: ${{ github.event.pull_request.merged }}
+
+    - name: "Run SonarCloud Scan"
+      uses: SonarSource/sonarqube-scan-action@v8.3.0
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+
+    - name: "Stop containers"
+      if: always()
+      run: make down

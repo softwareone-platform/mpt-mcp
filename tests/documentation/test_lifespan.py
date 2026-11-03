@@ -1,0 +1,63 @@
+import os
+from unittest.mock import AsyncMock, Mock
+
+import pytest
+from fastmcp import Client, FastMCP
+
+from mpt_mcp.documentation import lifespan
+from mpt_mcp.documentation.cache import DocumentationCache
+
+
+@pytest.fixture
+def gitbook_not_configured(monkeypatch):
+    monkeypatch.setattr(lifespan.config, "gitbook_api_key", "")
+    monkeypatch.setattr(lifespan.config, "gitbook_space_id", "")
+
+
+@pytest.mark.usefixtures("gitbook_not_configured")
+async def test_init_docs_cache_disabled_without_gitbook():
+    await lifespan.initialize_documentation_cache()  # act
+
+    assert lifespan.documentation_state.cache.is_enabled is False
+
+
+@pytest.mark.usefixtures("gitbook_not_configured")
+async def test_init_docs_cache_again_in_new_process(monkeypatch):
+    await lifespan.initialize_documentation_cache()
+    stale_cache = Mock(spec=DocumentationCache)
+    monkeypatch.setattr(lifespan.documentation_state, "cache", stale_cache)
+    other_pid = os.getpid() + 1
+    monkeypatch.setattr(lifespan.os, "getpid", Mock(return_value=other_pid))
+
+    await lifespan.initialize_documentation_cache()  # act
+
+    assert lifespan.documentation_state.cache is not stale_cache
+
+
+@pytest.mark.usefixtures("gitbook_not_configured")
+async def test_register_pages_without_gitbook():
+    await lifespan.initialize_documentation_cache()
+
+    result = await lifespan.register_documentation_pages(FastMCP("test"))
+
+    assert result == 0
+
+
+async def test_register_documentation_pages(monkeypatch):
+    cache = Mock(spec=DocumentationCache, is_enabled=True)
+    cache.list_resources = AsyncMock(
+        return_value=[
+            {"uri": "docs://getting-started", "name": "Getting started"},
+            {"uri": "https://example.com/other"},
+        ]
+    )
+    cache.get_resource = AsyncMock(return_value="# Getting started")
+    monkeypatch.setattr(lifespan.documentation_state, "cache", cache)
+    mcp = FastMCP("test")
+
+    result = await lifespan.register_documentation_pages(mcp)
+
+    assert result == 1
+    async with Client(mcp) as client:
+        page = await client.read_resource("docs://getting-started")
+    assert page[0].text == "# Getting started"

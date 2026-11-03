@@ -5,13 +5,16 @@
       "args": [
         "compose",
         "-f",
-        "/absolute/path/to/mpt-mcp/docker-compose.yml",
+        "/absolute/path/to/mpt-mcp/compose.yaml",
         "run",
         "--rm",
         "-T",
+        "-e",
+        "MARKETPLACE_API_TOKEN",
+        "-e",
+        "MARKETPLACE_API_BASE_URL",
         "stdio"
       ],
-      "cwd": "/absolute/path/to/mpt-mcp",
       "env": {
         "MARKETPLACE_API_TOKEN": "your_api_token_here",
         "MARKETPLACE_API_BASE_URL": "https://api.platform.softwareone.com"
@@ -19,4 +22,3 @@
     }
   }
 }
-

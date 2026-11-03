@@ -1,0 +1,64 @@
+from unittest.mock import AsyncMock, Mock, patch
+
+import pytest
+from starlette.datastructures import Headers
+from starlette.requests import Request
+
+from mpt_mcp.runtime.logging import current_session_id, current_user_id
+from mpt_mcp.runtime.middleware import RequestContextMiddleware
+
+
+@pytest.fixture
+def request_factory():
+    def factory(headers, query_string=b""):
+        raw_headers = Headers(headers).raw
+        scope = {
+            "type": "http",
+            "method": "POST",
+            "path": "/mcp",
+            "query_string": query_string,
+            "headers": raw_headers,
+            "client": ("10.0.0.1", 12345),
+        }
+        return Request(scope)
+
+    return factory
+
+
+@pytest.fixture
+def capture_log_context():
+    return AsyncMock(side_effect=lambda context: (current_user_id.get(), current_session_id.get()))
+
+
+async def test_on_request_sets_log_context_during_call(request_factory, capture_log_context):
+    request = request_factory(
+        {"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456"
+    )
+
+    with patch("mpt_mcp.runtime.middleware.get_http_request", return_value=request):
+        result = await RequestContextMiddleware().on_request(Mock(), capture_log_context)
+
+    assert result == ("TKN-1234-5678", "abcdef123456")
+
+
+async def test_on_request_resets_log_context_after_call(request_factory, capture_log_context):
+    request = request_factory(
+        {"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456"
+    )
+
+    with patch("mpt_mcp.runtime.middleware.get_http_request", return_value=request):
+        await RequestContextMiddleware().on_request(Mock(), capture_log_context)  # act
+
+    assert (current_user_id.get(), current_session_id.get()) == (None, None)
+
+
+async def test_on_request_without_http_request():
+    call_next = AsyncMock(return_value="result")
+
+    with patch(
+        "mpt_mcp.runtime.middleware.get_http_request",
+        side_effect=RuntimeError("No active HTTP request found."),
+    ):
+        result = await RequestContextMiddleware().on_request(Mock(), call_next)
+
+    assert result == "result"

@@ -1,7 +1,7 @@
 {
   "mcpServers": {
     "softwareone-marketplace": {
-      "url": "https://mpt-mcp-m3visbsita-ez.a.run.app/mcp",
+      "url": "https://mcp.platform.softwareone.com/mcp",
       "transport": "mcp",
       "timeout": 30000,
       "headers": {
