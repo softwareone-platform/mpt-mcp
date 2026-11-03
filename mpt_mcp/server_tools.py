@@ -15,6 +15,7 @@ from mpt_mcp.analytics import get_analytics_logger
 from mpt_mcp.call_context import CallContext, get_call_context
 from mpt_mcp.config import config
 from mpt_mcp.mcp_tools import (
+    add_page_position,
     cut_text_to_budget,
     execute_marketplace_query,
     execute_marketplace_quick_queries,
@@ -275,12 +276,15 @@ async def marketplace_query(
             Dates in UTC (YYYY-MM-DDTHH:MM:SS.mmmZ). Use the limit, offset, select and order
             arguments for pagination, fields and sorting, not this string.
         limit: Max items to return (default 10, max 100). With many items, return only the
-            fields you need (select=-*,+field1,+field2) to avoid huge responses. A page too long
-            for one result is cut, and $meta.truncated gives the offset to continue with.
+            fields you need (select=-*,+field1,+field2) to avoid huge responses. To page on, pass
+            $meta.pagination.next_offset as offset while has_more is true; it also continues a
+            page cut to fit one result. A cut page sets $meta.truncated, whose suggested_limit
+            fits in one result and lets you fetch the next pages in parallel.
             Ignored for resources that return a single item (path ending in a parameter, e.g.
             *.by_id).
-        offset: Number of items to skip for pagination (e.g., 0, 20, 40). Ignored for
-            resources that return a single item.
+        offset: Number of items to skip for pagination (e.g., 0, 20, 40). For data that changes
+            while you page, sort with order=+audit.created.at and filter by date in rql, so new
+            items do not shift the pages. Ignored for resources that return a single item.
         select: Fields of each item. The API returns a default set of fields:
             -*,+id,+product.name returns only the listed fields (start with -* to keep
             responses small); +lines adds a field omitted by default (see $meta.omitted) to the
@@ -336,7 +340,7 @@ async def marketplace_query(
     if not isinstance(result, dict):
         return QueryResponse(result=result)
 
-    return QueryResponse.model_validate(fit_result_to_budget(result, offset))
+    return QueryResponse.model_validate(add_page_position(fit_result_to_budget(result)))
 
 
 def marketplace_quick_queries() -> QuickQueriesResponse:

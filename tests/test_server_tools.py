@@ -68,6 +68,31 @@ async def test_query_wraps_plain_values(call_context, endpoints_registry, api_cl
     assert result == {"result": "<h1>Order</h1>"}
 
 
+async def test_query_next_offset_continues_cut_page(call_context, endpoints_registry, api_client):
+    endpoints_registry.return_value = {
+        "commerce.orders": {"path": "/public/v1/commerce/orders", "parameters": []}
+    }
+    api_client.get = AsyncMock(
+        return_value={
+            "$meta": {"pagination": {"offset": 0, "limit": 100, "total": 500}},
+            "data": [{"id": f"ORD-{index}", "notes": "x" * 1000} for index in range(100)],
+        }
+    )
+
+    result = (
+        await server_tools.marketplace_query(
+            "commerce.orders", limit=100, call_context=call_context
+        )
+    ).model_dump(by_alias=True)
+
+    pagination = result["$meta"]["pagination"]
+    assert len(result["data"]) < 100
+    assert pagination["has_more"] is True
+    assert pagination["next_offset"] == len(result["data"])
+    assert pagination["returned"] == pagination["next_offset"]
+    assert result["$meta"]["truncated"]["suggested_limit"] == len(result["data"])
+
+
 async def test_unknown_resource_suggests_similar(call_context, endpoints_registry, api_client):
     # Mock the endpoint registry with some sample resources
     mock_registry = {

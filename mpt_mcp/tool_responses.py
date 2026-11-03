@@ -36,14 +36,18 @@ class Pagination(ToolResponse):
     offset: int | None = optional_field("Items skipped before this page")
     limit: int | None = optional_field("Maximum items in this page")
     total: int | None = optional_field("Items that match the query across all pages")
+    returned: int | None = optional_field("Items in this page")
+    has_more: bool | None = optional_field("More items match the query after this page")
+    next_offset: int | None = optional_field("Offset of the next page, when has_more is true")
 
 
 class QueryTruncation(ToolResponse):
     """Items left out of a page that did not fit in the result size limit."""
 
-    returned: int = Field(description="Items in this page")
     requested: int = Field(description="Items the API returned for the page")
-    next_offset: int = Field(description="Offset to continue with")
+    suggested_limit: int = Field(
+        description="Items that fit with this select: a limit that pages in parallel without cuts"
+    )
     hint: str = Field(description="How to get the rest of the items")
 
 

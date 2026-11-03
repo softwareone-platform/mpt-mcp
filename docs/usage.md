@@ -42,7 +42,7 @@ Both servers serve the same tools:
 
 The documentation tools need GitBook to be configured on the server; otherwise they fail with a message saying it is not available. A part of a long page sets `total_characters`, the `next_offset` to read the rest with and a `hint`; the last part has no `next_offset`.
 
-Every tool publishes an output schema that describes the fields of its result, which is also sent as structured content. `marketplace_query` returns the API response as it comes: a page of items in `data` with `$meta` pagination, or the fields of a single item; resources that return a plain value are wrapped as `{"result": ...}`.
+Every tool publishes an output schema that describes the fields of its result, which is also sent as structured content. `marketplace_query` returns the API response: a page of items in `data` with `$meta` pagination, or the fields of a single item; resources that return a plain value are wrapped as `{"result": ...}`.
 
 Every tool is read-only except `marketplace_refresh_cache`, and declares it with the MCP `readOnlyHint` annotation. Failures are MCP tool errors (`isError: true`): the text is the error message, followed by its hints as JSON when there are any. The server's MCP `instructions` describe the order to use the tools in.
 
@@ -61,8 +61,8 @@ marketplace_query(resource="catalog.products.by_id", path_params={"id": "PRD-123
 
 Query behaviour:
 
-- `limit` defaults to 10 and is capped at 100; use `offset` to paginate. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
-- A page longer than 25,000 characters is cut to the items that fit, so it does not fill the model's context or go over the tool result limit of clients that have one. `$meta.truncated` gives the items returned, the items the API returned and the `next_offset` to continue with. A page whose first item alone is longer fails and asks for a narrower `select`.
+- `limit` defaults to 10 and is capped at 100; use `offset` to paginate. When the API gives the total, `$meta.pagination` adds `has_more` and the `next_offset` of the next page, which also continues a page cut to fit the result size. `$meta.pagination.returned` gives the items of the page. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
+- A page longer than 25,000 characters is cut to the items that fit, so it does not fill the model's context or go over the tool result limit of clients that have one. `$meta.truncated` gives the items the API returned and a `suggested_limit` that fits with the same `select`, to fetch the next pages in parallel; `$meta.pagination.next_offset` continues the cut page. A page whose first item alone is longer fails and asks for a narrower `select`.
 - Each item comes with the resource's default fields. `select` starting with `-*` returns only the listed fields (`-*,+id,+product.name`); without it, `+field` adds a field omitted by default (listed in `$meta.omitted`) and `-field` removes one. `id`, `status` and `name` are always kept when the resource has them.
 - `catalog.products` returns only `id`, `status`, `name` and `shortDescription` when no `select` is given.
 - Filtering or sorting by an audit field (`audit.created.at`, `audit.failed.by`…) adds that field to `select` (`+audit.created.at`), so the result shows the values it was sorted or filtered by. If the API answers 400 Bad Request, the query is sent again with the original `select`.

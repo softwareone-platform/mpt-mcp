@@ -101,16 +101,16 @@ def log_query_result(result: Any) -> None:
     )
 
 
-def fit_result_to_budget(result: Any, offset: int | None) -> Any:
+def fit_result_to_budget(result: Any) -> Any:
     """
     Cut a page of items to the ones that fit in CHARACTER_LIMIT.
 
-    A cut page says in $meta.truncated how many items it returns and the offset to continue with,
-    so the caller can page on instead of getting a result its MCP client rejects.
+    A cut page says in $meta.truncated how many items the API returned and the limit that fits,
+    so the caller can page on instead of getting a result its MCP client rejects;
+    add_page_position gives the offset to continue with.
 
     Args:
         result: Marketplace API response
-        offset: Offset of the page
 
     Returns:
         The response, with only the items that fit when it is too long
@@ -139,21 +139,54 @@ def fit_result_to_budget(result: Any, offset: int | None) -> Any:
             hint="Return only the fields you need: select=-*,+id,+name",
         )
 
-    next_offset = (offset or 0) + len(kept_items)
+    kept_count = len(kept_items)
     logger.info(
-        "Cut the page to %s of %s items to fit the result size", len(kept_items), len(page_items)
+        "Cut the page to %s of %s items to fit the result size", kept_count, len(page_items)
     )
     meta = result.get(KEY_META) or {}
     truncated = {
-        "returned": len(kept_items),
         "requested": len(page_items),
-        "next_offset": next_offset,
+        "suggested_limit": kept_count,
         "hint": (
-            f"The page was cut to fit the result size limit. Continue with offset={next_offset}, "
+            "The page was cut to fit the result size limit. Continue with "
+            f"$meta.pagination.next_offset; to fetch pages in parallel use limit={kept_count}, "
             "or return only the fields you need (select=-*,+id,+field) to get more items per page."
         ),
     }
     return {**result, KEY_META: {**meta, "truncated": truncated}, "data": kept_items}
+
+
+def add_page_position(result: Any) -> Any:
+    """
+    Add returned, has_more and next_offset to the pagination of a page of items.
+
+    The offset of the next page counts the items the page returns, so it also continues a page
+    that fit_result_to_budget cut.
+
+    Args:
+        result: Marketplace API response, after fit_result_to_budget
+
+    Returns:
+        The response, with $meta.pagination.returned, and has_more and next_offset when the API
+        gives the total
+    """
+    if not isinstance(result, dict):
+        return result
+
+    page_items = result.get("data")
+    meta = result.get(KEY_META)
+    pagination = meta.get("pagination") if isinstance(meta, dict) else None
+    if not isinstance(page_items, list) or not isinstance(pagination, dict):
+        return result
+
+    page_position: dict[str, Any] = {"returned": len(page_items)}
+    total = pagination.get("total")
+    if total is not None:
+        next_offset = (pagination.get("offset") or 0) + len(page_items)
+        has_more = next_offset < total
+        page_position |= {"has_more": has_more, "next_offset": next_offset if has_more else None}
+
+    return {**result, KEY_META: {**result[KEY_META], "pagination": {**pagination, **page_position}}}
 
 
 def cut_text_to_budget(text: str, offset: int) -> tuple[str, int | None]:

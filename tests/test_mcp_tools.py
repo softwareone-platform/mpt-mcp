@@ -10,6 +10,7 @@ from httpx import HTTPStatusError, Request, Response
 from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.mcp_tools import (
     CHARACTER_LIMIT,
+    add_page_position,
     execute_marketplace_query,
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
@@ -795,10 +796,55 @@ def big_page(item_count):
     }
 
 
+@pytest.mark.parametrize(
+    ("pagination", "item_count", "expected"),
+    [
+        (
+            {"offset": 0, "limit": 10, "total": 25},
+            10,
+            {"returned": 10, "has_more": True, "next_offset": 10},
+        ),
+        (
+            {"offset": 20, "limit": 10, "total": 25},
+            5,
+            {"returned": 5, "has_more": False, "next_offset": None},
+        ),
+        (
+            {"offset": 0, "limit": 100, "total": 500},
+            40,
+            {"returned": 40, "has_more": True, "next_offset": 40},
+        ),
+        ({"offset": 0, "limit": 10}, 3, {"returned": 3}),
+    ],
+)
+def test_add_page_position(pagination, item_count, expected):
+    page = {
+        "$meta": {"pagination": pagination},
+        "data": [{"id": f"ORD-{index}"} for index in range(item_count)],
+    }
+
+    result = add_page_position(page)
+
+    assert result["$meta"]["pagination"] == {**pagination, **expected}
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {"data": [{"id": "ORD-1"}]},
+        {"id": "ORD-1"},
+    ],
+)
+def test_add_page_position_needs_pagination(response):
+    result = add_page_position(response)
+
+    assert result == response
+
+
 def test_fit_result_keeps_short_page():
     page = big_page(3)
 
-    result = fit_result_to_budget(page, offset=PAGE_OFFSET)
+    result = fit_result_to_budget(page)
 
     assert result == page
 
@@ -806,21 +852,21 @@ def test_fit_result_keeps_short_page():
 def test_fit_result_cuts_long_page():
     page = big_page(100)
 
-    result = fit_result_to_budget(page, offset=PAGE_OFFSET)
+    result = fit_result_to_budget(page)
 
     returned = len(result["data"])
     assert 0 < returned < 100
     assert len(json.dumps(result)) <= CHARACTER_LIMIT
     assert result["data"] == page["data"][:returned]
     assert result["$meta"]["pagination"] == page["$meta"]["pagination"]
-    assert result["$meta"]["truncated"]["next_offset"] == PAGE_OFFSET + returned
+    assert result["$meta"]["truncated"]["suggested_limit"] == returned
     assert result["$meta"]["truncated"]["requested"] == 100
 
 
 def test_fit_result_ignores_single_item():
     order = {"id": "ORD-1", "notes": "x" * (CHARACTER_LIMIT * 2)}
 
-    result = fit_result_to_budget(order, offset=None)
+    result = fit_result_to_budget(order)
 
     assert result == order
 
@@ -829,4 +875,4 @@ def test_fit_result_too_long_item_fails():
     page = {"data": [{"id": "ORD-1", "notes": "x" * (CHARACTER_LIMIT * 2)}]}
 
     with pytest.raises(ToolError, match="One item takes more than"):
-        fit_result_to_budget(page, offset=0)
+        fit_result_to_budget(page)
