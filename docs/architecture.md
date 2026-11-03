@@ -48,7 +48,7 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`endpoint_registry.py`](../mpt_mcp/endpoint_registry.py) | Per-endpoint registry of GET resources built from the OpenAPI spec, cached in memory and on disk (`.cache/`, 24 hours); a spec that fails to load is not cached, so the next call retries it |
 | [`openapi_parser.py`](../mpt_mcp/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
 | [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
-| [`mcp_tools.py`](../mpt_mcp/mcp_tools.py) | Tool logic shared by both servers: query execution, select sanitization, resource info and schemas |
+| [`mcp_tools.py`](../mpt_mcp/mcp_tools.py) | Tool logic shared by both transports: query execution, select sanitization, resource info and schemas |
 | [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server: instructions, middlewares, analytics lifespan (HTTP), tools, resources, prompts and debug tool visibility |
 | [`server_tools.py`](../mpt_mcp/server_tools.py), [`server_resources.py`](../mpt_mcp/server_resources.py), [`server_prompts.py`](../mpt_mcp/server_prompts.py) | Tool, resource and prompt functions and their registration |
 | [`tool_responses.py`](../mpt_mcp/tool_responses.py) | One Pydantic response model per tool, with the nested models of its fields, from which FastMCP builds the tool's output schema |

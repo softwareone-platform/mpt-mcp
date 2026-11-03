@@ -23,7 +23,7 @@ Client configurations for Claude Code, Cursor, Claude Desktop and VS Code are in
 
 ## Tools
 
-Both servers serve the same tools:
+The HTTP and stdio servers are one MCP server served over two transports, so they have the same tools, prompts and resources. The tools are:
 
 | Tool | Purpose |
 |---|---|
@@ -45,7 +45,7 @@ Every tool publishes an output schema that describes the fields of its result, w
 
 Every tool is read-only except `marketplace_refresh_cache`, and declares it with the MCP `readOnlyHint` annotation. Failures are MCP tool errors (`isError: true`): the text is the error message, followed by its hints as JSON when there are any. The server's MCP `instructions` describe the order to use the tools in.
 
-Both servers also expose prompts for common questions. A prompt is chosen by the user in the MCP client (in Claude Code, as the `/mcp__<server>__<prompt>` command) and writes the `marketplace_query` call for the model to run:
+The server also has prompts for common questions. A prompt is chosen by the user in the MCP client and writes the `marketplace_query` call for the model to run. In Claude Code it is the `/mcp__<name>__<prompt>` command, where `<name>` is the name given to the server in the MCP client configuration, for example `/mcp__mpt-local__recent_orders`:
 
 | Prompt | Arguments | Question |
 |---|---|---|
@@ -59,7 +59,7 @@ Both servers also expose prompts for common questions. A prompt is chosen by the
 | `subscriptions_due` | `days` (default 30) | Active subscriptions whose commitment ends in the next days |
 | `search_buyers` | `name` | Buyers whose name contains the text |
 
-Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`). A resource that cannot be read, because the caller has no valid token, the spec cannot be loaded or the page does not exist, fails with an MCP error instead of returning an error message as its content.
+The server also exposes two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`). A resource that cannot be read, because the caller has no valid token, the spec cannot be loaded or the page does not exist, fails with an MCP error instead of returning an error message as its content.
 
 ## Querying
 
