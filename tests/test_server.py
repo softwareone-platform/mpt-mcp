@@ -128,7 +128,7 @@ async def test_prompt_renders_query_request(production_server):
 
 async def test_tool_failure_is_an_error_result(production_server, monkeypatch):
     monkeypatch.setattr(lifespan, "initialize_documentation_cache", AsyncMock())
-    monkeypatch.setattr(lifespan, "documentation_cache", None)
+    monkeypatch.setattr(lifespan.documentation_state, "cache", None)
 
     async with Client(production_server) as client:
         result = await client.call_tool(

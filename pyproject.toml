@@ -63,8 +63,6 @@ extend-ignore = [
   "WPS226",
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "WPS121",  # 7
-  "WPS122",  # 7
   "WPS201",  # 1
   "WPS202",  # 6
   "WPS204",  # 7
@@ -80,7 +78,7 @@ extend-ignore = [
   "WPS231",  # 21
   "WPS232",  # 4
   "WPS328",  # 1
-  "WPS420",  # 6
+  "WPS420",  # 1
   "WPS476",  # 4
   "WPS505",  # 5
 ]
@@ -182,7 +180,6 @@ ignore = [
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
     "complex-structure",  # 17
-    "global-statement",  # 12
     "too-many-nested-blocks",  # 5
     "too-many-statements-in-try-clause",  # 15
 ]

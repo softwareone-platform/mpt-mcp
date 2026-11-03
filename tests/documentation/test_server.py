@@ -34,7 +34,7 @@ async def test_docs_list_exposes_browser_url_and_note():
     )
 
     with (
-        patch("mpt_mcp.documentation.lifespan.documentation_cache", mock_cache),
+        patch.object(lifespan.documentation_state, "cache", mock_cache),
         patch("mpt_mcp.documentation.lifespan.initialize_documentation_cache", AsyncMock()),
     ):
         result = (await server.marketplace_docs_list(search="contact support")).model_dump()
@@ -66,7 +66,7 @@ async def test_docs_list_without_browser_url_metadata():
     )
 
     with (
-        patch("mpt_mcp.documentation.lifespan.documentation_cache", mock_cache),
+        patch.object(lifespan.documentation_state, "cache", mock_cache),
         patch("mpt_mcp.documentation.lifespan.initialize_documentation_cache", AsyncMock()),
     ):
         result = (await server.marketplace_docs_list(search="some")).model_dump()
@@ -78,7 +78,7 @@ async def test_docs_list_without_browser_url_metadata():
 
 async def test_docs_index_without_cache_fails(monkeypatch):
     monkeypatch.setattr(lifespan, "initialize_documentation_cache", AsyncMock())
-    monkeypatch.setattr(lifespan, "documentation_cache", None)
+    monkeypatch.setattr(lifespan.documentation_state, "cache", None)
 
     with pytest.raises(ToolError, match="Documentation cache is not available"):
         await server.marketplace_docs_index()

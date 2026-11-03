@@ -88,7 +88,7 @@ def marketplace_resources_info() -> ResourcesInfoResponse:
         "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
         "token_validation": {"enabled": False, "cache_stats": None},
     }
-    dc = documentation.documentation_cache
+    dc = documentation.documentation_state.cache
     if dc and dc.is_enabled:
         cache_info = dc.get_cache_info()
         result["documentation"] = {

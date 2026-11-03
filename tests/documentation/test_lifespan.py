@@ -18,20 +18,20 @@ def gitbook_not_configured(monkeypatch):
 async def test_init_docs_cache_disabled_without_gitbook():
     await lifespan.initialize_documentation_cache()  # act
 
-    assert lifespan.documentation_cache.is_enabled is False
+    assert lifespan.documentation_state.cache.is_enabled is False
 
 
 @pytest.mark.usefixtures("gitbook_not_configured")
 async def test_init_docs_cache_again_in_new_process(monkeypatch):
     await lifespan.initialize_documentation_cache()
     stale_cache = Mock(spec=DocumentationCache)
-    monkeypatch.setattr(lifespan, "documentation_cache", stale_cache)
+    monkeypatch.setattr(lifespan.documentation_state, "cache", stale_cache)
     other_pid = os.getpid() + 1
     monkeypatch.setattr(lifespan.os, "getpid", Mock(return_value=other_pid))
 
     await lifespan.initialize_documentation_cache()  # act
 
-    assert lifespan.documentation_cache is not stale_cache
+    assert lifespan.documentation_state.cache is not stale_cache
 
 
 @pytest.mark.usefixtures("gitbook_not_configured")
@@ -52,7 +52,7 @@ async def test_register_documentation_pages(monkeypatch):
         ]
     )
     cache.get_resource = AsyncMock(return_value="# Getting started")
-    monkeypatch.setattr(lifespan, "documentation_cache", cache)
+    monkeypatch.setattr(lifespan.documentation_state, "cache", cache)
     mcp = FastMCP("test")
 
     result = await lifespan.register_documentation_pages(mcp)

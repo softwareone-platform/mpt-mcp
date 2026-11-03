@@ -1,6 +1,7 @@
 import asyncio
 import base64
 import datetime as dt
+import functools
 import hashlib
 import json
 import logging
@@ -98,7 +99,7 @@ class TokenValidationCache:
                     return (is_valid, token_info)
 
                 logger.debug("Token validation cache expired, removing")
-                del self._cache[cache_key]
+                self._cache.pop(cache_key)
 
             return None
 
@@ -157,17 +158,10 @@ class TokenValidationCache:
             )
 
 
-_token_cache: TokenValidationCache | None = None
-
-
+@functools.cache
 def get_token_cache(ttl_minutes: int = 10) -> TokenValidationCache:
-    """Get or create the global token validation cache."""
-    global _token_cache
-
-    if _token_cache is None:
-        _token_cache = TokenValidationCache(ttl_minutes=ttl_minutes)
-
-    return _token_cache
+    """Get the token validation cache of the process, created on the first call."""
+    return TokenValidationCache(ttl_minutes=ttl_minutes)
 
 
 # JWKS cache for JWT signature verification (url -> (jwks_dict, expiry))

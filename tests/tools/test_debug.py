@@ -8,7 +8,7 @@ from mpt_mcp.tools.debug import marketplace_refresh_cache, marketplace_resources
 
 def test_resources_info_reflects_docs_cache(docs_cache_factory, doc_page_factory, monkeypatch):
     cache = docs_cache_factory(resources=[doc_page_factory("docs://readme")])
-    monkeypatch.setattr(lifespan, "documentation_cache", cache)
+    monkeypatch.setattr(lifespan.documentation_state, "cache", cache)
 
     result = (marketplace_resources_info()).model_dump()
 

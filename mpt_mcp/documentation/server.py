@@ -21,7 +21,7 @@ async def marketplace_docs_index() -> DocsIndexResponse:
         Total page count and the documentation sections with their subsections and page counts
     """
     await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_cache
+    dc = lifespan.documentation_state.cache
     if not dc or not dc.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
@@ -47,7 +47,7 @@ async def marketplace_docs_list(
         Matching pages with their docs:// uri, title and public browser_url when available
     """
     await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_cache
+    dc = lifespan.documentation_state.cache
     if not dc or not dc.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
@@ -101,7 +101,7 @@ async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
         Page content in markdown, or one part of it
     """
     await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_cache
+    dc = lifespan.documentation_state.cache
     if not dc or not dc.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
@@ -143,7 +143,7 @@ async def get_documentation_page(path: str) -> str:
     """
     uri = f"docs://{path}"
     await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_cache
+    dc = lifespan.documentation_state.cache
     if not dc or not dc.is_enabled:
         raise ResourceError(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 

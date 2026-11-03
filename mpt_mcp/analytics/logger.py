@@ -4,7 +4,7 @@ import datetime as dt
 import logging
 from contextvars import ContextVar
 from http import HTTPStatus
-from typing import Any
+from typing import Any, ClassVar
 
 from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
@@ -33,6 +33,9 @@ class AnalyticsLogger:
     - Popular query tracking
     - Privacy-safe (no account data)
     """
+
+    # The logger of the process, set by initialize_analytics and read by get_analytics_logger
+    current: ClassVar[AnalyticsLogger | None] = None
 
     def __init__(
         self, database_url: str | None = None, batch_size: int = 50, flush_interval: float = 5.0
@@ -456,15 +459,9 @@ class AnalyticsLogger:
             await self.flush()
 
 
-# ============================================================================
-# Global Analytics Logger Instance
-# ============================================================================
-_analytics_logger: AnalyticsLogger | None = None
-
-
 def get_analytics_logger() -> AnalyticsLogger | None:
-    """Get global analytics logger instance (returns None if not initialized)."""
-    return _analytics_logger
+    """Get the analytics logger of the process (None until initialize_analytics runs)."""
+    return AnalyticsLogger.current
 
 
 async def initialize_analytics(database_url: str | None = None, **kwargs: Any) -> AnalyticsLogger:
@@ -478,7 +475,7 @@ async def initialize_analytics(database_url: str | None = None, **kwargs: Any) -
     Returns:
         Initialized AnalyticsLogger instance
     """
-    global _analytics_logger
-    _analytics_logger = AnalyticsLogger(database_url=database_url, **kwargs)
-    await _analytics_logger.initialize()
-    return _analytics_logger
+    analytics_logger = AnalyticsLogger(database_url=database_url, **kwargs)
+    AnalyticsLogger.current = analytics_logger
+    await analytics_logger.initialize()
+    return analytics_logger

@@ -1,4 +1,5 @@
 import asyncio
+import functools
 import logging
 from typing import Any
 
@@ -19,18 +20,13 @@ class OpenAPISpecFetchError(Exception):
 type EndpointRegistry = dict[str, dict[str, Any]]
 _endpoint_registries: dict[str, EndpointRegistry] = {}
 _openapi_specs: dict[str, dict[str, Any]] = {}
-_cache_manager: CacheManager | None = None
 
 
+@functools.cache
 def get_cache_manager() -> CacheManager:
-    """Get or create the global cache manager."""
-    global _cache_manager
-
-    if _cache_manager is None:
-        _cache_manager = CacheManager(cache_dir=".cache", ttl_hours=24)
-        logger.info("Cache manager initialized")
-
-    return _cache_manager
+    """Get the OpenAPI spec disk cache of the process, created on the first call."""
+    logger.info("Cache manager initialized")
+    return CacheManager(cache_dir=".cache", ttl_hours=24)
 
 
 def get_openapi_spec_url(api_base_url: str) -> str:

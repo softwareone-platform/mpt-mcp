@@ -42,11 +42,11 @@ def docs_cache_factory(monkeypatch):
             "enabled": True,
         }
 
-        monkeypatch.setattr(lifespan, "documentation_cache", None)
+        monkeypatch.setattr(lifespan.documentation_state, "cache", None)
         monkeypatch.setattr(
             lifespan,
             "initialize_documentation_cache",
-            AsyncMock(side_effect=partial(setattr, lifespan, "documentation_cache", cache)),
+            AsyncMock(side_effect=partial(setattr, lifespan.documentation_state, "cache", cache)),
         )
         return cache
 
