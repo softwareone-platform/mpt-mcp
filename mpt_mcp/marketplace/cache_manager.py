@@ -241,12 +241,6 @@ async def fetch_with_cache(
 
             response.raise_for_status()
             data = response.json()
-
-        cache_manager.set(url, data)
-        logger.info("Cached data from: %s", url)
-
-        return data
-
     except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as error:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
         logger.warning("Network fetch failed: %s", error)
@@ -257,3 +251,8 @@ async def fetch_with_cache(
             return await asyncio.to_thread(read_json_path, cache_path)
 
         raise
+
+    cache_manager.set(url, data)
+    logger.info("Cached data from: %s", url)
+
+    return data

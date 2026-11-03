@@ -1,5 +1,6 @@
 from typing import Any
 
+KEPT_SCHEMA_KEYS = ("type", "description", "enum", "example")
 MAX_SCHEMA_PROPERTIES = 10
 
 
@@ -60,15 +61,14 @@ class OpenAPIParser:
         responses = operation.get("responses", {})
         response_info = {}
 
-        if "200" in responses:
-            ok_response = responses["200"]
+        ok_response = responses.get("200")
+        if ok_response is not None:
             response_info["description"] = ok_response.get("description", "")
 
-            response_content = ok_response.get("content", {})
-            if "application/json" in response_content:
-                json_content = response_content["application/json"]
-                if "schema" in json_content:
-                    response_info["schema"] = self._simplify_schema(json_content["schema"])
+            json_content = ok_response.get("content", {}).get("application/json")
+            schema = json_content.get("schema") if json_content is not None else None
+            if schema is not None:
+                response_info["schema"] = self._simplify_schema(schema)
 
         return response_info
 
@@ -110,32 +110,17 @@ class OpenAPIParser:
         if current_depth >= max_depth or not schema:
             return {"type": "object", "description": "..."}
 
-        simplified = {}
+        simplified = {key: schema[key] for key in KEPT_SCHEMA_KEYS if key in schema}
 
-        if "type" in schema:
-            simplified["type"] = schema["type"]
+        properties = schema.get("properties")
+        if isinstance(properties, dict):
+            simplified["properties"] = {
+                prop_name: self._simplify_schema(prop_schema, max_depth, current_depth + 1)
+                for prop_name, prop_schema in list(properties.items())[:MAX_SCHEMA_PROPERTIES]
+            }
 
-        if "description" in schema:
-            simplified["description"] = schema["description"]
-
-        if "enum" in schema:
-            simplified["enum"] = schema["enum"]
-
-        if "properties" in schema and isinstance(schema["properties"], dict):
-            simplified["properties"] = {}
-            for prop_name, prop_schema in list(schema["properties"].items())[
-                :MAX_SCHEMA_PROPERTIES
-            ]:
-                simplified["properties"][prop_name] = self._simplify_schema(
-                    prop_schema, max_depth, current_depth + 1
-                )
-
-        if "items" in schema:
-            simplified["items"] = self._simplify_schema(
-                schema["items"], max_depth, current_depth + 1
-            )
-
-        if "example" in schema:
-            simplified["example"] = schema["example"]
+        items_schema = schema.get("items")
+        if items_schema is not None:
+            simplified["items"] = self._simplify_schema(items_schema, max_depth, current_depth + 1)
 
         return simplified

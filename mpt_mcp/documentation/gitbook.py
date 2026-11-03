@@ -100,12 +100,9 @@ class GitBookClient:
 
         space_content = await self._get_with_retry(url)
         logger.info("Successfully fetched GitBook content")
-        if "pages" in space_content:
-            page_count = (
-                len(space_content["pages"])
-                if isinstance(space_content["pages"], list)
-                else "unknown"
-            )
+        pages = space_content.get("pages")
+        if pages is not None:
+            page_count = len(pages) if isinstance(pages, list) else "unknown"
             logger.info("Pages: %s", page_count)
         return space_content
 
@@ -119,11 +116,12 @@ class GitBookClient:
         try:
             url = f"{self.base_url}/spaces/{self.space_id}"
             await self._get_with_retry(url)
-            logger.info("GitBook credentials validated successfully")
-            return True
         except Exception:
             logger.exception("GitBook credential validation failed")
             return False
+
+        logger.info("GitBook credentials validated successfully")
+        return True
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""

@@ -95,7 +95,6 @@ extend-ignore = [
   "WPS501",  # 1
   "WPS504",  # 4
   "WPS505",  # 5
-  "WPS529",  # 40
   "WPS602",  # 7
 ]
 extend-exclude = [
@@ -198,7 +197,6 @@ ignore = [
     "global-statement",  # 12
     "too-many-nested-blocks",  # 6
     "too-many-statements-in-try-clause",  # 17
-    "try-consider-else",  # 11
 ]
 external = [ "AAA", "WPS" ]
 

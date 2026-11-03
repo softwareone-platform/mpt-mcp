@@ -258,15 +258,14 @@ class DocumentationCache:
             self._last_refresh = dt.datetime.now(dt.UTC)
 
             self._build_resource_index()
-
+        except Exception:
+            logger.exception("Failed to refresh documentation cache")
+            return False
+        else:
             logger.info(
                 "Documentation cache refreshed successfully (%s resources)", len(self._resources)
             )
             return True
-
-        except Exception:
-            logger.exception("Failed to refresh documentation cache")
-            return False
         finally:
             self._is_refreshing = False
 
@@ -345,11 +344,13 @@ class DocumentationCache:
                     if isinstance(leaf, dict) and "text" in leaf
                 )
 
-            if "text" in node:
-                text_parts.append(node["text"])
+            text = node.get("text")
+            if text is not None:
+                text_parts.append(text)
 
-            if "nodes" in node and isinstance(node["nodes"], list):
-                for child in node["nodes"]:
+            children = node.get("nodes")
+            if isinstance(children, list):
+                for child in children:
                     extract_from_node(child)
 
                 if node.get("type") in {
@@ -364,9 +365,8 @@ class DocumentationCache:
                 }:
                     text_parts.append("\n")
 
-        if "nodes" in document:
-            for node in document["nodes"]:
-                extract_from_node(node)
+        for node in document.get("nodes", ()):
+            extract_from_node(node)
 
         text = "".join(text_parts)
         while "\n\n\n" in text:

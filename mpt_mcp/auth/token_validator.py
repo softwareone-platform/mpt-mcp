@@ -86,8 +86,9 @@ class TokenValidationCache:
         cache_key = hash_token(token, api_base_url)
 
         async with self._lock:
-            if cache_key in self._cache:
-                is_valid, expiry, token_info = self._cache[cache_key]
+            cached = self._cache.get(cache_key)
+            if cached is not None:
+                is_valid, expiry, token_info = cached
 
                 if dt.datetime.now(dt.UTC) < expiry:
                     logger.debug(
@@ -126,8 +127,7 @@ class TokenValidationCache:
         cache_key = hash_token(token, api_base_url)
 
         async with self._lock:
-            if cache_key in self._cache:
-                del self._cache[cache_key]
+            if self._cache.pop(cache_key, None) is not None:
                 logger.debug("Invalidated token from cache")
 
     async def set(
@@ -184,12 +184,13 @@ async def fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
         JWKS dict with "keys" list, or None on fetch/parse error.
     """
     async with _jwks_lock:
-        if jwks_url in _jwks_cache:
-            jwks_dict, expiry = _jwks_cache[jwks_url]
+        cached_jwks = _jwks_cache.get(jwks_url)
+        if cached_jwks is not None:
+            jwks_dict, expiry = cached_jwks
             if dt.datetime.now(dt.UTC) < expiry:
                 return jwks_dict
 
-            del _jwks_cache[jwks_url]
+            _jwks_cache.pop(jwks_url)
 
     try:
         timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
@@ -337,14 +338,14 @@ def get_jwks_url_from_token(token: str) -> str | None:
         iss = payload.get("iss")
         if not iss or not isinstance(iss, str):
             return None
-
-        iss = iss.strip().rstrip("/")
-        if not iss.startswith("https://"):
-            return None
-
-        return f"{iss}/.well-known/jwks.json"
     except Exception:
         return None
+
+    iss = iss.strip().rstrip("/")
+    if not iss.startswith("https://"):
+        return None
+
+    return f"{iss}/.well-known/jwks.json"
 
 
 def parse_jwt_claims(token: str) -> tuple[str | None, str | None]:
@@ -371,13 +372,14 @@ def parse_token_id(token: str) -> str | None:
 
     try:
         parts = token.split(":")
-        if len(parts) >= 2 and parts[1].startswith("TKN-"):
-            return parts[1]
-
-        return None
-    except Exception as error:
+    except AttributeError as error:
         logger.warning("Failed to parse token ID: %s", error)
         return None
+
+    if len(parts) >= 2 and parts[1].startswith("TKN-"):
+        return parts[1]
+
+    return None
 
 
 def normalize_token(token: str) -> str:

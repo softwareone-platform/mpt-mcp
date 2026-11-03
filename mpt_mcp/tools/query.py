@@ -448,9 +448,6 @@ async def execute_marketplace_query(
                 tool_name="marketplace_query",
             )
 
-        log_query_result(result)
-
-        return result
     except Exception as error:
         logger.warning("Error: %s", error)
 
@@ -538,12 +535,13 @@ async def execute_marketplace_query(
                         tool_name="marketplace_query",
                     )
 
-                log_query_result(result)
-
-                return result
             except Exception as retry_e:
                 logger.warning("Retry also failed: %s", retry_e)
                 # Fall through to return original error
+            else:
+                log_query_result(result)
+
+                return result
 
         if analytics_logger and config and config.analytics_enabled:
             await analytics_logger.log_api_query(
@@ -561,6 +559,10 @@ async def execute_marketplace_query(
             )
 
         raise tool_error(str(error), **error_response) from error
+
+    log_query_result(result)
+
+    return result
 
 
 async def marketplace_query(

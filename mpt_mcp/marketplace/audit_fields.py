@@ -42,15 +42,16 @@ def resolve_schema(
     if not isinstance(schema, dict):
         return schema
 
-    if "$ref" in schema:
-        return resolve_schema(spec, resolve_ref(spec, schema["$ref"]))
+    ref = schema.get("$ref")
+    if ref is not None:
+        return resolve_schema(spec, resolve_ref(spec, ref))
 
-    if "allOf" in schema:
-        for part in schema["allOf"]:
-            if isinstance(part, dict) and "$ref" in part:
-                resolved = resolve_schema(spec, resolve_ref(spec, part["$ref"]))
-                if resolved:
-                    return resolved
+    for part in schema.get("allOf", ()):
+        part_ref = part.get("$ref") if isinstance(part, dict) else None
+        if part_ref is not None:
+            resolved = resolve_schema(spec, resolve_ref(spec, part_ref))
+            if resolved:
+                return resolved
 
     return schema
 
@@ -72,19 +73,20 @@ def get_item_schema(
 
         return item_schema if isinstance(item_schema, dict) else {}
 
-    if "$ref" in schema:
-        resolved = resolve_ref(spec, schema["$ref"])
-        return get_item_schema(spec, resolved)
+    ref = schema.get("$ref")
+    if ref is not None:
+        return get_item_schema(spec, resolve_ref(spec, ref))
 
     # List endpoints often return { "$meta", "data": [ items ] }; use item schema for audit
     # Some specs omit "type": "object", so check for "properties" with "data" as well
     if schema.get("type") == "object" or "properties" in schema:
         properties = schema.get("properties") or {}
         for key in ("data", "items", "results"):
-            if key in properties:
-                prop = properties[key]
-                if isinstance(prop, dict) and "$ref" in prop:
-                    prop = resolve_ref(spec, prop["$ref"])
+            prop = properties.get(key)
+            if prop is not None:
+                prop_ref = prop.get("$ref") if isinstance(prop, dict) else None
+                if prop_ref is not None:
+                    prop = resolve_ref(spec, prop_ref)
                 is_array = isinstance(prop, dict) and prop.get("type") == "array"
                 if is_array and "items" in prop:
                     item_schema = prop["items"]
@@ -174,8 +176,9 @@ def get_audit_data_from_spec(
         schema = json_content.get("schema")
         if not schema:
             continue
-        if "$ref" in schema:
-            schema = resolve_ref(spec, schema["$ref"])
+        ref = schema.get("$ref")
+        if ref is not None:
+            schema = resolve_ref(spec, ref)
         schema = get_item_schema(spec, schema)
         properties = schema.get("properties") if isinstance(schema, dict) else {}
         if not properties:

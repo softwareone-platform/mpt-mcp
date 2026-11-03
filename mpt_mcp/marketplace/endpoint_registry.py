@@ -81,9 +81,6 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
         spec = await fetch_with_cache(
             url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh
         )
-        logger.info("Loaded OpenAPI spec from %s", api_base_url)
-        return spec
-
     except (httpx.HTTPError, httpx.TimeoutException) as error:
         logger.warning("Failed to fetch from %s: %s", openapi_url, error)
 
@@ -96,9 +93,6 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
                 spec = await fetch_with_cache(
                     url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh
                 )
-                logger.info("Loaded OpenAPI spec from fallback")
-                return spec
-
             except (httpx.HTTPError, httpx.TimeoutException, OSError, ValueError) as fallback_error:
                 logger.exception("Fallback also failed")
                 raise OpenAPISpecFetchError(
@@ -106,7 +100,13 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
                     f"{fallback_url}"
                 ) from fallback_error
 
+            logger.info("Loaded OpenAPI spec from fallback")
+            return spec
+
         raise
+
+    logger.info("Loaded OpenAPI spec from %s", api_base_url)
+    return spec
 
 
 def path_to_resource_id(path: str) -> str:
@@ -171,15 +171,15 @@ async def get_endpoints_registry(
         except Exception as audit_err:
             logger.warning("Audit fields cache skipped: %s", audit_err)
 
-        logger.info("Discovered %s GET endpoints for %s", len(registry), api_base_url)
-        logger.info("Stored in registry with %s resource IDs", len(registry))
-
-        return registry
-
     except Exception:
         # Nothing is cached, so the next call retries the spec instead of serving no resources
         logger.exception("Failed to initialize endpoints registry for %s", api_base_url)
         raise
+
+    logger.info("Discovered %s GET endpoints for %s", len(registry), api_base_url)
+    logger.info("Stored in registry with %s resource IDs", len(registry))
+
+    return registry
 
 
 async def get_openapi_spec(api_base_url: str, *, force_refresh: bool = False) -> dict[str, Any]:

@@ -70,8 +70,9 @@ def get_response_item_schema(
     if not schema or not isinstance(schema, dict):
         return {}
 
-    if "$ref" in schema:
-        ref_path = schema["$ref"].split("/")
+    ref = schema.get("$ref")
+    if ref is not None:
+        ref_path = ref.split("/")
         ref_schema = openapi_spec
         for part in ref_path:
             if part and part != "#":
@@ -110,8 +111,9 @@ def describe_resource(resource_name: str, endpoint_info: dict[str, Any]) -> dict
         if param_spec.get("in") == "query" and param_name:
             filterable_fields.append(param_name)
             param_schema = param_spec.get("schema", {})
-            if "enum" in param_schema:
-                enum_fields[param_name] = param_schema["enum"]
+            enum_values = param_schema.get("enum")
+            if enum_values is not None:
+                enum_fields[param_name] = enum_values
 
     if filterable_fields:
         resource_entry["filterable_fields"] = filterable_fields[:MAX_FILTERABLE_FIELDS]
@@ -453,17 +455,17 @@ def execute_marketplace_resource_schema(
         "description": get_op.get("description", ""),
     }
 
-    if "200" in responses:
-        ok_response = responses["200"]
+    ok_response = responses.get("200")
+    if ok_response is not None:
         response_content = ok_response.get("content", {})
 
-        if MEDIA_TYPE_JSON in response_content:
-            json_content = response_content[MEDIA_TYPE_JSON]
-            if "schema" in json_content:
-                schema = json_content["schema"]
-
-                if "$ref" in schema:
-                    ref_path = schema["$ref"].split("/")
+        json_content = response_content.get(MEDIA_TYPE_JSON)
+        if json_content is not None:
+            schema = json_content.get("schema")
+            if schema is not None:
+                ref = schema.get("$ref")
+                if ref is not None:
+                    ref_path = ref.split("/")
                     ref_schema = openapi_spec
                     for part in ref_path:
                         if part and part != "#":
@@ -474,9 +476,10 @@ def execute_marketplace_resource_schema(
 
                 # Fields are those of one item: list responses wrap their items in data
                 item_schema = get_response_item_schema(openapi_spec, endpoints_registry, resource)
-                if "properties" in item_schema:
+                item_properties = item_schema.get("properties")
+                if item_properties is not None:
                     fields = {}
-                    for field_name, declared_schema in item_schema["properties"].items():
+                    for field_name, declared_schema in item_properties.items():
                         field_schema = resolve_schema(openapi_spec, declared_schema)
                         field_type = field_schema.get("type")
                         if not field_type:
@@ -487,21 +490,21 @@ def execute_marketplace_resource_schema(
                             or field_schema.get("description", ""),
                         }
 
-                        if "enum" in field_schema:
-                            field_info["enum"] = field_schema["enum"]
-                            field_info["valid_values"] = field_schema["enum"]
+                        field_enum = field_schema.get("enum")
+                        if field_enum is not None:
+                            field_info["enum"] = field_enum
+                            field_info["valid_values"] = field_enum
 
-                        if "example" in field_schema:
-                            field_info["example"] = field_schema["example"]
+                        field_info.update({
+                            key: field_schema[key]
+                            for key in ("example", "format")
+                            if key in field_schema
+                        })
 
-                        if "format" in field_schema:
-                            field_info["format"] = field_schema["format"]
-
-                        if "properties" in field_schema:
+                        nested_properties = field_schema.get("properties")
+                        if nested_properties is not None:
                             nested_fields = {}
-                            for nested_name, nested_schema in list(
-                                field_schema["properties"].items()
-                            )[:5]:
+                            for nested_name, nested_schema in list(nested_properties.items())[:5]:
                                 nested_fields[nested_name] = {
                                     "type": nested_schema.get("type", "unknown"),
                                     "description": nested_schema.get("description", ""),

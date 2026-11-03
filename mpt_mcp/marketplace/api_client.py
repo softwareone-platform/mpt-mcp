@@ -141,9 +141,10 @@ class APIClient:
         """
         try:
             await self.get("/health")
-            return True
         except Exception:
             return False
+
+        return True
 
     @staticmethod
     def _describe_response(response_data: Any) -> str:
