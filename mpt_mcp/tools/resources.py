@@ -555,7 +555,8 @@ def execute_marketplace_resource_schema(
 async def marketplace_resources(
     category: str | None = None,
     search: str | None = None,
-    call_context: CallContext = Depends(get_call_context),
+    # FastMCP injects the caller's credentials as a Depends(...) default
+    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> ResourcesResponse:
     """
     List the queryable API resources, grouped by category.
@@ -595,7 +596,9 @@ async def marketplace_resources(
 
 
 async def marketplace_resource_info(
-    resource: str, call_context: CallContext = Depends(get_call_context)
+    resource: str,
+    # FastMCP injects the caller's credentials as a Depends(...) default
+    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> ResourceInfoResponse:
     """
     Get detailed information about a specific resource.
@@ -627,7 +630,9 @@ async def marketplace_resource_info(
 
 
 async def marketplace_resource_schema(
-    resource: str, call_context: CallContext = Depends(get_call_context)
+    resource: str,
+    # FastMCP injects the caller's credentials as a Depends(...) default
+    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> ResourceSchemaResponse:
     """
     Get the response schema of a resource.
@@ -664,7 +669,9 @@ async def marketplace_resource_schema(
 
 
 async def marketplace_audit_fields(
-    resource: str | None = None, call_context: CallContext = Depends(get_call_context)
+    resource: str | None = None,
+    # FastMCP injects the caller's credentials as a Depends(...) default
+    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> AuditFieldsResponse:
     """
     Get audit event names per resource for filtering by "when" something happened.

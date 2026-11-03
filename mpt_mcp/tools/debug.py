@@ -38,7 +38,8 @@ def marketplace_cache_info() -> CacheInfoResponse:
 
 
 async def marketplace_refresh_cache(
-    call_context: CallContext = Depends(get_call_context),
+    # FastMCP injects the caller's credentials as a Depends(...) default
+    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> RefreshCacheResponse:
     """
     Force refresh the OpenAPI spec cache of your endpoint.

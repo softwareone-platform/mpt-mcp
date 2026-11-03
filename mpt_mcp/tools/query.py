@@ -581,7 +581,8 @@ async def marketplace_query(
     select: str | None = None,
     order: str | None = None,
     path_params: dict[str, str] | None = None,
-    call_context: CallContext = Depends(get_call_context),
+    # FastMCP injects the caller's credentials as a Depends(...) default
+    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> QueryResponse:
     """
     Query the SoftwareOne Marketplace API using Resource Query Language (RQL).
