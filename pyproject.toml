@@ -85,7 +85,6 @@ extend-ignore = [
   "WPS237",  # 1
   "WPS239",  # 1
   "WPS328",  # 1
-  "WPS338",  # 6
   "WPS404",  # 7
   "WPS407",  # 7
   "WPS420",  # 8
