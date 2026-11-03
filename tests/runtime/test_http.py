@@ -3,7 +3,8 @@ from http import HTTPStatus
 import pytest
 from starlette.testclient import TestClient
 
-from mpt_mcp.server import app
+from mpt_mcp.mcp_server import create_mcp_server
+from mpt_mcp.runtime.http import create_http_app
 
 INITIALIZE_REQUEST = {
     "jsonrpc": "2.0",
@@ -19,6 +20,7 @@ INITIALIZE_REQUEST = {
 
 @pytest.fixture
 def http_client():
+    app = create_http_app(create_mcp_server(transport="stdio"))
     with TestClient(app) as client:
         yield client
 

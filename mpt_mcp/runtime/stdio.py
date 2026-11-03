@@ -1,22 +1,17 @@
-#!/usr/bin/env python3
-
 import logging
 import sys
 
 from mpt_mcp.config import config
-from mpt_mcp.log_config import configure_logging
 from mpt_mcp.mcp_server import create_mcp_server
+from mpt_mcp.runtime.logging import configure_logging
 
 logger = logging.getLogger(__name__)
-
-# STDIO is for local development - don't use analytics
-mcp = create_mcp_server(analytics=False)
 
 
 def main() -> None:
     """Run the stdio server: report configuration errors and serve MCP on stdin and stdout."""
     configure_logging(logging.DEBUG if config.debug else logging.INFO)
-    logging.getLogger("fastmcp").setLevel(logging.WARNING)
+    mcp = create_mcp_server(transport="stdio")
     try:
         logger.info("=" * 60)
         logger.info("SoftwareOne Marketplace MCP Server (Stdio Mode)")

@@ -2,7 +2,12 @@ import logging
 
 import pytest
 
-from mpt_mcp.log_config import RequestContextFilter, current_session_id, current_user_id
+from mpt_mcp.runtime.logging import (
+    AccessLogFilter,
+    RequestContextFilter,
+    current_session_id,
+    current_user_id,
+)
 
 
 @pytest.fixture
@@ -40,3 +45,18 @@ def test_filter_adds_request_context_prefix(
     RequestContextFilter().filter(log_record)  # act
 
     assert log_record.request_context == expected
+
+
+@pytest.mark.parametrize(
+    ("path", "expected"),
+    [("POST /mcp", False), ("/health", False), ("/other", True)],
+)
+def test_access_log_filter_drops_mcp_and_health(path, expected):
+    access_filter = AccessLogFilter()
+    record = logging.LogRecord(
+        "uvicorn.access", logging.INFO, __file__, 1, "%s %s %s", ("10.0.0.1", "POST", path), None
+    )
+
+    result = access_filter.filter(record)
+
+    assert result is expected

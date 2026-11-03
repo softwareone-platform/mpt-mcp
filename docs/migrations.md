@@ -14,7 +14,7 @@ Changes that affect users of the server between versions are described in [versi
 
 ## When Migrations Run
 
-The HTTP server applies `alembic upgrade head` on startup when `ANALYTICS_DATABASE_URL` is set (`run_migrations()` in [`server.py`](../mpt_mcp/server.py)). A failed migration is logged and the server keeps running without a working analytics database. The server passes `configure_logger=False`, so Alembic does not replace the server's logging configuration.
+The HTTP server applies `alembic upgrade head` on startup when `ANALYTICS_DATABASE_URL` is set (`run_migrations()` in [`runtime/migrations.py`](../mpt_mcp/runtime/migrations.py)). A failed migration is logged and the server keeps running without a working analytics database. The server passes `configure_logger=False`, so Alembic does not replace the server's logging configuration.
 
 ## Creating A Migration
 

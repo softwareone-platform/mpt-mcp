@@ -10,7 +10,7 @@ _project_root = Path(__file__).resolve().parent.parent
 _env_file = _project_root / ".env"
 load_dotenv(_env_file)
 if not _env_file.exists():
-    # Fallback: try cwd (e.g. when run as "python -m mpt_mcp.server" from repo root)
+    # Fallback: try cwd (e.g. when run as "python -m mpt_mcp.runtime.runner" from repo root)
     load_dotenv()
 
 

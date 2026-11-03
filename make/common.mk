@@ -20,7 +20,7 @@ format:  ## Format code
 	$(RUN) bash -c "ruff check --select I --fix . && ruff format ."
 
 run:  ## Run the HTTP server on http://localhost:8080/mcp
-	$(DC) run --rm --service-ports app python -m mpt_mcp.server
+	$(DC) run --rm --service-ports app python -m mpt_mcp.runtime.runner
 
 test:  ## Run test
 	$(RUN) pytest $(if $(args),$(args),.)

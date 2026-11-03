@@ -4,8 +4,8 @@ import pytest
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from mpt_mcp.log_config import current_session_id, current_user_id
-from mpt_mcp.server_middleware import RequestContextMiddleware
+from mpt_mcp.runtime.logging import current_session_id, current_user_id
+from mpt_mcp.runtime.middleware import RequestContextMiddleware
 
 
 @pytest.fixture
@@ -35,7 +35,7 @@ async def test_on_request_sets_log_context_during_call(make_request, capture_log
         {"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456"
     )
 
-    with patch("mpt_mcp.server_middleware.get_http_request", return_value=request):
+    with patch("mpt_mcp.runtime.middleware.get_http_request", return_value=request):
         result = await RequestContextMiddleware().on_request(Mock(), capture_log_context)
 
     assert result == ("TKN-1234-5678", "abcdef123456")
@@ -46,7 +46,7 @@ async def test_on_request_resets_log_context_after_call(make_request, capture_lo
         {"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456"
     )
 
-    with patch("mpt_mcp.server_middleware.get_http_request", return_value=request):
+    with patch("mpt_mcp.runtime.middleware.get_http_request", return_value=request):
         await RequestContextMiddleware().on_request(Mock(), capture_log_context)  # act
 
     assert (current_user_id.get(), current_session_id.get()) == (None, None)
@@ -56,7 +56,7 @@ async def test_on_request_without_http_request():
     call_next = AsyncMock(return_value="result")
 
     with patch(
-        "mpt_mcp.server_middleware.get_http_request",
+        "mpt_mcp.runtime.middleware.get_http_request",
         side_effect=RuntimeError("No active HTTP request found."),
     ):
         result = await RequestContextMiddleware().on_request(Mock(), call_next)

@@ -1,13 +1,18 @@
+from typing import Literal
+
 from fastmcp import FastMCP
 
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
-from mpt_mcp.server_middleware import RequestContextMiddleware
+from mpt_mcp.runtime.middleware import RequestContextMiddleware
+from mpt_mcp.server_docs import documentation_lifespan
 from mpt_mcp.server_prompts import register_prompts
 from mpt_mcp.server_resources import register_resources
 from mpt_mcp.server_tools import DEBUG_TAG, register_tools
 
 SERVER_NAME = "softwareone-marketplace"
+
+type Transport = Literal["http", "stdio"]
 SERVER_INSTRUCTIONS = """\
 Read-only access to the SoftwareOne Marketplace API, with the caller's credentials, and to the \
 Marketplace documentation.
@@ -34,22 +39,23 @@ browser_url of a page, not its docs:// uri.
 """
 
 
-def create_mcp_server(*, analytics: bool) -> FastMCP:
+def create_mcp_server(*, transport: Transport) -> FastMCP:
     """
     Create the MCP server with every tool, resource and prompt, served by both transports.
 
     Args:
-        analytics: Record usage events in the analytics database (HTTP server only)
+        transport: http also loads the documentation at startup and records analytics events;
+            stdio loads the documentation on the first documentation call
 
     Returns:
         MCP server, with the debug tools disabled unless DEBUG=true
     """
     # RequestContextMiddleware runs first so analytics and tool logs carry the caller's log prefix
-    if analytics:
+    if transport == "http":
         mcp = FastMCP(
             SERVER_NAME,
             instructions=SERVER_INSTRUCTIONS,
-            lifespan=analytics_lifespan,
+            lifespan=documentation_lifespan | analytics_lifespan,
             middleware=[RequestContextMiddleware(), AnalyticsMiddleware()],
         )
     else:

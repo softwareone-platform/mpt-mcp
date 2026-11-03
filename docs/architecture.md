@@ -8,19 +8,31 @@ The package serves one FastMCP server, built by `create_mcp_server()` ([`mcp_ser
 
 | Transport | Entry point | Tenancy | Credentials |
 |---|---|---|---|
-| HTTP (streamable) | `python -m mpt_mcp.server` ([`server.py`](../mpt_mcp/server.py)) | Multi-tenant | Each request sends `X-MPT-Authorization` and, optionally, `X-MPT-Endpoint` |
-| stdio | `python -m mpt_mcp.server_stdio` ([`server_stdio.py`](../mpt_mcp/server_stdio.py)) | Single-tenant | `MARKETPLACE_API_TOKEN` and `MARKETPLACE_API_BASE_URL` from the environment |
+| HTTP (streamable) | `python -m mpt_mcp.runtime.runner` ([`runtime/runner.py`](../mpt_mcp/runtime/runner.py)) | Multi-tenant | Each request sends `X-MPT-Authorization` and, optionally, `X-MPT-Endpoint` |
+| stdio | `python -m mpt_mcp.runtime.stdio` ([`runtime/stdio.py`](../mpt_mcp/runtime/stdio.py)) | Single-tenant | `MARKETPLACE_API_TOKEN` and `MARKETPLACE_API_BASE_URL` from the environment |
 
-Both transports serve the same tools and resources. Only the HTTP server records analytics and registers each documentation page as a resource at startup, so clients can discover them.
+Both transports serve the same tools, resources and prompts: `create_mcp_server(transport=...)` only changes the lifespans and middlewares. Only the HTTP server records analytics and, in `documentation_lifespan` ([`server_docs.py`](../mpt_mcp/server_docs.py)), loads the documentation when it starts and registers each page as a resource, so clients can discover them. The stdio server loads the documentation on the first documentation call, so a client that starts it does not wait for GitBook.
+
+The [`runtime/`](../mpt_mcp/runtime) package starts the transports:
+
+| Module | Responsibility |
+|---|---|
+| [`runner.py`](../mpt_mcp/runtime/runner.py) | HTTP entry point: startup banner, migrations and uvicorn |
+| [`main.py`](../mpt_mcp/runtime/main.py) | `app`, the ASGI app uvicorn imports (`mpt_mcp.runtime.main:app`) in each worker and on each reload |
+| [`http.py`](../mpt_mcp/runtime/http.py) | `create_http_app()`: the MCP endpoint, the health check, the path rewrite and the not found hint |
+| [`stdio.py`](../mpt_mcp/runtime/stdio.py) | stdio entry point |
+| [`migrations.py`](../mpt_mcp/runtime/migrations.py) | Analytics database migrations at HTTP startup |
+| [`middleware.py`](../mpt_mcp/runtime/middleware.py) | `RequestContextMiddleware`, the MCP middleware of both transports that sets the log context |
+| [`logging.py`](../mpt_mcp/runtime/logging.py) | Logging configuration of both transports |
 
 ## HTTP Request Flow
 
-The HTTP app is built once at import time (`server.app`, which uvicorn loads as `mpt_mcp.server:app`):
+`create_http_app()` ([`runtime/http.py`](../mpt_mcp/runtime/http.py)) builds the app without side effects; the server lifespans run when uvicorn starts it:
 
-1. `HealthCheckMiddleware` (ASGI) answers `GET /` and `GET /health`, and rewrites `POST /` and `POST /mcp/` to `POST /mcp`. Unknown paths return a JSON 404 with a hint.
+1. `MCPPathMiddleware` (ASGI) rewrites `POST /` and `POST /mcp/` to `POST /mcp`, for proxies that strip or add the path. `GET /` and `GET /health` are FastMCP custom routes that return the health status. Unknown paths return a JSON 404 with a hint.
 2. FastMCP's streamable HTTP app (`mcp.http_app(stateless_http=True)`) handles `/mcp`. The server is stateless: there are no server-side MCP sessions, so any instance behind a load balancer can serve any request.
 3. FastMCP middlewares run for every MCP request, in this order:
-   - `RequestContextMiddleware` ([`server_middleware.py`](../mpt_mcp/server_middleware.py)) sets the caller's user ID and the `session_id` query parameter as the log prefix, and logs caller activity (at most every 30 seconds per caller).
+   - `RequestContextMiddleware` ([`runtime/middleware.py`](../mpt_mcp/runtime/middleware.py)) sets the caller's user ID and the `session_id` query parameter as the log prefix, and logs caller activity (at most every 30 seconds per caller).
    - `AnalyticsMiddleware` ([`analytics/middleware.py`](../mpt_mcp/analytics/middleware.py)) sets the analytics context and records one event per tool call and per resource read.
 4. Tools and the OpenAPI resource receive a `CallContext` with `Depends(get_call_context)` ([`call_context.py`](../mpt_mcp/call_context.py)), built from the `X-MPT-*` headers. `CallContext.create_api_client()` validates the token and returns an `APIClient` for the caller's endpoint.
 
@@ -49,21 +61,21 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`openapi_parser.py`](../mpt_mcp/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
 | [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
 | [`mcp_tools.py`](../mpt_mcp/mcp_tools.py) | Tool logic shared by both transports: query execution, select sanitization, resource info and schemas |
-| [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server: instructions, middlewares, analytics lifespan (HTTP), tools, resources, prompts and debug tool visibility |
+| [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server for a transport: instructions, middlewares, documentation and analytics lifespans (HTTP), tools, resources, prompts and debug tool visibility |
 | [`server_tools.py`](../mpt_mcp/server_tools.py), [`server_resources.py`](../mpt_mcp/server_resources.py), [`server_prompts.py`](../mpt_mcp/server_prompts.py) | Tool, resource and prompt functions and their registration |
 | [`tool_responses.py`](../mpt_mcp/tool_responses.py) | One Pydantic response model per tool, with the nested models of its fields, from which FastMCP builds the tool's output schema |
-| [`server_docs.py`](../mpt_mcp/server_docs.py), [`documentation_cache.py`](../mpt_mcp/documentation_cache.py), [`gitbook_client.py`](../mpt_mcp/gitbook_client.py) | GitBook documentation cache, created once per process |
-| [`server_middleware.py`](../mpt_mcp/server_middleware.py), [`log_config.py`](../mpt_mcp/log_config.py) | Request log context and logging configuration |
+| [`server_docs.py`](../mpt_mcp/server_docs.py), [`documentation_cache.py`](../mpt_mcp/documentation_cache.py), [`gitbook_client.py`](../mpt_mcp/gitbook_client.py) | GitBook documentation cache, created once per process; `documentation_lifespan` loads it at HTTP startup |
+| [`runtime/`](../mpt_mcp/runtime) | Transport entry points, HTTP app, migrations, request log context and logging configuration (see [Transports](#transports)) |
 | [`analytics/`](../mpt_mcp/analytics) | Analytics lifespan, middleware, buffered logger and `mcp_events` table |
 | [`cache_manager.py`](../mpt_mcp/cache_manager.py) | Disk cache for fetched JSON documents (OpenAPI specs) |
 | [`config.py`](../mpt_mcp/config.py) | Configuration read from environment variables (and `.env` through `python-dotenv`) |
 
 ## Logging
 
-All modules log through `logging.getLogger(__name__)`. Both entry points call `configure_logging()` ([`log_config.py`](../mpt_mcp/log_config.py)) once, which sends every record to stderr (stdout carries the stdio JSON-RPC stream) with this format:
+All modules log through `logging.getLogger(__name__)`. Both entry points call `configure_logging()` ([`runtime/logging.py`](../mpt_mcp/runtime/logging.py)), which sends every record to stderr (stdout carries the stdio JSON-RPC stream) with this format, keeps FastMCP and the MCP SDK at `WARNING` and leaves the requests to `/mcp` and `/health` out of the uvicorn access log:
 
 ```text
-INFO [mpt_mcp.server_middleware] [sess:abcdef12|user:TKN-1111-2222] TKN-1111-2222 @ api.s1.show [token] (active)
+INFO [mpt_mcp.runtime.middleware] [sess:abcdef12|user:TKN-1111-2222] TKN-1111-2222 @ api.s1.show [token] (active)
 ```
 
 `RequestContextFilter` adds the `[sess|user]` prefix from the context vars that `RequestContextMiddleware` sets. The level is `DEBUG` when `DEBUG=true`, otherwise `INFO`.

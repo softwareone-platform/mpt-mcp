@@ -22,7 +22,7 @@ services:
   # stdio server for IDE integration (Claude Desktop, Cursor); needs MARKETPLACE_API_TOKEN in .env
   stdio:
     <<: *app
-    command: python -m mpt_mcp.server_stdio
+    command: python -m mpt_mcp.runtime.stdio
     stdin_open: true
     tty: false
     profiles:

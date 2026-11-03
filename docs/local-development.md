@@ -41,8 +41,8 @@ Compose profiles keep optional services out of the default stack: `stdio` for th
 
 ```bash
 uv sync
-uv run python -m mpt_mcp.server
-MARKETPLACE_API_TOKEN=idt:TKN-XXXX-XXXX:secret uv run python -m mpt_mcp.server_stdio
+uv run python -m mpt_mcp.runtime.runner
+MARKETPLACE_API_TOKEN=idt:TKN-XXXX-XXXX:secret uv run python -m mpt_mcp.runtime.stdio
 ```
 
 ## Connecting MCP Clients

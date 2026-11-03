@@ -6,12 +6,11 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
 from mpt_mcp.call_context import CallContext, read_call_context
-from mpt_mcp.log_config import current_session_id, current_user_id
+from mpt_mcp.runtime.logging import current_session_id, current_user_id
 
 logger = logging.getLogger(__name__)
 
 ACTIVITY_LOG_COOLDOWN_SECONDS = 30
-# Last activity log of a caller that was never logged
 NEVER_LOGGED = dt.datetime.min.replace(tzinfo=dt.UTC)
 
 

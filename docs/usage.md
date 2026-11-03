@@ -9,7 +9,7 @@ Use the HTTP server unless the MCP client can only launch a local process.
 | Server | How to connect | Credentials |
 |---|---|---|
 | HTTP | `https://mcp.platform.softwareone.com/mcp` (streamable HTTP) | `X-MPT-Authorization` header on every request |
-| stdio | The client runs `python -m mpt_mcp.server_stdio` or the Docker image | `MARKETPLACE_API_TOKEN` environment variable |
+| stdio | The client runs `python -m mpt_mcp.runtime.stdio` or the Docker image | `MARKETPLACE_API_TOKEN` environment variable |
 
 HTTP headers:
 

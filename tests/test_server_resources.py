@@ -7,8 +7,13 @@ from fastmcp.exceptions import ResourceError
 
 from mpt_mcp import server_docs
 from mpt_mcp.call_context import CallContext
-from mpt_mcp.server import mcp
+from mpt_mcp.mcp_server import create_mcp_server
 from mpt_mcp.server_resources import get_documentation_page, get_openapi_spec
+
+
+@pytest.fixture
+def mcp_server():
+    return create_mcp_server(transport="stdio")
 
 
 async def test_get_openapi_spec_resource_success():
@@ -71,23 +76,23 @@ async def test_get_openapi_spec_resource_fetch_error():
                 await get_openapi_spec(call_context=call_context)
 
 
-async def test_openapi_resource_error_reaches_client():
-    async with Client(mcp) as client:
+async def test_openapi_resource_error_reaches_client(mcp_server):
+    async with Client(mcp_server) as client:
         with pytest.raises(Exception, match="Authentication required"):
             await client.read_resource("api://openapi.json")
 
 
-async def test_openapi_resource_listed_in_resources():
+async def test_openapi_resource_listed_in_resources(mcp_server):
 
-    resources = {str(resource.uri): resource for resource in (await mcp.list_resources())}
+    resources = {str(resource.uri): resource for resource in (await mcp_server.list_resources())}
     resource_uris = [str(uri) for uri in resources]
 
     assert "api://openapi.json" in resource_uris
 
 
-async def test_openapi_resource_has_correct_metadata():
+async def test_openapi_resource_has_correct_metadata(mcp_server):
 
-    resources = {str(resource.uri): resource for resource in (await mcp.list_resources())}
+    resources = {str(resource.uri): resource for resource in (await mcp_server.list_resources())}
     openapi_resource = resources.get("api://openapi.json")
 
     assert openapi_resource is not None
@@ -99,9 +104,9 @@ async def test_openapi_resource_has_correct_metadata():
         )
 
 
-async def test_openapi_resource_mime_type():
+async def test_openapi_resource_mime_type(mcp_server):
 
-    resources = {str(resource.uri): resource for resource in (await mcp.list_resources())}
+    resources = {str(resource.uri): resource for resource in (await mcp_server.list_resources())}
     openapi_resource = resources.get("api://openapi.json")
 
     assert openapi_resource is not None
@@ -143,10 +148,10 @@ async def test_docs_resource_not_found_when_missing(docs_cache):
         await get_documentation_page("readme")
 
 
-async def test_docs_resource_reads_nested_paths(docs_cache):
+async def test_docs_resource_reads_nested_paths(mcp_server, docs_cache):
     docs_cache({"docs://help-and-support/contact-support": "# Contact"})
 
-    async with Client(mcp) as client:
+    async with Client(mcp_server) as client:
         result = await client.read_resource("docs://help-and-support/contact-support")
 
     assert result[0].text == "# Contact"

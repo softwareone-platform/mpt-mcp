@@ -4,7 +4,7 @@ The HTTP server runs on Google Cloud Run as the `mpt-mcp` service, published at 
 
 ## Image
 
-The [`Dockerfile`](../Dockerfile) is multi-stage: the `prod` stage (the default) installs only runtime dependencies, exposes port `8080`, has a `/health` healthcheck and runs `python -m mpt_mcp.server`. The `dev` stage adds the dev dependencies and is the one `compose.yaml` uses.
+The [`Dockerfile`](../Dockerfile) is multi-stage: the `prod` stage (the default) installs only runtime dependencies, exposes port `8080`, has a `/health` healthcheck and runs `python -m mpt_mcp.runtime.runner`. The `dev` stage adds the dev dependencies and is the one `compose.yaml` uses.
 
 ## Workflow
 

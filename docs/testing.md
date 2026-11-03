@@ -17,8 +17,9 @@ The layout mirrors the package:
 
 - one [`tests/test_<module>.py`](../tests) per module in [`mpt_mcp/`](../mpt_mcp), for example `tests/test_mcp_tools.py` for `mpt_mcp/mcp_tools.py`
 - [`tests/analytics/`](../tests/analytics) for the [`mpt_mcp/analytics/`](../mpt_mcp/analytics) subpackage
+- [`tests/runtime/`](../tests/runtime) for the [`mpt_mcp/runtime/`](../mpt_mcp/runtime) subpackage
 
-Add a test where the behaviour lives: tool logic in `test_mcp_tools.py`, tool registration and HTTP tool wiring in `test_server_tools.py`, the health check and HTTP routing in `test_server.py`.
+Add a test where the behaviour lives: tool logic in `test_mcp_tools.py`, tool registration and HTTP tool wiring in `test_server_tools.py`, the health check and HTTP routing in `tests/runtime/test_http.py`, which builds the app with `create_http_app()` instead of importing `mpt_mcp.runtime.main`.
 
 ## Commands
 

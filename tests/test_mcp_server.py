@@ -14,13 +14,13 @@ DEBUG_TOOLS = {"marketplace_cache_info", "marketplace_refresh_cache", "marketpla
 @pytest.fixture
 def production_server(monkeypatch):
     monkeypatch.setattr(config, "debug", False)
-    return create_mcp_server(analytics=False)
+    return create_mcp_server(transport="stdio")
 
 
 @pytest.fixture
 def debug_server(monkeypatch):
     monkeypatch.setattr(config, "debug", True)
-    return create_mcp_server(analytics=False)
+    return create_mcp_server(transport="stdio")
 
 
 async def test_production_tools_exist(production_server):
