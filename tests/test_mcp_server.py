@@ -3,10 +3,10 @@ from unittest.mock import AsyncMock
 import pytest
 from fastmcp import Client
 
-from mpt_mcp import server_docs
 from mpt_mcp.config import config
+from mpt_mcp.documentation import lifespan
+from mpt_mcp.documentation.server import DOCUMENTATION_CACHE_UNAVAILABLE_MSG
 from mpt_mcp.mcp_server import create_mcp_server
-from mpt_mcp.server_tools import DOCUMENTATION_CACHE_UNAVAILABLE_MSG
 
 DEBUG_TOOLS = {"marketplace_cache_info", "marketplace_refresh_cache", "marketplace_resources_info"}
 
@@ -124,8 +124,8 @@ async def test_prompt_renders_query_request(production_server):
 
 
 async def test_tool_failure_is_an_error_result(production_server, monkeypatch):
-    monkeypatch.setattr(server_docs, "initialize_documentation_cache", AsyncMock())
-    monkeypatch.setattr(server_docs, "documentation_cache", None)
+    monkeypatch.setattr(lifespan, "initialize_documentation_cache", AsyncMock())
+    monkeypatch.setattr(lifespan, "documentation_cache", None)
 
     async with Client(production_server) as client:
         result = await client.call_tool(

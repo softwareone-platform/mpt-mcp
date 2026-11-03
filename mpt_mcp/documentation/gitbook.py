@@ -8,11 +8,8 @@ logger = logging.getLogger(__name__)
 
 # Default max concurrent requests to GitBook API (avoids 429 rate limits)
 DEFAULT_CONNECT_TIMEOUT = 30.0
-
 DEFAULT_MAX_CONCURRENT_REQUESTS = 2
-# Default request timeout in seconds
 DEFAULT_REQUEST_TIMEOUT = 30.0
-# Max retries on 429/503
 MAX_RETRIES = 3
 # Base delay in seconds for exponential backoff when Retry-After is not present
 RETRY_BACKOFF_BASE_SEC = 1.0
@@ -50,6 +47,83 @@ class GitBookClient:
             space_id,
             max_concurrent_requests,
         )
+
+    async def fetch_page_by_id(self, page_id: str) -> dict[str, Any]:
+        """
+        Fetch a specific page by its ID.
+
+        Args:
+            page_id: The page ID (e.g., "abc123def456")
+
+        Returns:
+            Dictionary containing page content
+
+        Raises:
+            httpx.HTTPError: If the request fails
+        """
+        url = f"{self.base_url}/spaces/{self.space_id}/content/page/{page_id}"
+        logger.debug("Fetching page by ID: %s", page_id)
+        return await self._get_with_retry(url)
+
+    async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
+        """
+        Fetch a specific page by its path.
+
+        Args:
+            page_path: The page path (e.g., "getting-started/authentication")
+
+        Returns:
+            Dictionary containing page content
+
+        Raises:
+            httpx.HTTPError: If the request fails
+        """
+        page_path = page_path.lstrip("/")
+        url = f"{self.base_url}/spaces/{self.space_id}/content/path/{page_path}"
+        logger.debug("Fetching page: %s", page_path)
+        return await self._get_with_retry(url)
+
+    async def fetch_space_content(self) -> dict[str, Any]:
+        """
+        Fetch all content from the GitBook space.
+
+        This includes pages, files, and other content items.
+
+        Returns:
+            Dictionary containing all space content
+
+        Raises:
+            httpx.HTTPError: If the request fails
+        """
+        url = f"{self.base_url}/spaces/{self.space_id}/content"
+        logger.info("Fetching GitBook space content from: %s", url)
+
+        space_content = await self._get_with_retry(url)
+        logger.info("Successfully fetched GitBook content")
+        if "pages" in space_content:
+            page_count = (
+                len(space_content["pages"])
+                if isinstance(space_content["pages"], list)
+                else "unknown"
+            )
+            logger.info("Pages: %s", page_count)
+        return space_content
+
+    async def validate_credentials(self) -> bool:
+        """
+        Validate that the API credentials are valid.
+
+        Returns:
+            True if credentials are valid, False otherwise
+        """
+        try:
+            url = f"{self.base_url}/spaces/{self.space_id}"
+            await self._get_with_retry(url)
+            logger.info("GitBook credentials validated successfully")
+            return True
+        except Exception:
+            logger.exception("GitBook credential validation failed")
+            return False
 
     def _get_headers(self) -> dict[str, str]:
         """Get request headers with authentication."""
@@ -108,80 +182,3 @@ class GitBookClient:
                 return response.json()
 
             raise RuntimeError("Unexpected retry loop exit")
-
-    async def fetch_space_content(self) -> dict[str, Any]:
-        """
-        Fetch all content from the GitBook space.
-
-        This includes pages, files, and other content items.
-
-        Returns:
-            Dictionary containing all space content
-
-        Raises:
-            httpx.HTTPError: If the request fails
-        """
-        url = f"{self.base_url}/spaces/{self.space_id}/content"
-        logger.info("Fetching GitBook space content from: %s", url)
-
-        space_content = await self._get_with_retry(url)
-        logger.info("Successfully fetched GitBook content")
-        if "pages" in space_content:
-            page_count = (
-                len(space_content["pages"])
-                if isinstance(space_content["pages"], list)
-                else "unknown"
-            )
-            logger.info("Pages: %s", page_count)
-        return space_content
-
-    async def fetch_page_by_path(self, page_path: str) -> dict[str, Any]:
-        """
-        Fetch a specific page by its path.
-
-        Args:
-            page_path: The page path (e.g., "getting-started/authentication")
-
-        Returns:
-            Dictionary containing page content
-
-        Raises:
-            httpx.HTTPError: If the request fails
-        """
-        page_path = page_path.lstrip("/")
-        url = f"{self.base_url}/spaces/{self.space_id}/content/path/{page_path}"
-        logger.debug("Fetching page: %s", page_path)
-        return await self._get_with_retry(url)
-
-    async def fetch_page_by_id(self, page_id: str) -> dict[str, Any]:
-        """
-        Fetch a specific page by its ID.
-
-        Args:
-            page_id: The page ID (e.g., "abc123def456")
-
-        Returns:
-            Dictionary containing page content
-
-        Raises:
-            httpx.HTTPError: If the request fails
-        """
-        url = f"{self.base_url}/spaces/{self.space_id}/content/page/{page_id}"
-        logger.debug("Fetching page by ID: %s", page_id)
-        return await self._get_with_retry(url)
-
-    async def validate_credentials(self) -> bool:
-        """
-        Validate that the API credentials are valid.
-
-        Returns:
-            True if credentials are valid, False otherwise
-        """
-        try:
-            url = f"{self.base_url}/spaces/{self.space_id}"
-            await self._get_with_retry(url)
-            logger.info("GitBook credentials validated successfully")
-            return True
-        except Exception:
-            logger.exception("GitBook credential validation failed")
-            return False

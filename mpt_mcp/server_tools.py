@@ -2,21 +2,17 @@ import logging
 
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
-from mcp_types import ToolAnnotations
 
 from mpt_mcp import (
     audit_fields as audit_fields_module,
 )
-from mpt_mcp import (
-    endpoint_registry,
-    server_docs,
-)
+from mpt_mcp import endpoint_registry
 from mpt_mcp.analytics import get_analytics_logger
 from mpt_mcp.call_context import CallContext, get_call_context
 from mpt_mcp.config import config
+from mpt_mcp.documentation import lifespan as documentation
 from mpt_mcp.mcp_tools import (
     add_page_position,
-    cut_text_to_budget,
     execute_marketplace_query,
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
@@ -25,12 +21,10 @@ from mpt_mcp.mcp_tools import (
     tool_error,
 )
 from mpt_mcp.token_validator import get_token_cache
+from mpt_mcp.tool_annotations import READ_ONLY_LOCAL, READ_ONLY_REMOTE, REFRESHES_CACHE
 from mpt_mcp.tool_responses import (
     AuditFieldsResponse,
     CacheInfoResponse,
-    DocsIndexResponse,
-    DocsListResponse,
-    DocsReadResponse,
     QueryResponse,
     RefreshCacheResponse,
     ResourceInfoResponse,
@@ -43,24 +37,11 @@ logger = logging.getLogger(__name__)
 
 DEBUG_TAG = "debug"
 
-DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
-    "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
-)
 AUTH_HEADER_HINT = (
     "Provide your API token in the X-MPT-Authorization header (HTTP) or in "
     "MARKETPLACE_API_TOKEN (stdio)"
 )
 OPENAPI_SPEC_LOAD_ERROR = "Failed to load OpenAPI spec"
-
-MANY_DOCS_RESULTS = 50
-
-# Every tool only reads: they differ in whether they reach the Marketplace API or GitBook
-READ_ONLY_LOCAL = ToolAnnotations(read_only_hint=True, open_world_hint=False)
-READ_ONLY_REMOTE = ToolAnnotations(read_only_hint=True, open_world_hint=True)
-# Refreshing rewrites the server's spec cache: it changes state, but repeating it is harmless
-REFRESHES_CACHE = ToolAnnotations(
-    read_only_hint=False, destructive_hint=False, idempotent_hint=True, open_world_hint=True
-)
 
 
 async def marketplace_audit_fields(
@@ -119,121 +100,6 @@ def marketplace_cache_info() -> CacheInfoResponse:
         "note": "Cache reduces startup time and allows offline operation. Cache is automatically "
         "refreshed every 24 hours.",
     })
-
-
-async def marketplace_docs_index() -> DocsIndexResponse:
-    """
-    Get the documentation table of contents.
-
-    Returns:
-        Total page count and the documentation sections with their subsections and page counts
-    """
-    await server_docs.initialize_documentation_cache()
-    dc = server_docs.documentation_cache
-    if not dc or not dc.is_enabled:
-        raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
-
-    return DocsIndexResponse.model_validate(await dc.get_documentation_index())
-
-
-async def marketplace_docs_list(
-    section: str | None = None,
-    subsection: str | None = None,
-    search: str | None = None,
-    limit: int = 100,
-) -> DocsListResponse:
-    """
-    List documentation pages, optionally filtered.
-
-    Args:
-        section: Only pages of this section (see marketplace_docs_index)
-        subsection: Only pages of this subsection
-        search: Only pages whose title or path contains this text
-        limit: Max pages to return (default 100)
-
-    Returns:
-        Matching pages with their docs:// uri, title and public browser_url when available
-    """
-    await server_docs.initialize_documentation_cache()
-    dc = server_docs.documentation_cache
-    if not dc or not dc.is_enabled:
-        raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
-
-    resources = await dc.list_resources(
-        section=section, subsection=subsection, search=search, limit=limit
-    )
-    resources_for_response = []
-    for resource in resources:
-        entry = dict(resource)
-        if resource.get("metadata", {}).get("browser_url"):
-            entry["browser_url"] = resource["metadata"]["browser_url"]
-        resources_for_response.append(entry)
-    filters = []
-    if section:
-        filters.append(f"section={section}")
-    if subsection:
-        filters.append(f"subsection={subsection}")
-    if search:
-        filters.append(f"search='{search}'")
-    result = {
-        "total": len(resources_for_response),
-        "resources": resources_for_response,
-        "filters_applied": ", ".join(filters) if filters else "none",
-        "usage": (
-            "Use marketplace_docs_read(uri='docs://path') to read a page. "
-            "Prefer showing users the browser_url (public link) when present; "
-            "do not show internal uri or id to end users."
-        ),
-    }
-    if len(resources) >= limit:
-        result["tip"] = (
-            f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
-        )
-    elif len(resources) > MANY_DOCS_RESULTS:
-        result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
-
-    return DocsListResponse.model_validate(result)
-
-
-async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
-    """
-    Read a documentation page.
-
-    Long pages come in parts: next_offset is set when there is more to read.
-
-    Args:
-        uri: Page uri from marketplace_docs_list (e.g. docs://help-and-support/contact-support)
-        offset: Character to start reading from, the next_offset of the previous part
-
-    Returns:
-        Page content in markdown, or one part of it
-    """
-    await server_docs.initialize_documentation_cache()
-    dc = server_docs.documentation_cache
-    if not dc or not dc.is_enabled:
-        raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
-
-    page_content = await dc.get_resource(uri)
-    if page_content is None:
-        raise tool_error(
-            f"Documentation page not found: {uri}",
-            hint="Use marketplace_docs_list() to see available pages.",
-        )
-
-    page_part, next_offset = cut_text_to_budget(page_content, offset)
-    if next_offset is None:
-        return DocsReadResponse(text=page_part, count=1)
-
-    return DocsReadResponse(
-        text=page_part,
-        count=1,
-        total_characters=len(page_content),
-        next_offset=next_offset,
-        hint=(
-            f"The page is longer than one result. Read the rest with offset={next_offset}, "
-            "or give the user the page's browser_url from marketplace_docs_list."
-        ),
-    )
 
 
 async def marketplace_query(
@@ -502,7 +368,7 @@ def marketplace_resources_info() -> ResourcesInfoResponse:
         "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
         "token_validation": {"enabled": False, "cache_stats": None},
     }
-    dc = server_docs.documentation_cache
+    dc = documentation.documentation_cache
     if dc and dc.is_enabled:
         cache_info = dc.get_cache_info()
         result["documentation"] = {
@@ -524,16 +390,13 @@ def marketplace_resources_info() -> ResourcesInfoResponse:
 
 
 def register_tools(mcp: FastMCP) -> None:
-    """Register the Marketplace, documentation and debug tools."""
+    """Register the Marketplace and debug tools."""
     for tool, title, annotations in (
         (marketplace_query, "Query a Marketplace resource", READ_ONLY_REMOTE),
         (marketplace_resources, "List Marketplace resources", READ_ONLY_REMOTE),
         (marketplace_resource_info, "Describe a Marketplace resource", READ_ONLY_REMOTE),
         (marketplace_resource_schema, "Marketplace resource schema", READ_ONLY_REMOTE),
         (marketplace_audit_fields, "Marketplace audit events", READ_ONLY_REMOTE),
-        (marketplace_docs_index, "Documentation index", READ_ONLY_REMOTE),
-        (marketplace_docs_list, "List documentation pages", READ_ONLY_REMOTE),
-        (marketplace_docs_read, "Read a documentation page", READ_ONLY_REMOTE),
     ):
         mcp.tool(title=title, annotations=annotations)(tool)
     for debug_tool, title, annotations in (

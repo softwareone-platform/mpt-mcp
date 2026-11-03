@@ -1,14 +1,13 @@
 import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ResourceError
 
-from mpt_mcp import server_docs
 from mpt_mcp.call_context import CallContext
 from mpt_mcp.mcp_server import create_mcp_server
-from mpt_mcp.server_resources import get_documentation_page, get_openapi_spec
+from mpt_mcp.server_resources import get_openapi_spec
 
 
 @pytest.fixture
@@ -111,47 +110,3 @@ async def test_openapi_resource_mime_type(mcp_server):
 
     assert openapi_resource is not None
     assert openapi_resource.mime_type == "application/json"
-
-
-@pytest.fixture
-def docs_cache(monkeypatch):
-    def _docs_cache(content_by_uri):
-        cache = Mock(is_enabled=True)
-        cache.get_resource = AsyncMock(side_effect=content_by_uri.get)
-
-        def install_cache():
-            server_docs.documentation_cache = cache
-
-        # The resource must read the cache that initialize_documentation_cache sets, not a stale
-        # import
-        monkeypatch.setattr(server_docs, "documentation_cache", None)
-        monkeypatch.setattr(
-            server_docs, "initialize_documentation_cache", AsyncMock(side_effect=install_cache)
-        )
-        return cache
-
-    return _docs_cache
-
-
-async def test_docs_resource_reads_from_live_docs_cache(docs_cache):
-    docs_cache({"docs://readme": "# Home\n\nHello"})
-
-    result = await get_documentation_page("readme")
-
-    assert result == "# Home\n\nHello"
-
-
-async def test_docs_resource_not_found_when_missing(docs_cache):
-    docs_cache({})
-
-    with pytest.raises(ResourceError, match="Documentation page not found: docs://readme"):
-        await get_documentation_page("readme")
-
-
-async def test_docs_resource_reads_nested_paths(mcp_server, docs_cache):
-    docs_cache({"docs://help-and-support/contact-support": "# Contact"})
-
-    async with Client(mcp_server) as client:
-        result = await client.read_resource("docs://help-and-support/contact-support")
-
-    assert result[0].text == "# Contact"

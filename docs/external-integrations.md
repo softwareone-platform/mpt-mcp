@@ -15,7 +15,7 @@ The HTTP server is multi-tenant: the endpoint comes from `X-MPT-Endpoint` (defau
 
 ## GitBook
 
-The HTTP server reads the Marketplace documentation from a GitBook space when `GITBOOK_API_KEY` and `GITBOOK_SPACE_ID` are set ([`gitbook_client.py`](../mpt_mcp/gitbook_client.py), [`documentation_cache.py`](../mpt_mcp/documentation_cache.py)):
+The HTTP server reads the Marketplace documentation from a GitBook space when `GITBOOK_API_KEY` and `GITBOOK_SPACE_ID` are set ([`documentation/gitbook.py`](../mpt_mcp/documentation/gitbook.py), [`documentation/cache.py`](../mpt_mcp/documentation/cache.py)):
 
 - the page index is loaded at startup and refreshed every `GITBOOK_CACHE_REFRESH_HOURS` (24 by default); page content is fetched on first read
 - requests are limited to `GITBOOK_MAX_CONCURRENT_REQUESTS` and retried on 429/503

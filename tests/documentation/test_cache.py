@@ -3,8 +3,8 @@ from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from mpt_mcp.documentation_cache import DocumentationCache
-from mpt_mcp.gitbook_client import GitBookClient
+from mpt_mcp.documentation.cache import DocumentationCache
+from mpt_mcp.documentation.gitbook import GitBookClient
 
 
 @pytest.fixture
@@ -378,7 +378,7 @@ async def test_needs_refresh_after_refresh_interval(mock_gitbook_client, monkeyp
     await cache.refresh()
     two_hours_later = dt.datetime.now(dt.UTC) + dt.timedelta(hours=2)
     monkeypatch.setattr(
-        "mpt_mcp.documentation_cache.dt",
+        "mpt_mcp.documentation.cache.dt",
         Mock(datetime=Mock(now=Mock(return_value=two_hours_later))),
     )
 

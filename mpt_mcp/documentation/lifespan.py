@@ -9,8 +9,8 @@ from fastmcp.resources import FunctionResource
 from fastmcp.server.lifespan import lifespan
 
 from mpt_mcp.config import config
-from mpt_mcp.documentation_cache import DocumentationCache
-from mpt_mcp.gitbook_client import GitBookClient
+from mpt_mcp.documentation.cache import DocumentationCache
+from mpt_mcp.documentation.gitbook import GitBookClient
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator

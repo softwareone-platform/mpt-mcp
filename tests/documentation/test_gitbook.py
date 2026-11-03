@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from mpt_mcp.gitbook_client import GitBookClient
+from mpt_mcp.documentation.gitbook import GitBookClient
 
 
 @pytest.fixture

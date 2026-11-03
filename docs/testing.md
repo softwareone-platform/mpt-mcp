@@ -18,8 +18,9 @@ The layout mirrors the package:
 - one [`tests/test_<module>.py`](../tests) per module in [`mpt_mcp/`](../mpt_mcp), for example `tests/test_mcp_tools.py` for `mpt_mcp/mcp_tools.py`
 - [`tests/analytics/`](../tests/analytics) for the [`mpt_mcp/analytics/`](../mpt_mcp/analytics) subpackage
 - [`tests/runtime/`](../tests/runtime) for the [`mpt_mcp/runtime/`](../mpt_mcp/runtime) subpackage
+- [`tests/documentation/`](../tests/documentation) for the [`mpt_mcp/documentation/`](../mpt_mcp/documentation) subpackage
 
-Add a test where the behaviour lives: tool logic in `test_mcp_tools.py`, tool registration and HTTP tool wiring in `test_server_tools.py`, the health check and HTTP routing in `tests/runtime/test_http.py`, which builds the app with `create_http_app()` instead of importing `mpt_mcp.runtime.main`.
+Add a test where the behaviour lives: tool logic in `test_mcp_tools.py`, tool registration and HTTP tool wiring in `test_server_tools.py`, documentation tools and the `docs://` resource in `tests/documentation/test_server.py`, the health check and HTTP routing in `tests/runtime/test_http.py`, which builds the app with `create_http_app()` instead of importing `mpt_mcp.runtime.main`.
 
 ## Commands
 
@@ -48,8 +49,9 @@ Repository-specific settings come from [`pyproject.toml`](../pyproject.toml):
 
 Repository-specific guidance:
 
-- call tools as the module functions of `server_tools.py` and pass an explicit `call_context` fixture instead of building HTTP requests
+- call tools as the module functions of `server_tools.py` or `documentation/server.py` and pass an explicit `call_context` fixture instead of building HTTP requests
 - patch names where they are used, for example `mpt_mcp.server_resources.validate_token`
+- the `docs_cache_factory` and `doc_page_factory` fixtures in [`tests/conftest.py`](../tests/conftest.py) install a fake documentation cache for any test
 - module-level caches (OpenAPI specs, JWKS keys) live for the whole test process: give each test its own endpoint or issuer, as the `unique_endpoint` and `issuer` fixtures do, instead of clearing private state
 - test JWT validation with real RSA keys and mocked HTTP responses, as in `test_token_validator.py`
 - debug tool visibility depends on `DEBUG`, which `compose.yaml` sets to `true`: test it on servers created with `config.debug` set, as the `production_server` and `debug_server` fixtures in `test_mcp_server.py` do

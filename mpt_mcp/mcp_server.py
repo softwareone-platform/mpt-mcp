@@ -4,8 +4,9 @@ from fastmcp import FastMCP
 
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
+from mpt_mcp.documentation.lifespan import documentation_lifespan
+from mpt_mcp.documentation.server import create_documentation_server
 from mpt_mcp.runtime.middleware import RequestContextMiddleware
-from mpt_mcp.server_docs import documentation_lifespan
 from mpt_mcp.server_prompts import register_prompts
 from mpt_mcp.server_resources import register_resources
 from mpt_mcp.server_tools import DEBUG_TAG, register_tools
@@ -67,6 +68,7 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
     register_tools(mcp)
     register_resources(mcp)
     register_prompts(mcp)
+    mcp.mount(create_documentation_server())
     # Debug tools are only listed and callable in development
     if not config.debug:
         mcp.disable(tags={DEBUG_TAG})
