@@ -78,43 +78,6 @@ class QueryResponse(ToolResponse):
     )
 
 
-class QueryTemplate(ToolResponse):
-    """Ready-to-use marketplace_query call."""
-
-    name: str = Field(description="Template name")
-    description: str = Field(description="What the query returns")
-    query: str = Field(description="marketplace_query call to run, with xxxx placeholders")
-    use_case: str = Field(description="When to use the template")
-    available_statuses: list[str] | None = optional_field(
-        "Status values to use in the template's filter"
-    )
-
-
-class QueryTemplateCategory(ToolResponse):
-    """Query templates of one resource area."""
-
-    description: str = Field(description="Area the templates cover")
-    templates: list[QueryTemplate] = Field(description="Templates of the area")
-
-
-class QueryTips(ToolResponse):
-    """How to adapt the templates."""
-
-    how_to_use: list[str] = Field(description="Steps to adapt a template")
-    rql_basics: dict[str, str] = Field(description="RQL operators with their meaning")
-
-
-class QuickQueriesResponse(ToolResponse):
-    """Query templates by resource area."""
-
-    orders: QueryTemplateCategory = Field(description="Order queries")
-    products: QueryTemplateCategory = Field(description="Product queries")
-    agreements: QueryTemplateCategory = Field(description="Agreement queries")
-    subscriptions: QueryTemplateCategory = Field(description="Subscription queries")
-    accounts: QueryTemplateCategory = Field(description="Account queries")
-    tips: QueryTips = Field(description="How to adapt the templates")
-
-
 class ResourceEntry(ToolResponse):
     """Queryable resource; its path, description and query parameters come with a category."""
 

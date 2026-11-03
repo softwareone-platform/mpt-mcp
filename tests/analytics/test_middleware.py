@@ -46,6 +46,13 @@ def middleware():
 
 
 @pytest.fixture
+def prompt_context():
+    context = Mock()
+    context.message.name = "recent_orders"
+    return context
+
+
+@pytest.fixture
 def resource_context():
     return Mock(message=Mock(uri="api://openapi.json"))
 
@@ -156,6 +163,30 @@ async def test_on_read_resource_reraises_exception(middleware, analytics, resour
 
     analytics.log_resource_read.assert_awaited_once_with(
         resource_uri="api://openapi.json",
+        response_time_ms=RESPONSE_TIME_MS,
+        success=False,
+        error_message="boom",
+    )
+
+
+async def test_on_get_prompt_logs_success(middleware, analytics, prompt_context):
+    call_next = AsyncMock(return_value=Mock())
+
+    await middleware.on_get_prompt(prompt_context, call_next)  # act
+
+    analytics.log_prompt_get.assert_awaited_once_with(
+        prompt_name="recent_orders", response_time_ms=RESPONSE_TIME_MS
+    )
+
+
+async def test_on_get_prompt_reraises_exception(middleware, analytics, prompt_context):
+    call_next = AsyncMock(side_effect=RuntimeError("boom"))
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await middleware.on_get_prompt(prompt_context, call_next)
+
+    analytics.log_prompt_get.assert_awaited_once_with(
+        prompt_name="recent_orders",
         response_time_ms=RESPONSE_TIME_MS,
         success=False,
         error_message="boom",

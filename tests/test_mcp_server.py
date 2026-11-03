@@ -26,7 +26,6 @@ def debug_server(monkeypatch):
 async def test_production_tools_exist(production_server):
     expected_tools = {
         "marketplace_query",
-        "marketplace_quick_queries",
         "marketplace_resources",
         "marketplace_resource_info",
         "marketplace_resource_schema",
@@ -94,21 +93,34 @@ async def test_every_tool_has_an_output_schema(debug_server):
     assert not result
 
 
-async def test_tool_result_matches_its_output_schema(production_server, monkeypatch):
-    monkeypatch.setattr(server_docs, "initialize_documentation_cache", AsyncMock())
-    monkeypatch.setattr(server_docs, "documentation_cache", None)
+async def test_tool_result_matches_its_output_schema(debug_server):
+    async with Client(debug_server) as client:
+        result = await client.call_tool("marketplace_cache_info", {})
 
-    async with Client(production_server) as client:
-        result = await client.call_tool("marketplace_quick_queries", {})
+    assert set(result.structured_content) == {"cache_status", "cache_info", "note"}
 
-    assert set(result.structured_content) == {
-        "orders",
-        "products",
-        "agreements",
-        "subscriptions",
-        "accounts",
-        "tips",
+
+async def test_prompts_registered(production_server):
+    result = {prompt.name for prompt in await production_server.list_prompts()}
+
+    assert result == {
+        "agreements_for_client",
+        "orders_by_status",
+        "orders_for_product",
+        "products_by_vendor",
+        "recent_orders",
+        "search_buyers",
+        "search_products",
+        "subscriptions_due",
+        "subscriptions_for_product",
     }
+
+
+async def test_prompt_renders_query_request(production_server):
+    async with Client(production_server) as client:
+        result = await client.get_prompt("search_products", {"name": "Adobe"})
+
+    assert "rql=ilike(name,*Adobe*)" in result.messages[0].content.text
 
 
 async def test_tool_failure_is_an_error_result(production_server, monkeypatch):

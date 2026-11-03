@@ -30,10 +30,12 @@ mcp_events = Table(
     Column("api_endpoint", String(100)),  # api.s1.show, etc.
     Column("session_id", String(100)),
     # Event Classification
-    Column("event_type", String(50), nullable=False),  # tool_call, resource_read, api_query, error
+    Column(
+        "event_type", String(50), nullable=False
+    ),  # tool_call, prompt_get, resource_read, api_query, error
     Column("server_type", String(20)),  # http, stdio
     # MCP Tool Details
-    Column("tool_name", String(100)),
+    Column("tool_name", String(100)),  # tool or prompt name
     Column("resource_uri", Text),
     # API Query Details
     Column("api_resource", String(200)),  # catalog.products

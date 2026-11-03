@@ -32,7 +32,6 @@ Both servers serve the same tools:
 | `marketplace_resource_info` | Describe a resource: filterable fields, enum values, path parameters, examples |
 | `marketplace_resource_schema` | Return the full response schema of a resource |
 | `marketplace_audit_fields` | List the audit events (`created`, `updated`, `failed`…) of each resource |
-| `marketplace_quick_queries` | Return ready-to-use query templates by category |
 | `marketplace_docs_index` | Return the documentation table of contents |
 | `marketplace_docs_list` | List documentation pages, filtered by section, subsection or search |
 | `marketplace_docs_read` | Read a documentation page by `docs://` URI; pages longer than 25,000 characters come in parts, read with `offset` |
@@ -45,6 +44,20 @@ The documentation tools need GitBook to be configured on the server; otherwise t
 Every tool publishes an output schema that describes the fields of its result, which is also sent as structured content. `marketplace_query` returns the API response: a page of items in `data` with `$meta` pagination, or the fields of a single item; resources that return a plain value are wrapped as `{"result": ...}`.
 
 Every tool is read-only except `marketplace_refresh_cache`, and declares it with the MCP `readOnlyHint` annotation. Failures are MCP tool errors (`isError: true`): the text is the error message, followed by its hints as JSON when there are any. The server's MCP `instructions` describe the order to use the tools in.
+
+Both servers also expose prompts for common questions. A prompt is chosen by the user in the MCP client (in Claude Code, as the `/mcp__<server>__<prompt>` command) and writes the `marketplace_query` call for the model to run:
+
+| Prompt | Arguments | Question |
+|---|---|---|
+| `recent_orders` | | Latest orders, in any status |
+| `orders_by_status` | `status` | Orders in one status, the last updated first |
+| `orders_for_product` | `product_id` | Latest orders of a product |
+| `search_products` | `name` | Products whose name contains the text |
+| `products_by_vendor` | `vendor_id` | Products of a vendor |
+| `agreements_for_client` | `client_id` | Agreements of a client, newest first |
+| `subscriptions_for_product` | `product_id` | Subscriptions of a product |
+| `subscriptions_due` | `days` (default 30) | Active subscriptions whose commitment ends in the next days |
+| `search_buyers` | `name` | Buyers whose name contains the text |
 
 Both servers also expose two MCP resources: `api://openapi.json` (the OpenAPI spec of the caller's endpoint) and `docs://{path*}` (documentation pages, including nested paths such as `docs://help-and-support/contact-support`). A resource that cannot be read, because the caller has no valid token, the spec cannot be loaded or the page does not exist, fails with an MCP error instead of returning an error message as its content.
 

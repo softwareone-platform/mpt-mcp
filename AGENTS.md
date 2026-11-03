@@ -25,7 +25,7 @@ When applicable, read this repository in the following order:
 Then inspect the code paths relevant to the task:
 
 - [`mpt_mcp/server.py`](mpt_mcp/server.py): HTTP server, ASGI app, health check, startup and migrations
-- [`mpt_mcp/server_tools.py`](mpt_mcp/server_tools.py) and [`mpt_mcp/server_resources.py`](mpt_mcp/server_resources.py): tools and resources of both transports
+- [`mpt_mcp/server_tools.py`](mpt_mcp/server_tools.py), [`mpt_mcp/server_resources.py`](mpt_mcp/server_resources.py) and [`mpt_mcp/server_prompts.py`](mpt_mcp/server_prompts.py): tools, resources and prompts of both transports
 - [`mpt_mcp/server_stdio.py`](mpt_mcp/server_stdio.py): stdio server entry point
 - [`mpt_mcp/mcp_server.py`](mpt_mcp/mcp_server.py): the MCP server both transports serve, with its middlewares and debug tool visibility
 - [`mpt_mcp/mcp_tools.py`](mpt_mcp/mcp_tools.py): tool logic shared by both servers (query, resources, schema)

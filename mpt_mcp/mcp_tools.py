@@ -12,7 +12,6 @@ import httpx
 from fastmcp.exceptions import ToolError
 
 from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX, get_item_schema, resolve_schema
-from mpt_mcp.query_templates import get_query_templates
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -803,21 +802,6 @@ async def execute_marketplace_query(
             )
 
         raise tool_error(str(error), **error_response) from error
-
-
-# ============================================================================
-# Common Tool: marketplace_quick_queries
-# ============================================================================
-
-
-def execute_marketplace_quick_queries() -> dict[str, Any]:
-    """
-    Core logic for marketplace_quick_queries tool.
-
-    Returns:
-        Dictionary of query templates organized by category
-    """
-    return get_query_templates()
 
 
 # ============================================================================

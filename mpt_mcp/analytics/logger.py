@@ -311,6 +311,46 @@ class AnalyticsLogger:
 
         # Popular queries are tracked in mcp_events table
 
+    async def log_prompt_get(
+        self,
+        prompt_name: str,
+        response_time_ms: int,
+        *,
+        success: bool = True,
+        error_message: str | None = None,
+        server_type: str = "http",
+    ) -> None:
+        """
+        Log a prompt get event.
+
+        Args:
+            prompt_name: Name of the MCP prompt, stored in tool_name
+            response_time_ms: Response time
+            success: Whether the prompt was rendered
+            error_message: Error message if failed
+            server_type: http or stdio
+        """
+        event = {
+            **self._get_context(),
+            "timestamp": dt.datetime.now(dt.UTC),
+            "event_type": "prompt_get" if success else "error",
+            "server_type": server_type,
+            "tool_name": prompt_name,
+            "response_time_ms": response_time_ms,
+            "error_message": error_message,
+            "error_type": "prompt_error" if not success else None,
+        }
+
+        await self._queue_event(event)
+
+        token_id = event.get("token_id", "unknown")
+        if success:
+            logger.info("Prompt: %s | Token: %s | %.0fms", prompt_name, token_id, response_time_ms)
+        else:
+            logger.warning(
+                "Prompt: %s | Token: %s | Error: %s", prompt_name, token_id, error_message
+            )
+
     async def log_resource_read(
         self,
         resource_uri: str,

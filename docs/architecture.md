@@ -36,7 +36,7 @@ Tool results are kept under `CHARACTER_LIMIT` (25,000 characters) ([`mcp_tools.p
 - `marketplace_docs_read` returns long pages in parts, cut at a line break, with the `next_offset` of the next part.
 - `marketplace_resources` lists only resource names (or, for one category, names and summaries) when the full list does not fit, and adds a `note`.
 
-Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in.
+Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in and the RQL operators. Common questions are prompts ([`server_prompts.py`](../mpt_mcp/server_prompts.py)), which the user picks in the client, rather than a tool: each one fills in a `marketplace_query` call from its arguments for the model to run. The examples the model needs for a resource come from `marketplace_resource_info`, generated from the OpenAPI spec.
 
 ## Modules
 
@@ -49,9 +49,8 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`openapi_parser.py`](../mpt_mcp/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
 | [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
 | [`mcp_tools.py`](../mpt_mcp/mcp_tools.py) | Tool logic shared by both servers: query execution, select sanitization, resource info and schemas |
-| [`query_templates.py`](../mpt_mcp/query_templates.py) | Example queries returned by `marketplace_quick_queries` |
-| [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server: middlewares, analytics lifespan (HTTP), tools, resources and debug tool visibility |
-| [`server_tools.py`](../mpt_mcp/server_tools.py), [`server_resources.py`](../mpt_mcp/server_resources.py) | Tool and resource functions and their registration |
+| [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server: instructions, middlewares, analytics lifespan (HTTP), tools, resources, prompts and debug tool visibility |
+| [`server_tools.py`](../mpt_mcp/server_tools.py), [`server_resources.py`](../mpt_mcp/server_resources.py), [`server_prompts.py`](../mpt_mcp/server_prompts.py) | Tool, resource and prompt functions and their registration |
 | [`tool_responses.py`](../mpt_mcp/tool_responses.py) | One Pydantic response model per tool, with the nested models of its fields, from which FastMCP builds the tool's output schema |
 | [`server_docs.py`](../mpt_mcp/server_docs.py), [`documentation_cache.py`](../mpt_mcp/documentation_cache.py), [`gitbook_client.py`](../mpt_mcp/gitbook_client.py) | GitBook documentation cache, created once per process |
 | [`server_middleware.py`](../mpt_mcp/server_middleware.py), [`log_config.py`](../mpt_mcp/log_config.py) | Request log context and logging configuration |

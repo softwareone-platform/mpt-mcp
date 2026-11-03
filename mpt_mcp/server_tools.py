@@ -18,7 +18,6 @@ from mpt_mcp.mcp_tools import (
     add_page_position,
     cut_text_to_budget,
     execute_marketplace_query,
-    execute_marketplace_quick_queries,
     execute_marketplace_resource_info,
     execute_marketplace_resource_schema,
     execute_marketplace_resources,
@@ -33,7 +32,6 @@ from mpt_mcp.tool_responses import (
     DocsListResponse,
     DocsReadResponse,
     QueryResponse,
-    QuickQueriesResponse,
     RefreshCacheResponse,
     ResourceInfoResponse,
     ResourceSchemaResponse,
@@ -343,22 +341,6 @@ async def marketplace_query(
     return QueryResponse.model_validate(add_page_position(fit_result_to_budget(result)))
 
 
-def marketplace_quick_queries() -> QuickQueriesResponse:
-    """
-    Get pre-built query templates for common use cases.
-
-    Returns ready-to-use query examples organized by category. These templates
-    help you quickly perform common tasks without learning RQL syntax.
-
-    Example: marketplace_quick_queries() shows templates for finding recent
-    orders, active products, specific vendors, etc.
-
-    Returns:
-        Dictionary of query templates organized by category
-    """
-    return QuickQueriesResponse.model_validate(execute_marketplace_quick_queries())
-
-
 async def marketplace_refresh_cache(
     call_context: CallContext = Depends(get_call_context),
 ) -> RefreshCacheResponse:
@@ -545,7 +527,6 @@ def register_tools(mcp: FastMCP) -> None:
     """Register the Marketplace, documentation and debug tools."""
     for tool, title, annotations in (
         (marketplace_query, "Query a Marketplace resource", READ_ONLY_REMOTE),
-        (marketplace_quick_queries, "Marketplace query templates", READ_ONLY_LOCAL),
         (marketplace_resources, "List Marketplace resources", READ_ONLY_REMOTE),
         (marketplace_resource_info, "Describe a Marketplace resource", READ_ONLY_REMOTE),
         (marketplace_resource_schema, "Marketplace resource schema", READ_ONLY_REMOTE),

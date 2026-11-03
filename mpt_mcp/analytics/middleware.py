@@ -14,14 +14,19 @@ CLIENT_NAME_MAX_LENGTH = 50
 if TYPE_CHECKING:
     from collections.abc import Callable
 
+    from fastmcp.prompts import PromptResult
     from fastmcp.resources import ResourceResult
     from fastmcp.tools import ToolResult
-    from mcp_types import CallToolRequestParams, ReadResourceRequestParams
+    from mcp_types import (
+        CallToolRequestParams,
+        GetPromptRequestParams,
+        ReadResourceRequestParams,
+    )
     from starlette.requests import Request
 
 
 class AnalyticsMiddleware(Middleware):
-    """Record a usage event for every tool call and resource read."""
+    """Record a usage event for every tool call, prompt get and resource read."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:
         """
@@ -60,6 +65,35 @@ class AnalyticsMiddleware(Middleware):
             response_time_ms=self._elapsed_ms(start_time),
             success=not result.is_error,
             error_message="Tool returned an error result" if result.is_error else None,
+        )
+
+        return result
+
+    async def on_get_prompt(
+        self,
+        context: MiddlewareContext[GetPromptRequestParams],
+        call_next: CallNext[GetPromptRequestParams, PromptResult],
+    ) -> PromptResult:
+        """Record the prompt get with its response time and outcome."""
+        analytics = get_analytics_logger()
+        if not analytics or not analytics.enabled:
+            return await call_next(context)
+
+        start_time = self._clock()
+        try:
+            result = await call_next(context)
+        except Exception as error:
+            await analytics.log_prompt_get(
+                prompt_name=context.message.name,
+                response_time_ms=self._elapsed_ms(start_time),
+                success=False,
+                error_message=str(error),
+            )
+            raise
+
+        await analytics.log_prompt_get(
+            prompt_name=context.message.name,
+            response_time_ms=self._elapsed_ms(start_time),
         )
 
         return result
