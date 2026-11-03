@@ -6,9 +6,9 @@ from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
 from mpt_mcp.documentation.lifespan import documentation_lifespan
 from mpt_mcp.documentation.server import create_documentation_server
+from mpt_mcp.prompts import register_prompts
+from mpt_mcp.resources import register_resources
 from mpt_mcp.runtime.middleware import RequestContextMiddleware
-from mpt_mcp.server_prompts import register_prompts
-from mpt_mcp.server_resources import register_resources
 from mpt_mcp.tools.debug import DEBUG_TAG, register_debug_tools
 from mpt_mcp.tools.query import register_query_tools
 from mpt_mcp.tools.resources import register_resource_tools

@@ -7,7 +7,6 @@ from pydantic import Field
 ORDER_STATUSES = (
     "New, Draft, Querying, Processing, Quoted, Scheduled, Completed, Failed, Cancelling, Cancelled"
 )
-
 DUE_DAYS_DEFAULT = 30
 
 

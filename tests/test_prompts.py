@@ -1,6 +1,6 @@
 import datetime as dt
 
-from mpt_mcp.server_prompts import (
+from mpt_mcp.prompts import (
     DUE_DAYS_DEFAULT,
     orders_by_status,
     query_request,

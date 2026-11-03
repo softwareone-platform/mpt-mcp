@@ -52,7 +52,7 @@ Repository-specific settings come from [`pyproject.toml`](../pyproject.toml):
 Repository-specific guidance:
 
 - call tools as the module functions of `tools/` or `documentation/server.py` and pass an explicit `call_context` fixture instead of building HTTP requests
-- patch names where they are used, for example `mpt_mcp.server_resources.validate_token`
+- patch names where they are used, for example `mpt_mcp.resources.validate_token`
 - the `docs_cache_factory` and `doc_page_factory` fixtures in [`tests/conftest.py`](../tests/conftest.py) install a fake documentation cache for any test
 - module-level caches (OpenAPI specs, JWKS keys) live for the whole test process: give each test its own endpoint or issuer, as the `unique_endpoint` and `issuer` fixtures do, instead of clearing private state
 - test JWT validation with real RSA keys and mocked HTTP responses, as in `tests/auth/test_token_validator.py`

@@ -26,7 +26,7 @@ Then inspect the code paths relevant to the task:
 
 - [`mpt_mcp/runtime/`](mpt_mcp/runtime): transport entry points (`runner.py` for HTTP, `stdio.py`), HTTP app and health check, migrations, request log context and logging setup
 - [`mpt_mcp/tools/`](mpt_mcp/tools): the Marketplace tools with their logic (`query.py`, `resources.py`, `debug.py`), result size limits and errors (`results.py`), response models (`responses.py`) and annotations
-- [`mpt_mcp/server_resources.py`](mpt_mcp/server_resources.py) and [`mpt_mcp/server_prompts.py`](mpt_mcp/server_prompts.py): the OpenAPI resource and the prompts of both transports
+- [`mpt_mcp/resources.py`](mpt_mcp/resources.py) and [`mpt_mcp/prompts.py`](mpt_mcp/prompts.py): the OpenAPI resource and the prompts of both transports
 - [`mpt_mcp/mcp_server.py`](mpt_mcp/mcp_server.py): the MCP server both transports serve, with its middlewares and debug tool visibility
 - [`mpt_mcp/auth/`](mpt_mcp/auth): per-request credentials injected with FastMCP dependencies (`call_context.py`) and token validation (`token_validator.py`)
 - [`mpt_mcp/analytics/`](mpt_mcp/analytics): analytics middleware, lifespan, logger and table model
