@@ -146,8 +146,7 @@ class APIClient:
 
         return True
 
-    @staticmethod
-    def _describe_response(response_data: Any) -> str:
+    def _describe_response(self, response_data: Any) -> str:
         """
         Summarize a response for the log in one line.
 
@@ -182,8 +181,7 @@ class APIClient:
             details.append(f"omitted fields: {', '.join(meta['omitted'])}")
         return ", ".join(details)
 
-    @staticmethod
-    def _extract_user_id(token: str) -> str | None:
+    def _extract_user_id(self, token: str) -> str | None:
         """
         Extract user identifier from token.
 

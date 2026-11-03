@@ -241,7 +241,7 @@ async def fetch_with_cache(
 
             response.raise_for_status()
             data = response.json()
-    except (TimeoutError, httpx.HTTPError, httpx.TimeoutException) as error:
+    except (TimeoutError, httpx.HTTPError) as error:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
         logger.warning("Network fetch failed: %s", error)
 

@@ -80,10 +80,8 @@ extend-ignore = [
   "WPS229",  # 33
   "WPS231",  # 27
   "WPS232",  # 6
-  "WPS234",  # 4
   "WPS235",  # 1
   "WPS237",  # 1
-  "WPS239",  # 1
   "WPS328",  # 1
   "WPS404",  # 7
   "WPS407",  # 7
@@ -92,10 +90,8 @@ extend-ignore = [
   "WPS431",  # 2
   "WPS441",  # 12
   "WPS476",  # 5
-  "WPS501",  # 1
   "WPS504",  # 4
   "WPS505",  # 5
-  "WPS602",  # 7
 ]
 extend-exclude = [
   ".coverage",

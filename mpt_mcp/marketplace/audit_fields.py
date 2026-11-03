@@ -10,6 +10,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+type AuditPaths = list[dict[str, str]]
+
 # In-memory cache: key (api_base_url or spec URL) -> { "events", "regex", "by_resource" }
 _audit_cache: dict[str, dict[str, Any]] = {}
 # Fallback when spec not available: include "failed" so audit.failed.at triggers auto-add
@@ -101,7 +103,7 @@ def get_item_schema(
 def collect_audit_events_and_paths_from_props(
     spec: dict[str, Any],
     properties: dict[str, Any],
-) -> tuple[set[str], list[dict[str, str]]]:
+) -> tuple[set[str], AuditPaths]:
     """
     Find the audit property in a flat 'properties' dict and collect its events and paths.
 
@@ -109,7 +111,7 @@ def collect_audit_events_and_paths_from_props(
     The API always uses 'audit' as segment; the spec may use orderAudit etc.
     """
     events: set[str] = set()
-    paths: list[dict[str, str]] = []
+    paths: AuditPaths = []
     for prop_name, prop_schema in (properties or {}).items():
         if "audit" not in prop_name.lower():
             continue

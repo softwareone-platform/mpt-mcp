@@ -171,7 +171,8 @@ def get_token_cache(ttl_minutes: int = 10) -> TokenValidationCache:
 
 
 # JWKS cache for JWT signature verification (url -> (jwks_dict, expiry))
-_jwks_cache: dict[str, tuple[dict[str, Any], dt.datetime]] = {}
+type CachedJwks = tuple[dict[str, Any], dt.datetime]
+_jwks_cache: dict[str, CachedJwks] = {}
 _jwks_cache_ttl = dt.timedelta(minutes=60)
 _jwks_lock = asyncio.Lock()
 

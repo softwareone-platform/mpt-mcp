@@ -34,7 +34,8 @@ class RequestContextMiddleware(Middleware):
         call_context = read_call_context(request)
         user_token = current_user_id.set(call_context.user_id)
         session_token = current_session_id.set(request.query_params.get("session_id"))
-        try:
+        # Resetting in finally is how contextvars restores a value set for one request
+        try:  # noqa: WPS501
             self._log_activity(call_context)
             return await call_next(context)
         finally:

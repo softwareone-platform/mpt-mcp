@@ -16,7 +16,8 @@ class OpenAPISpecFetchError(Exception):
 
 
 # Keyed by API base URL, then by resource ID, holding each endpoint's info
-_endpoint_registries: dict[str, dict[str, dict[str, Any]]] = {}
+type EndpointRegistry = dict[str, dict[str, Any]]
+_endpoint_registries: dict[str, EndpointRegistry] = {}
 _openapi_specs: dict[str, dict[str, Any]] = {}
 _cache_manager: CacheManager | None = None
 
@@ -81,7 +82,7 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
         spec = await fetch_with_cache(
             url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh
         )
-    except (httpx.HTTPError, httpx.TimeoutException) as error:
+    except httpx.HTTPError as error:
         logger.warning("Failed to fetch from %s: %s", openapi_url, error)
 
         fallback_url = "https://api.platform.softwareone.com/public/v1/openapi.json"
@@ -93,7 +94,7 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
                 spec = await fetch_with_cache(
                     url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh
                 )
-            except (httpx.HTTPError, httpx.TimeoutException, OSError, ValueError) as fallback_error:
+            except (httpx.HTTPError, OSError, ValueError) as fallback_error:
                 logger.exception("Fallback also failed")
                 raise OpenAPISpecFetchError(
                     f"Failed to fetch OpenAPI spec from both {openapi_url} and fallback "

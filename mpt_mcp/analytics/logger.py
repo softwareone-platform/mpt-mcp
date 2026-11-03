@@ -332,8 +332,8 @@ class AnalyticsLogger:
         else:
             logger.warning("Tool: %s | Token: %s | Error: %s", tool_name, token_id, error_type)
 
-    @staticmethod
     def set_context(
+        self,
         token: str | None = None,
         endpoint: str | None = None,
         client_info: str | None = None,
@@ -354,7 +354,7 @@ class AnalyticsLogger:
             _current_session_id.set(session_id)
         if token:
             # Extract token ID (e.g., TKN-XXXX-XXXX from idt:TKN-XXXX-XXXX:SECRET)
-            token_id = AnalyticsLogger._extract_token_id(token)
+            token_id = self._extract_token_id(token)
             _current_token_id.set(token_id)
         if endpoint:
             _current_api_endpoint.set(endpoint)
@@ -374,8 +374,7 @@ class AnalyticsLogger:
             except Exception:
                 logger.exception("Error in background flush")
 
-    @staticmethod
-    def _extract_token_id(token: str) -> str | None:
+    def _extract_token_id(self, token: str) -> str | None:
         """
         Extract token ID from token string.
 

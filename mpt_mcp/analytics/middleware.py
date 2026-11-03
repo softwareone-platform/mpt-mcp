@@ -154,8 +154,7 @@ class AnalyticsMiddleware(Middleware):
 
         return await call_next(context)
 
-    @staticmethod
-    def _client_info(request: Request) -> str | None:
+    def _client_info(self, request: Request) -> str | None:
         user_agent = request.headers.get("user-agent", "")
         if "cursor" in user_agent.lower():
             return "Cursor"
@@ -168,8 +167,7 @@ class AnalyticsMiddleware(Middleware):
 
         return None
 
-    @staticmethod
-    def _client_ip(request: Request) -> str | None:
+    def _client_ip(self, request: Request) -> str | None:
         forwarded_for = request.headers.get("x-forwarded-for")
         if forwarded_for:
             return forwarded_for.split(",")[0].strip()
@@ -183,8 +181,7 @@ class AnalyticsMiddleware(Middleware):
     def _elapsed_ms(self, start_time: float) -> int:
         return int((self._clock() - start_time) * 1000)
 
-    @staticmethod
-    def _resource_error(result: ResourceResult) -> str | None:
+    def _resource_error(self, result: ResourceResult) -> str | None:
         # Resources report failures as a JSON object with an "error" key
         first_content = result.contents[0].content if result.contents else None
         if not isinstance(first_content, str) or not first_content.lstrip().startswith("{"):

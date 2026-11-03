@@ -26,6 +26,8 @@ from mpt_mcp.tools.results import (
 
 logger = logging.getLogger(__name__)
 
+type ResourceEntries = list[dict[str, Any]]
+
 MEDIA_TYPE_JSON = "application/json"
 UNFILTERABLE_TYPES = frozenset(("array", "object", "unknown"))
 MAX_FILTERABLE_FIELDS = 5
@@ -183,7 +185,7 @@ def execute_marketplace_resources(
         raise tool_error(f"Unknown category: {category}", available_categories=all_categories)
 
     search_lower = search.lower() if search else None
-    categories: dict[str, list[dict[str, Any]]] = {}
+    categories: dict[str, ResourceEntries] = {}
     for resource_name, endpoint_info in endpoints_registry.items():
         resource_category = resource_name.split(".")[0]
         if category is not None and resource_category != category:
