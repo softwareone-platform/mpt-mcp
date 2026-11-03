@@ -100,3 +100,14 @@ The tools `marketplace_cache_info`, `marketplace_refresh_cache` and `marketplace
 - **Stateless HTTP**: no MCP sessions, so horizontal scaling and redeploys do not break clients. Per-process caches (OpenAPI specs, token validations, documentation) are rebuilt on demand.
 - **Credentials per request**: the HTTP server never stores client tokens; it validates the caller's token on each tool call (cached by a hash of token and endpoint).
 - **Dependency injection over context vars for credentials**: tools receive `CallContext` explicitly through `Depends`, which keeps them testable with a plain `CallContext(...)` argument.
+
+## Design Rules
+
+Where new code goes and what each layer may do:
+
+- Both transports serve the server that [`mpt_mcp/mcp_server.py`](../mpt_mcp/mcp_server.py) creates: add Marketplace tools, resources and prompts to `server_tools.py`, `server_resources.py` and `server_prompts.py`, and documentation ones to [`documentation/server.py`](../mpt_mcp/documentation/server.py), never to the [`runtime/`](../mpt_mcp/runtime) entry points, which only start the transports. Tool logic lives in [`mpt_mcp/mcp_tools.py`](../mpt_mcp/mcp_tools.py).
+- Tools must get the caller's credentials with `call_context: CallContext = Depends(get_call_context)`, not by reading request headers or `config`.
+- Cross-cutting request behaviour (log context, analytics) must live in FastMCP middlewares, not in tools.
+- Development-only tools must be tagged with `DEBUG_TAG`.
+- Tool docstrings are the descriptions MCP clients send to the model; treat changes to them as user-facing changes.
+- Analytics schema changes must go through an Alembic migration, see [migrations.md](migrations.md).
