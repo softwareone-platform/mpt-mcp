@@ -1,5 +1,6 @@
 import logging
 from http import HTTPStatus
+from types import MappingProxyType
 
 from fastmcp import FastMCP
 from starlette.applications import Starlette
@@ -15,12 +16,12 @@ MCP_PATH = "/mcp"
 # Paths some proxies send MCP requests to: a load balancer that strips the path sends POST /
 MCP_PATH_ALIASES = frozenset(("/", "/mcp/"))
 HEALTH_PATHS = ("/", "/health")
-HEALTH_RESPONSE = {
+HEALTH_RESPONSE = MappingProxyType({
     "status": "healthy",
     "service": "mpt-mcp-http",
     "transport": "streamable-http",
     "endpoint": MCP_PATH,
-}
+})
 USER_AGENT_LOG_LENGTH = 80
 
 
@@ -44,7 +45,7 @@ class MCPPathMiddleware:
 
 def health(request: Request) -> JSONResponse:
     """Report that the server is up and where its MCP endpoint is."""
-    return JSONResponse(HEALTH_RESPONSE)
+    return JSONResponse(dict(HEALTH_RESPONSE))
 
 
 def not_found(request: Request, exc: Exception) -> JSONResponse:

@@ -209,7 +209,7 @@ class AnalyticsLogger:
             "tool_name": prompt_name,
             "response_time_ms": response_time_ms,
             "error_message": error_message,
-            "error_type": "prompt_error" if not success else None,
+            "error_type": None if success else "prompt_error",
         }
 
         await self._queue_event(event)
@@ -261,7 +261,7 @@ class AnalyticsLogger:
             "cache_hit": cache_hit,
             "cache_type": cache_type,
             "error_message": error_message,
-            "error_type": "resource_not_found" if not success else None,
+            "error_type": None if success else "resource_not_found",
         }
 
         await self._queue_event(event)

@@ -16,7 +16,7 @@ ACTIVE_STATUS = "Active"
 DEFAULT_JWT_EXP_LEEWAY_SECONDS = 120
 HTTP_TIMEOUT = 30.0
 # Algorithms we accept for JWT signature verification (never trust token's alg header alone)
-JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
+JWT_ALGORITHMS = ("RS256", "RS384", "RS512", "ES256", "ES384", "ES512")
 
 logger = logging.getLogger(__name__)
 

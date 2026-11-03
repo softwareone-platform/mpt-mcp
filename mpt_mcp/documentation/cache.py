@@ -276,47 +276,43 @@ class DocumentationCache:
         if not self._space_content:
             return
 
-        def index_page(page: Any) -> None:
-            """Recursively index a page and its children."""
-            if not isinstance(page, dict):
-                return
-
-            page_id = page.get("id")
-            page_path = page.get("path", "")
-            title = page.get("title", "Untitled")
-
-            if page_id:
-                uri = f"docs://{page_path}" if page_path else f"docs://page-{page_id}"
-
-                metadata = {
-                    "id": page_id,
-                    "path": page_path,
-                    "title": title,
-                }
-
-                if self.public_url and page_path:
-                    metadata["browser_url"] = f"{self.public_url}/{page_path}"
-
-                self._resources[uri] = {
-                    "uri": uri,
-                    "name": title,
-                    "description": f"Documentation page: {title}",
-                    "mimeType": "text/markdown",
-                    "metadata": metadata,
-                    "content": None,
-                }
-
-            pages = page.get("pages", [])
-            if isinstance(pages, list):
-                for child_page in pages:
-                    index_page(child_page)
-
         pages = self._space_content.get("pages", [])
         if isinstance(pages, list):
             for page in pages:
-                index_page(page)
+                self._index_page(page)
 
         logger.info("Built resource index with %s entries", len(self._resources))
+
+    def _extract_from_node(self, node: Any, text_parts: list[str]) -> None:
+        """Recursively extract text from a node."""
+        if not isinstance(node, dict):
+            return
+
+        leaves = node.get("leaves")
+        if node.get("object") == "text" and leaves is not None:
+            text_leaves = [leaf for leaf in leaves if isinstance(leaf, dict) and "text" in leaf]
+            text_parts.extend(leaf["text"] for leaf in text_leaves)
+
+        text = node.get("text")
+        if text is not None:
+            text_parts.append(text)
+
+        children = node.get("nodes")
+        if isinstance(children, list):
+            for child in children:
+                self._extract_from_node(child, text_parts)
+
+            if node.get("type") in {
+                "paragraph",
+                "heading-1",
+                "heading-2",
+                "heading-3",
+                "heading-4",
+                "heading-5",
+                "heading-6",
+                "list-item",
+            }:
+                text_parts.append("\n")
 
     def _extract_text_from_document(self, document: dict[str, Any]) -> str:
         """
@@ -332,44 +328,46 @@ class DocumentationCache:
         """
         text_parts: list[str] = []
 
-        def extract_from_node(node: Any) -> None:
-            """Recursively extract text from a node."""
-            if not isinstance(node, dict):
-                return
-
-            if node.get("object") == "text" and "leaves" in node:
-                text_parts.extend(
-                    leaf["text"]
-                    for leaf in node["leaves"]
-                    if isinstance(leaf, dict) and "text" in leaf
-                )
-
-            text = node.get("text")
-            if text is not None:
-                text_parts.append(text)
-
-            children = node.get("nodes")
-            if isinstance(children, list):
-                for child in children:
-                    extract_from_node(child)
-
-                if node.get("type") in {
-                    "paragraph",
-                    "heading-1",
-                    "heading-2",
-                    "heading-3",
-                    "heading-4",
-                    "heading-5",
-                    "heading-6",
-                    "list-item",
-                }:
-                    text_parts.append("\n")
-
         for node in document.get("nodes", ()):
-            extract_from_node(node)
+            self._extract_from_node(node, text_parts)
 
         text = "".join(text_parts)
         while "\n\n\n" in text:
             text = text.replace("\n\n\n", "\n\n")
 
         return text.strip()
+
+    def _index_page(self, page: Any) -> None:
+        """Recursively index a page and its children."""
+        if not isinstance(page, dict):
+            return
+
+        page_id = page.get("id")
+        page_path = page.get("path", "")
+        title = page.get("title", "Untitled")
+
+        if page_id:
+            uri = f"docs://{page_path}" if page_path else f"docs://page-{page_id}"
+
+            metadata = {
+                "id": page_id,
+                "path": page_path,
+                "title": title,
+            }
+
+            if self.public_url and page_path:
+                metadata["browser_url"] = f"{self.public_url}/{page_path}"
+
+            self._resources[uri] = {
+                "uri": uri,
+                "name": title,
+                "description": f"Documentation page: {title}",
+                "mimeType": "text/markdown",
+                "metadata": metadata,
+                "content": None,
+            }
+
+        pages = page.get("pages", [])
+        if isinstance(pages, list):
+            for child_page in pages:
+                self._index_page(child_page)

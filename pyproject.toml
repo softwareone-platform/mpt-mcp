@@ -66,31 +66,30 @@ extend-ignore = [
   "WPS121",  # 7
   "WPS122",  # 7
   "WPS201",  # 1
-  "WPS202",  # 4
-  "WPS204",  # 6
-  "WPS210",  # 25
+  "WPS202",  # 6
+  "WPS204",  # 9
+  "WPS210",  # 30
   "WPS211",  # 7
-  "WPS212",  # 3
-  "WPS213",  # 9
+  "WPS212",  # 2
+  "WPS213",  # 7
   "WPS214",  # 4
   "WPS217",  # 1
-  "WPS218",  # 2
+  "WPS218",  # 1
   "WPS219",  # 2
-  "WPS220",  # 59
-  "WPS229",  # 33
-  "WPS231",  # 27
-  "WPS232",  # 6
+  "WPS220",  # 50
+  "WPS229",  # 27
+  "WPS231",  # 21
+  "WPS232",  # 4
   "WPS235",  # 1
   "WPS237",  # 1
   "WPS328",  # 1
   "WPS404",  # 7
-  "WPS407",  # 7
-  "WPS420",  # 8
-  "WPS430",  # 24
+  "WPS407",  # 3
+  "WPS420",  # 6
+  "WPS430",  # 2
   "WPS431",  # 2
-  "WPS441",  # 12
-  "WPS476",  # 5
-  "WPS504",  # 4
+  "WPS476",  # 4
+  "WPS504",  # 1
   "WPS505",  # 5
 ]
 extend-exclude = [
@@ -112,7 +111,8 @@ statistics = false
 per-file-ignores = [
   "*alembic/versions/**:WPS102,WPS221,WPS432",
   "*mpt_mcp/analytics/models.py:WPS432",
-  "*tests/**:WPS202",
+  # WPS441: with AAA the asserts read the with targets (pytest.raises, patch) after the act block
+  "*tests/**:WPS202,WPS441",
 ]
 
 [tool.ruff]
@@ -189,10 +189,10 @@ ignore = [
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "complex-structure",  # 20
+    "complex-structure",  # 17
     "global-statement",  # 12
-    "too-many-nested-blocks",  # 6
-    "too-many-statements-in-try-clause",  # 17
+    "too-many-nested-blocks",  # 5
+    "too-many-statements-in-try-clause",  # 15
 ]
 external = [ "AAA", "WPS" ]
 
@@ -258,11 +258,10 @@ strict = true
 warn_unreachable = true
 # TBD: existing violations (code: count), fixed in follow-up commits
 disable_error_code = [
-  "arg-type",  # 4
-  "assignment",  # 5
+  "arg-type",  # 3
+  "assignment",  # 3
   "attr-defined",  # 1
-  "index",  # 2
-  "no-any-return",  # 9
+  "no-any-return",  # 7
   "union-attr",  # 2
-  "unreachable",  # 2
+  "unreachable",  # 1
 ]

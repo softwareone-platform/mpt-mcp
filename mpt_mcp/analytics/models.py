@@ -1,4 +1,5 @@
-from sqlalchemy import (
+# A table definition uses most of the SQLAlchemy schema API, so it imports it by name
+from sqlalchemy import (  # noqa: WPS235
     BigInteger,
     Boolean,
     Column,

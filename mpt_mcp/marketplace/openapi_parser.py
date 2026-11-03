@@ -66,7 +66,7 @@ class OpenAPIParser:
             response_info["description"] = ok_response.get("description", "")
 
             json_content = ok_response.get("content", {}).get("application/json")
-            schema = json_content.get("schema") if json_content is not None else None
+            schema = None if json_content is None else json_content.get("schema")
             if schema is not None:
                 response_info["schema"] = self._simplify_schema(schema)
 
@@ -89,7 +89,7 @@ class OpenAPIParser:
                 return False
 
         if self.include_patterns:
-            return any(pattern in normalized_path for pattern in self.include_patterns)
+            return any(include in normalized_path for include in self.include_patterns)
 
         return True
 

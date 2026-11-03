@@ -55,12 +55,12 @@ class APIClient:
 
         self.base_url = normalized_base_url
 
-        if not token:
-            self.token = BEARER_PREFIX
-        elif token.startswith(BEARER_PREFIX):
+        if token.startswith(BEARER_PREFIX):
             self.token = token
-        else:
+        elif token:
             self.token = f"{BEARER_PREFIX}{token}"
+        else:
+            self.token = BEARER_PREFIX
 
         self.user_id = self._extract_user_id(token)
         if self.user_id:
@@ -178,7 +178,8 @@ class APIClient:
                 f"total={pagination.get('total')}"
             )
         if meta.get("omitted"):
-            details.append(f"omitted fields: {', '.join(meta['omitted'])}")
+            omitted_fields = ", ".join(meta["omitted"])
+            details.append(f"omitted fields: {omitted_fields}")
         return ", ".join(details)
 
     def _extract_user_id(self, token: str) -> str | None:

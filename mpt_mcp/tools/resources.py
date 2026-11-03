@@ -519,10 +519,15 @@ def execute_marketplace_resource_schema(
 
                     # Filter hints only for fields RQL compares directly, not objects or arrays
                     scalar_fields = [
-                        field_name
-                        for field_name, field_info in fields.items()
-                        if field_info["type"] not in UNFILTERABLE_TYPES
+                        scalar_name
+                        for scalar_name, scalar_info in fields.items()
+                        if scalar_info["type"] not in UNFILTERABLE_TYPES
                     ]
+                    enum_examples = {
+                        enum_name: enum_info["enum"][0]
+                        for enum_name, enum_info in fields.items()
+                        if "enum" in enum_info
+                    }
                     schema_info["filtering_hints"] = {
                         "simple_filters": [
                             f"eq({filter_field},value)" for filter_field in scalar_fields[:5]
@@ -533,9 +538,8 @@ def execute_marketplace_resource_schema(
                             if fields[filter_field]["type"] == "string"
                         ][:3],
                         "enum_filters": [
-                            f"eq({filter_field},{filter_info['enum'][0]})"
-                            for filter_field, filter_info in fields.items()
-                            if "enum" in filter_info
+                            f"eq({enum_field},{enum_value})"
+                            for enum_field, enum_value in enum_examples.items()
                         ][:3],
                     }
 

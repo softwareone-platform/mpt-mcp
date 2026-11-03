@@ -163,6 +163,19 @@ def get_used_audit_paths(rql: str, order: str | None, audit_pattern: re.Pattern[
     return list(dict.fromkeys(audit_paths))
 
 
+def top_level_field(select_part: str) -> str:
+    """
+    Return the top-level field a select entry refers to.
+
+    Args:
+        select_part: One select entry, e.g. +product.name or -audit
+
+    Returns:
+        Field name without its +/- prefix and nested path, e.g. product
+    """
+    return select_part.lstrip("+-").split(".")[0]
+
+
 def sanitize_select(
     select: str | None,
     allowed_fields: set[str],
@@ -185,18 +198,13 @@ def sanitize_select(
     if has_exclude_all:
         parts = parts[1:]
 
-    def top_level_field(part: str) -> str:
-        name = part.lstrip("+-")
-        return name.split(".")[0] if "." in name else name
-
     kept: list[str] = []
     dropped: list[str] = []
-    for select_part in parts:
-        top = top_level_field(select_part)
-        if allowed_fields and top not in allowed_fields:
-            dropped.append(select_part)
+    for part in parts:
+        if allowed_fields and top_level_field(part) not in allowed_fields:
+            dropped.append(part)
             continue
-        kept.append(select_part)
+        kept.append(part)
     if dropped:
         logger.info("Select sanitized: dropped fields not in schema: %s", ", ".join(dropped))
 
@@ -357,7 +365,7 @@ async def execute_marketplace_query(
         )
 
     # Select the audit fields used to filter or sort, so the result shows their values
-    audit_pattern = audit_regex if audit_regex is not None else FALLBACK_STATIC_REGEX
+    audit_pattern = FALLBACK_STATIC_REGEX if audit_regex is None else audit_regex
     audit_paths = get_used_audit_paths(rql, order, audit_pattern)
 
     original_select = select

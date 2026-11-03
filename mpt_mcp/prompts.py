@@ -32,8 +32,9 @@ def query_request(
     if order:
         arguments.append(f"order={order}")
     arguments.append(f"select={select}")
+    call_arguments = ", ".join(arguments)
     return (
-        f"Call marketplace_query with {', '.join(arguments)}. "
+        f"Call marketplace_query with {call_arguments}. "
         f"Show the items {summary}, and say how many match in total "
         "($meta.pagination.total). If there are more, offer the next page."
     )
