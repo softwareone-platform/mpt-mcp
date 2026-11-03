@@ -11,7 +11,6 @@ import httpx
 logger = logging.getLogger(__name__)
 
 DEFAULT_CONNECT_TIMEOUT = 30.0
-
 DEFAULT_FETCH_TIMEOUT = 30.0
 
 
@@ -57,35 +56,6 @@ class CacheManager:
         self.cache_dir.mkdir(exist_ok=True)
         self.ttl = dt.timedelta(hours=ttl_hours)
 
-    def get_cache_path(self, key: str) -> Path:
-        """Get cache file path for a given key."""
-        # Hash the key to create a safe filename
-        key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
-        return self.cache_dir / f"{key_hash}.json"
-
-    def _get_metadata_path(self, key: str) -> Path:
-        """Get metadata file path for a given key."""
-        key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
-        return self.cache_dir / f"{key_hash}.meta.json"
-
-    def _is_cache_valid(self, key: str) -> bool:
-        """Check if cached data is still valid (not expired)."""
-        meta_path = self._get_metadata_path(key)
-
-        if not meta_path.exists():
-            return False
-
-        try:
-            with Path(meta_path).open(encoding="utf-8") as meta_handle:
-                metadata = json.load(meta_handle)
-
-            cached_at = read_cached_at(metadata["cached_at"])
-            expires_at = cached_at + self.ttl
-
-            return dt.datetime.now(dt.UTC) < expires_at
-        except KeyError, ValueError:
-            return False
-
     def get(self, key: str) -> dict[str, Any] | None:
         """
         Get cached data if available and valid.
@@ -109,45 +79,6 @@ class CacheManager:
                 return json.load(cache_handle)
         except OSError, json.JSONDecodeError:
             return None
-
-    def set(self, key: str, data: dict[str, Any]) -> None:
-        """
-        Store data in cache.
-
-        Args:
-            key: Cache key (usually the URL)
-            data: Data to cache
-        """
-        cache_path = self.get_cache_path(key)
-        meta_path = self._get_metadata_path(key)
-
-        # Write data
-        with Path(cache_path).open("w", encoding="utf-8") as cache_handle:
-            json.dump(data, cache_handle, indent=2)
-
-        # Write metadata
-        metadata = {
-            "cached_at": dt.datetime.now(dt.UTC).isoformat(),
-            "key": key,
-            "size": len(json.dumps(data)),
-        }
-        with Path(meta_path).open("w", encoding="utf-8") as meta_handle:
-            json.dump(metadata, meta_handle, indent=2)
-
-    def invalidate(self, key: str) -> None:
-        """
-        Invalidate (delete) cached data for a key.
-
-        Args:
-            key: Cache key to invalidate
-        """
-        cache_path = self.get_cache_path(key)
-        meta_path = self._get_metadata_path(key)
-
-        if cache_path.exists():
-            cache_path.unlink()
-        if meta_path.exists():
-            meta_path.unlink()
 
     def get_cache_info(self) -> dict[str, Any]:
         """
@@ -196,6 +127,71 @@ class CacheManager:
             "ttl_hours": self.ttl / dt.timedelta(hours=1),
         }
 
+    def get_cache_path(self, key: str) -> Path:
+        """Get cache file path for a given key."""
+        key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
+        return self.cache_dir / f"{key_hash}.json"
+
+    def invalidate(self, key: str) -> None:
+        """
+        Invalidate (delete) cached data for a key.
+
+        Args:
+            key: Cache key to invalidate
+        """
+        cache_path = self.get_cache_path(key)
+        meta_path = self._get_metadata_path(key)
+
+        if cache_path.exists():
+            cache_path.unlink()
+        if meta_path.exists():
+            meta_path.unlink()
+
+    def set(self, key: str, data: dict[str, Any]) -> None:
+        """
+        Store data in cache.
+
+        Args:
+            key: Cache key (usually the URL)
+            data: Data to cache
+        """
+        cache_path = self.get_cache_path(key)
+        meta_path = self._get_metadata_path(key)
+
+        with Path(cache_path).open("w", encoding="utf-8") as cache_handle:
+            json.dump(data, cache_handle, indent=2)
+
+        metadata = {
+            "cached_at": dt.datetime.now(dt.UTC).isoformat(),
+            "key": key,
+            "size": len(json.dumps(data)),
+        }
+        with Path(meta_path).open("w", encoding="utf-8") as meta_handle:
+            json.dump(metadata, meta_handle, indent=2)
+
+    def _get_metadata_path(self, key: str) -> Path:
+        """Get metadata file path for a given key."""
+        key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
+        return self.cache_dir / f"{key_hash}.meta.json"
+
+    def _is_cache_valid(self, key: str) -> bool:
+        """Check if cached data is still valid (not expired)."""
+        meta_path = self._get_metadata_path(key)
+
+        if not meta_path.exists():
+            return False
+
+        try:
+            with Path(meta_path).open(encoding="utf-8") as meta_handle:
+                metadata = json.load(meta_handle)
+
+            cached_at = read_cached_at(metadata["cached_at"])
+            expires_at = cached_at + self.ttl
+
+            return dt.datetime.now(dt.UTC) < expires_at
+        except KeyError, ValueError:
+            return False
+
 
 async def fetch_with_cache(
     url: str,
@@ -217,14 +213,12 @@ async def fetch_with_cache(
     Raises:
         httpx.HTTPError: If fetch fails and no cache available
     """
-    # Try cache first (unless force refresh)
     if not force_refresh:
         cached_data = cache_manager.get(url)
         if cached_data is not None:
             logger.info("Using cached data from: %s", url)
             return cached_data
 
-    # Fetch from network (connect and default DEFAULT_FETCH_TIMEOUT, connect at least 30s)
     logger.info("Fetching from: %s", url)
     try:
         timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=DEFAULT_CONNECT_TIMEOUT)
@@ -234,7 +228,6 @@ async def fetch_with_cache(
             ) as client:
                 response = await client.get(url)
 
-            # Log if redirects occurred
             if len(response.history) > 0:
                 logger.info("Followed %s redirect(s)", len(response.history))
                 for position, redirect in enumerate(response.history, 1):
@@ -249,7 +242,6 @@ async def fetch_with_cache(
             response.raise_for_status()
             data = response.json()
 
-        # Cache the result
         cache_manager.set(url, data)
         logger.info("Cached data from: %s", url)
 
@@ -264,5 +256,4 @@ async def fetch_with_cache(
             logger.warning("Using expired cache as fallback")
             return await asyncio.to_thread(read_json_path, cache_path)
 
-        # No cache available, re-raise the error
         raise

@@ -1,5 +1,7 @@
 from typing import Any
 
+MAX_SCHEMA_PROPERTIES = 10
+
 
 class OpenAPIParser:
     """Parse OpenAPI specifications and extract GET endpoints."""
@@ -18,27 +20,6 @@ class OpenAPIParser:
         self.exclude_patterns = [
             pattern.strip() for pattern in exclude_patterns.split(",") if pattern.strip()
         ]
-
-    def _should_include_path(self, path: str) -> bool:
-        """
-        Check if a path should be included based on filter patterns.
-
-        Args:
-            path: API path to check
-
-        Returns:
-            True if path should be included
-        """
-        normalized_path = path.strip("/")
-
-        for pattern in self.exclude_patterns:
-            if pattern in normalized_path:
-                return False
-
-        if self.include_patterns:
-            return any(pattern in normalized_path for pattern in self.include_patterns)
-
-        return True
 
     def extract_get_endpoints(self, spec: dict[str, Any]) -> list[dict[str, Any]]:
         """
@@ -65,6 +46,52 @@ class OpenAPIParser:
             })
 
         return endpoints
+
+    def _extract_response_info(self, operation: dict[str, Any]) -> dict[str, Any]:
+        """
+        Extract response schema information from an operation.
+
+        Args:
+            operation: OpenAPI operation object
+
+        Returns:
+            Response information dictionary
+        """
+        responses = operation.get("responses", {})
+        response_info = {}
+
+        if "200" in responses:
+            ok_response = responses["200"]
+            response_info["description"] = ok_response.get("description", "")
+
+            response_content = ok_response.get("content", {})
+            if "application/json" in response_content:
+                json_content = response_content["application/json"]
+                if "schema" in json_content:
+                    response_info["schema"] = self._simplify_schema(json_content["schema"])
+
+        return response_info
+
+    def _should_include_path(self, path: str) -> bool:
+        """
+        Check if a path should be included based on filter patterns.
+
+        Args:
+            path: API path to check
+
+        Returns:
+            True if path should be included
+        """
+        normalized_path = path.strip("/")
+
+        for pattern in self.exclude_patterns:
+            if pattern in normalized_path:
+                return False
+
+        if self.include_patterns:
+            return any(pattern in normalized_path for pattern in self.include_patterns)
+
+        return True
 
     def _simplify_schema(
         self, schema: dict[str, Any], max_depth: int = 3, current_depth: int = 0
@@ -97,8 +124,8 @@ class OpenAPIParser:
         if "properties" in schema and isinstance(schema["properties"], dict):
             simplified["properties"] = {}
             for prop_name, prop_schema in list(schema["properties"].items())[
-                :10
-            ]:  # Limit to 10 properties
+                :MAX_SCHEMA_PROPERTIES
+            ]:
                 simplified["properties"][prop_name] = self._simplify_schema(
                     prop_schema, max_depth, current_depth + 1
                 )
@@ -112,28 +139,3 @@ class OpenAPIParser:
             simplified["example"] = schema["example"]
 
         return simplified
-
-    def _extract_response_info(self, operation: dict[str, Any]) -> dict[str, Any]:
-        """
-        Extract response schema information from an operation.
-
-        Args:
-            operation: OpenAPI operation object
-
-        Returns:
-            Response information dictionary
-        """
-        responses = operation.get("responses", {})
-        response_info = {}
-
-        if "200" in responses:
-            ok_response = responses["200"]
-            response_info["description"] = ok_response.get("description", "")
-
-            response_content = ok_response.get("content", {})
-            if "application/json" in response_content:
-                json_content = response_content["application/json"]
-                if "schema" in json_content:
-                    response_info["schema"] = self._simplify_schema(json_content["schema"])
-
-        return response_info

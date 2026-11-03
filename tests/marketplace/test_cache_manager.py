@@ -1,6 +1,6 @@
 import datetime as dt
 
-from mpt_mcp.cache_manager import read_cached_at
+from mpt_mcp.marketplace.cache_manager import read_cached_at
 
 CACHED_AT_UTC = dt.datetime.fromisoformat("2026-11-02T11:41:47+00:00")
 

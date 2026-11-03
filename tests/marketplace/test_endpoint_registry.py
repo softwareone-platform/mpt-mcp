@@ -2,7 +2,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from mpt_mcp.endpoint_registry import get_openapi_spec
+from mpt_mcp.marketplace.endpoint_registry import get_openapi_spec
 
 SLUG_TRANSLATION = str.maketrans({"_": "-", "[": "-", "]": None})
 
@@ -16,7 +16,7 @@ def unique_endpoint(request):
 @pytest.fixture
 def fetch_openapi_spec():
     with patch(
-        "mpt_mcp.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
+        "mpt_mcp.marketplace.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
     ) as mock_fetch:
         mock_fetch.side_effect = lambda endpoint, force_refresh=False: {
             "openapi": "3.0.0",

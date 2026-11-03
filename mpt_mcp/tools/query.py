@@ -9,14 +9,12 @@ import httpx
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 
-from mpt_mcp import (
-    audit_fields as audit_fields_module,
-)
-from mpt_mcp import endpoint_registry
 from mpt_mcp.analytics import get_analytics_logger
-from mpt_mcp.audit_fields import FALLBACK_STATIC_REGEX
-from mpt_mcp.call_context import CallContext, get_call_context
+from mpt_mcp.auth.call_context import CallContext, get_call_context
 from mpt_mcp.config import config
+from mpt_mcp.marketplace import audit_fields as audit_fields_module
+from mpt_mcp.marketplace import endpoint_registry
+from mpt_mcp.marketplace.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
 from mpt_mcp.tools.resources import get_response_item_schema
 from mpt_mcp.tools.responses import QueryResponse
@@ -32,7 +30,7 @@ from mpt_mcp.tools.results import (
 if TYPE_CHECKING:
     from collections.abc import Iterable
 
-    from mpt_mcp.api_client import APIClient
+    from mpt_mcp.marketplace.api_client import APIClient
 
 logger = logging.getLogger(__name__)
 

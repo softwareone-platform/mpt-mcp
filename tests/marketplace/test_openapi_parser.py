@@ -1,6 +1,6 @@
 import pytest
 
-from mpt_mcp.openapi_parser import OpenAPIParser
+from mpt_mcp.marketplace.openapi_parser import OpenAPIParser
 
 ORDERS_PATH = "/public/v1/commerce/orders"
 PRODUCTS_PATH = "/public/v1/catalog/products"

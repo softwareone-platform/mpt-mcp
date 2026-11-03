@@ -3,10 +3,10 @@ import logging
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 
-from mpt_mcp import endpoint_registry
-from mpt_mcp.call_context import CallContext, get_call_context
+from mpt_mcp.auth.call_context import CallContext, get_call_context
+from mpt_mcp.auth.token_validator import get_token_cache
 from mpt_mcp.documentation import lifespan as documentation
-from mpt_mcp.token_validator import get_token_cache
+from mpt_mcp.marketplace import endpoint_registry
 from mpt_mcp.tools.annotations import READ_ONLY_LOCAL, REFRESHES_CACHE
 from mpt_mcp.tools.responses import (
     CacheInfoResponse,

@@ -5,12 +5,10 @@ from typing import Any
 from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 
-from mpt_mcp import (
-    audit_fields as audit_fields_module,
-)
-from mpt_mcp import endpoint_registry
-from mpt_mcp.audit_fields import get_item_schema, resolve_schema
-from mpt_mcp.call_context import CallContext, get_call_context
+from mpt_mcp.auth.call_context import CallContext, get_call_context
+from mpt_mcp.marketplace import audit_fields as audit_fields_module
+from mpt_mcp.marketplace import endpoint_registry
+from mpt_mcp.marketplace.audit_fields import get_item_schema, resolve_schema
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
 from mpt_mcp.tools.responses import (
     AuditFieldsResponse,

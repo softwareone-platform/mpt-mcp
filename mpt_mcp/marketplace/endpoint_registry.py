@@ -4,9 +4,9 @@ from typing import Any
 
 import httpx
 
-from mpt_mcp import audit_fields
-from mpt_mcp.cache_manager import CacheManager, fetch_with_cache
-from mpt_mcp.openapi_parser import OpenAPIParser
+from mpt_mcp.marketplace import audit_fields
+from mpt_mcp.marketplace.cache_manager import CacheManager, fetch_with_cache
+from mpt_mcp.marketplace.openapi_parser import OpenAPIParser
 
 logger = logging.getLogger(__name__)
 
@@ -15,14 +15,9 @@ class OpenAPISpecFetchError(Exception):
     """Raised when the OpenAPI spec cannot be fetched from primary or fallback URL."""
 
 
-# Global registries per API base URL
 # Keyed by API base URL, then by resource ID, holding each endpoint's info
 _endpoint_registries: dict[str, dict[str, dict[str, Any]]] = {}
-
-# Global OpenAPI specs per API base URL (for schema lookups)
 _openapi_specs: dict[str, dict[str, Any]] = {}
-
-# Global cache manager (shared across all endpoints)
 _cache_manager: CacheManager | None = None
 
 
@@ -54,10 +49,8 @@ def get_openapi_spec_url(api_base_url: str) -> str:
     Returns:
         Full URL to the OpenAPI specification
     """
-    # Ensure no trailing slash
     api_base_url = api_base_url.rstrip("/")
 
-    # OpenAPI spec is always at /public/v1/openapi.json
     return f"{api_base_url}/public/v1/openapi.json"
 
 
@@ -80,13 +73,11 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
     """
     cache_mgr = get_cache_manager()
 
-    # Get the OpenAPI spec URL for this endpoint
     openapi_url = get_openapi_spec_url(api_base_url)
 
     logger.info("Loading OpenAPI spec from: %s", openapi_url)
 
     try:
-        # Try to fetch from the endpoint-specific URL
         spec = await fetch_with_cache(
             url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh
         )
@@ -96,7 +87,6 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
     except (httpx.HTTPError, httpx.TimeoutException) as error:
         logger.warning("Failed to fetch from %s: %s", openapi_url, error)
 
-        # If it's a 404, try the default fallback
         fallback_url = "https://api.platform.softwareone.com/public/v1/openapi.json"
 
         if openapi_url != fallback_url:
@@ -116,7 +106,6 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
                     f"{fallback_url}"
                 ) from fallback_error
 
-        # No fallback available, re-raise original error
         raise
 
 
@@ -129,13 +118,10 @@ def path_to_resource_id(path: str) -> str:
         /public/v1/catalog/items/{id} -> catalog.items.by_id
         /public/v1/commerce/orders -> commerce.orders
     """
-    # Remove /public/v1/ prefix
     path = path.replace("/public/v1/", "")
 
-    # Replace path parameters with descriptive names
     path = path.replace("/{id}", ".by_id")
 
-    # Replace slashes with dots
     return path.replace("/", ".")
 
 
@@ -158,7 +144,6 @@ async def get_endpoints_registry(
     Raises:
         Exception: The OpenAPI spec could not be fetched or parsed
     """
-    # Check if we already have this registry cached
     if api_base_url in _endpoint_registries and not force_refresh:
         logger.info("Using cached endpoints registry for %s", api_base_url)
         return _endpoint_registries[api_base_url]
@@ -166,23 +151,18 @@ async def get_endpoints_registry(
     logger.info("Initializing endpoints registry for %s", api_base_url)
 
     try:
-        # Fetch the OpenAPI spec for this endpoint
         spec = await fetch_openapi_spec(api_base_url, force_refresh=force_refresh)
 
-        # Store the full OpenAPI spec for schema lookups
         _openapi_specs[api_base_url] = spec
 
-        # Parse the OpenAPI spec
         parser = OpenAPIParser()
         registry: dict[str, dict[str, Any]] = {
             path_to_resource_id(endpoint["path"]): endpoint
             for endpoint in parser.extract_get_endpoints(spec)
         }
 
-        # Cache the registry
         _endpoint_registries[api_base_url] = registry
 
-        # Build audit fields cache from spec (for auto-add regex and marketplace_audit_fields tool)
         try:
             await asyncio.to_thread(
                 audit_fields.update_cache, api_base_url, spec, path_to_resource_id
@@ -213,8 +193,6 @@ async def get_openapi_spec(api_base_url: str, *, force_refresh: bool = False) ->
     Returns:
         OpenAPI specification dictionary
     """
-    # Ensure the registry is initialized (which caches the spec)
     await get_endpoints_registry(api_base_url, force_refresh=force_refresh)
 
-    # Return the cached spec
     return _openapi_specs.get(api_base_url, {})

@@ -34,7 +34,7 @@ The [`runtime/`](../mpt_mcp/runtime) package starts the transports:
 3. FastMCP middlewares run for every MCP request, in this order:
    - `RequestContextMiddleware` ([`runtime/middleware.py`](../mpt_mcp/runtime/middleware.py)) sets the caller's user ID and the `session_id` query parameter as the log prefix, and logs caller activity (at most every 30 seconds per caller).
    - `AnalyticsMiddleware` ([`analytics/middleware.py`](../mpt_mcp/analytics/middleware.py)) sets the analytics context and records one event per tool call and per resource read.
-4. Tools and the OpenAPI resource receive a `CallContext` with `Depends(get_call_context)` ([`call_context.py`](../mpt_mcp/call_context.py)), built from the `X-MPT-*` headers. `CallContext.create_api_client()` validates the token and returns an `APIClient` for the caller's endpoint.
+4. Tools and the OpenAPI resource receive a `CallContext` with `Depends(get_call_context)` ([`auth/call_context.py`](../mpt_mcp/auth/call_context.py)), built from the `X-MPT-*` headers. `CallContext.create_api_client()` validates the token and returns an `APIClient` for the caller's endpoint.
 
 The stdio server has no HTTP request: `get_call_context()` builds the `CallContext` from `MARKETPLACE_API_BASE_URL` and `MARKETPLACE_API_TOKEN`, and the tools run the same way.
 
@@ -54,19 +54,19 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 
 | Module | Responsibility |
 |---|---|
-| [`call_context.py`](../mpt_mcp/call_context.py) | Caller credentials from the `X-MPT-*` headers (HTTP) or the environment (stdio); token validation before creating the API client |
-| [`token_validator.py`](../mpt_mcp/token_validator.py) | API token (`idt:TKN-…`) and JWT validation against the Marketplace API, with an in-memory validation cache (10 minutes) and a JWKS cache (1 hour) |
-| [`api_client.py`](../mpt_mcp/api_client.py) | Authenticated Marketplace API client; RQL is sent as the raw query string; endpoints are normalized to `scheme://host[:port]` |
-| [`endpoint_registry.py`](../mpt_mcp/endpoint_registry.py) | Per-endpoint registry of GET resources built from the OpenAPI spec, cached in memory and on disk (`.cache/`, 24 hours); a spec that fails to load is not cached, so the next call retries it |
-| [`openapi_parser.py`](../mpt_mcp/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
-| [`audit_fields.py`](../mpt_mcp/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
+| [`auth/call_context.py`](../mpt_mcp/auth/call_context.py) | Caller credentials from the `X-MPT-*` headers (HTTP) or the environment (stdio); token validation before creating the API client |
+| [`auth/token_validator.py`](../mpt_mcp/auth/token_validator.py) | API token (`idt:TKN-…`) and JWT validation against the Marketplace API, with an in-memory validation cache (10 minutes) and a JWKS cache (1 hour) |
+| [`marketplace/api_client.py`](../mpt_mcp/marketplace/api_client.py) | Authenticated Marketplace API client; RQL is sent as the raw query string; endpoints are normalized to `scheme://host[:port]` |
+| [`marketplace/endpoint_registry.py`](../mpt_mcp/marketplace/endpoint_registry.py) | Per-endpoint registry of GET resources built from the OpenAPI spec, cached in memory and on disk (`.cache/`, 24 hours); a spec that fails to load is not cached, so the next call retries it |
+| [`marketplace/cache_manager.py`](../mpt_mcp/marketplace/cache_manager.py) | Disk cache for fetched JSON documents (OpenAPI specs) |
+| [`marketplace/openapi_parser.py`](../mpt_mcp/marketplace/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
+| [`marketplace/audit_fields.py`](../mpt_mcp/marketplace/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
 | [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server for a transport: instructions, middlewares, documentation and analytics lifespans (HTTP), tools, resources, prompts and debug tool visibility |
 | [`tools/`](../mpt_mcp/tools) | The Marketplace tools, each module with its tool functions, their logic and a `register_*_tools()` function: `query.py` (`marketplace_query`: select sanitization, audit fields, path parameters, retries), `resources.py` (resource list, info, schema and audit events), `debug.py` (the `DEBUG_TAG` tools); `results.py` holds the result size limit, pagination position and `tool_error()`, `responses.py` one Pydantic response model per tool, from which FastMCP builds its output schema, and `annotations.py` the MCP annotations every tool uses |
 | [`server_resources.py`](../mpt_mcp/server_resources.py), [`server_prompts.py`](../mpt_mcp/server_prompts.py) | The OpenAPI resource and the prompts, and their registration |
 | [`documentation/`](../mpt_mcp/documentation) | Marketplace documentation: `server.py` is a FastMCP server with the `marketplace_docs_*` tools and the `docs://` resource, which `create_mcp_server()` mounts without a namespace, so their names do not change; `gitbook.py` and `cache.py` are the GitBook client and the cache, created once per process; `lifespan.py` loads the cache, and `documentation_lifespan` does it at HTTP startup |
 | [`runtime/`](../mpt_mcp/runtime) | Transport entry points, HTTP app, migrations, request log context and logging configuration (see [Transports](#transports)) |
 | [`analytics/`](../mpt_mcp/analytics) | Analytics lifespan, middleware, buffered logger and `mcp_events` table |
-| [`cache_manager.py`](../mpt_mcp/cache_manager.py) | Disk cache for fetched JSON documents (OpenAPI specs) |
 | [`config.py`](../mpt_mcp/config.py) | Configuration read from environment variables (and `.env` through `python-dotenv`) |
 
 ## Logging

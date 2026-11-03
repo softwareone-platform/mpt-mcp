@@ -8,7 +8,6 @@ import httpx
 logger = logging.getLogger(__name__)
 
 BEARER_PREFIX = "Bearer "
-
 DEFAULT_CONNECT_TIMEOUT = 30.0
 
 
@@ -56,8 +55,6 @@ class APIClient:
 
         self.base_url = normalized_base_url
 
-        # Normalize token - ensure it has "Bearer" prefix
-        # Handle both formats: "Bearer token" and "token"
         if not token:
             self.token = BEARER_PREFIX
         elif token.startswith(BEARER_PREFIX):
@@ -65,46 +62,11 @@ class APIClient:
         else:
             self.token = f"{BEARER_PREFIX}{token}"
 
-        # Extract user identifier from token (if present)
-        # Token format: idt:TKN-XXXX-XXXX:actual_token
         self.user_id = self._extract_user_id(token)
         if self.user_id:
             logger.info("Authenticated as user: %s", self.user_id)
 
         self.timeout = timeout
-
-    @staticmethod
-    def _extract_user_id(token: str) -> str | None:
-        """
-        Extract user identifier from token.
-
-        Token format: idt:TKN-XXXX-XXXX:actual_token
-        Returns: TKN-XXXX-XXXX (the user identifier)
-
-        Args:
-            token: The authentication token (with or without Bearer prefix)
-
-        Returns:
-            User identifier (TKN-XXXX-XXXX) or None if not found
-        """
-        # Remove "Bearer " prefix if present for parsing
-        token_value = token.replace(BEARER_PREFIX, "").strip()
-
-        # Check if token matches format: idt:TKN-XXXX-XXXX:token
-        if token_value.startswith("idt:") and token_value.count(":") >= 2:
-            parts = token_value.split(":")
-            if len(parts) >= 3 and parts[1].startswith("TKN-"):
-                return parts[1]  # Return TKN-XXXX-XXXX
-
-        return None
-
-    def _get_headers(self) -> dict[str, str]:
-        """Get request headers with authentication."""
-        return {
-            "Authorization": self.token,  # Already has Bearer prefix from __init__
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
 
     async def get(
         self,
@@ -132,41 +94,29 @@ class APIClient:
         url = f"{self.base_url}{endpoint}"
         headers = self._get_headers()
 
-        # Special handling for RQL - it IS the query string, not a query parameter
-        # Example: {"rql": "eq(status,Failed)"} becomes "/endpoint?eq(status,Failed)"
-        # NOT "/endpoint?rql=eq(status,Failed)"
-        # Build the full URL with all parameters
+        # RQL is the query string itself: {"rql": "eq(status,Failed)"} is sent as
+        # /endpoint?eq(status,Failed), not /endpoint?rql=eq(status,Failed)
         if query_params and "rql" in query_params:
             rql_query = query_params.pop("rql")
-            # Start with RQL as the base query string
             query_parts = [rql_query]
 
-            # Add remaining params as key=value pairs
             if query_params:
                 additional_query = urlencode(query_params, doseq=True)
                 query_parts.append(additional_query)
 
-            # Construct full URL with all parameters
             query_string = "&".join(query_parts)
             url = f"{url}?{query_string}"
-            # Don't pass params to httpx - we've built the full URL
             query_params = None
 
         logger.info("Marketplace API request: %s", httpx.URL(url, params=query_params))
 
-        # Explicit timeouts: connect and default (read/write/pool) use self.timeout, with connect at
-        # least 30s
         timeout_config = httpx.Timeout(self.timeout, connect=DEFAULT_CONNECT_TIMEOUT)
         async with httpx.AsyncClient(
             follow_redirects=True, http2=True, timeout=timeout_config
         ) as client:
             try:
                 with anyio.fail_after(self.timeout):
-                    response = await client.get(
-                        url,
-                        params=query_params,  # Will be None if RQL was used
-                        headers=headers,
-                    )
+                    response = await client.get(url, params=query_params, headers=headers)
                     response.raise_for_status()
                     response_data = response.json()
             except TimeoutError as error:
@@ -181,6 +131,19 @@ class APIClient:
             )
 
             return response_data
+
+    async def validate_token(self) -> bool:
+        """
+        Validate that the authentication token is valid.
+
+        Returns:
+            True if token is valid, False otherwise
+        """
+        try:
+            await self.get("/health")
+            return True
+        except Exception:
+            return False
 
     @staticmethod
     def _describe_response(response_data: Any) -> str:
@@ -218,16 +181,33 @@ class APIClient:
             details.append(f"omitted fields: {', '.join(meta['omitted'])}")
         return ", ".join(details)
 
-    async def validate_token(self) -> bool:
+    @staticmethod
+    def _extract_user_id(token: str) -> str | None:
         """
-        Validate that the authentication token is valid.
+        Extract user identifier from token.
+
+        Token format: idt:TKN-XXXX-XXXX:actual_token
+        Returns: TKN-XXXX-XXXX (the user identifier)
+
+        Args:
+            token: The authentication token (with or without Bearer prefix)
 
         Returns:
-            True if token is valid, False otherwise
+            User identifier (TKN-XXXX-XXXX) or None if not found
         """
-        try:
-            # Try to get user info or health endpoint
-            await self.get("/health")
-            return True
-        except Exception:
-            return False
+        token_value = token.replace(BEARER_PREFIX, "").strip()
+
+        if token_value.startswith("idt:") and token_value.count(":") >= 2:
+            parts = token_value.split(":")
+            if len(parts) >= 3 and parts[1].startswith("TKN-"):
+                return parts[1]
+
+        return None
+
+    def _get_headers(self) -> dict[str, str]:
+        """Get request headers with authentication."""
+        return {
+            "Authorization": self.token,
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+        }

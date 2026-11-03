@@ -2,7 +2,7 @@ import re
 
 import pytest
 
-from mpt_mcp.audit_fields import (
+from mpt_mcp.marketplace.audit_fields import (
     FALLBACK_STATIC_REGEX,
     build_audit_regex,
     collect_audit_events_and_paths_from_props,
@@ -14,7 +14,7 @@ from mpt_mcp.audit_fields import (
     resolve_schema,
     update_cache,
 )
-from mpt_mcp.endpoint_registry import path_to_resource_id
+from mpt_mcp.marketplace.endpoint_registry import path_to_resource_id
 
 
 @pytest.fixture

@@ -5,14 +5,14 @@ import pytest
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from mpt_mcp.api_client import APIClient
-from mpt_mcp.call_context import (
+from mpt_mcp.auth.call_context import (
     NO_CREDENTIALS_ERROR,
     CallContext,
     get_call_context,
     read_call_context,
 )
 from mpt_mcp.config import config
+from mpt_mcp.marketplace.api_client import APIClient
 
 
 @pytest.fixture
@@ -56,7 +56,7 @@ def test_call_context_defaults_without_headers(request_factory):
 
 def test_get_call_context_reads_http_request(request_factory, monkeypatch):
     request = request_factory({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"})
-    monkeypatch.setattr("mpt_mcp.call_context.get_http_request", lambda: request)
+    monkeypatch.setattr("mpt_mcp.auth.call_context.get_http_request", lambda: request)
 
     result = get_call_context()
 
@@ -114,7 +114,7 @@ async def test_create_api_client_invalid_token():
 
     with (
         patch(
-            "mpt_mcp.call_context.validate_token",
+            "mpt_mcp.auth.call_context.validate_token",
             new_callable=AsyncMock,
             return_value=(False, None, "Token expired"),
         ),
@@ -135,7 +135,7 @@ async def test_create_api_client_validates_token(validate_fresh, use_cache):
     )
 
     with patch(
-        "mpt_mcp.call_context.validate_token",
+        "mpt_mcp.auth.call_context.validate_token",
         new_callable=AsyncMock,
         return_value=(True, {"account": {"name": "Test", "id": "ACC-1"}}, None),
     ) as mock_validate:
@@ -150,7 +150,7 @@ async def test_create_api_client_for_caller_endpoint():
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
     with patch(
-        "mpt_mcp.call_context.validate_token",
+        "mpt_mcp.auth.call_context.validate_token",
         new_callable=AsyncMock,
         return_value=(True, None, None),
     ):

@@ -7,8 +7,8 @@ import httpx
 import pytest
 from fastmcp.exceptions import ToolError
 
-from mpt_mcp.api_client import APIClient
-from mpt_mcp.call_context import CallContext
+from mpt_mcp.auth.call_context import CallContext
+from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.tools.query import execute_marketplace_query, marketplace_query, suggest_resources
 from mpt_mcp.tools.results import AUTH_HEADER_HINT
 

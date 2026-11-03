@@ -4,9 +4,9 @@ from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 from fastmcp.exceptions import ResourceError
 
-from mpt_mcp import endpoint_registry
-from mpt_mcp.call_context import CallContext, get_call_context
-from mpt_mcp.token_validator import validate_token
+from mpt_mcp.auth.call_context import CallContext, get_call_context
+from mpt_mcp.auth.token_validator import validate_token
+from mpt_mcp.marketplace import endpoint_registry
 
 
 async def get_openapi_spec(call_context: CallContext = Depends(get_call_context)) -> str:

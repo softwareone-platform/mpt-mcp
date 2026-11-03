@@ -2,8 +2,8 @@ from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
 
-from mpt_mcp.api_client import APIClient
-from mpt_mcp.call_context import CallContext
+from mpt_mcp.auth.call_context import CallContext
+from mpt_mcp.marketplace.api_client import APIClient
 
 
 @pytest.fixture
@@ -85,7 +85,7 @@ def call_context():
 @pytest.fixture
 def registry_loader():
     with patch(
-        "mpt_mcp.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
+        "mpt_mcp.marketplace.endpoint_registry.get_endpoints_registry", new_callable=AsyncMock
     ) as get_endpoints_registry:
         yield get_endpoints_registry
 

@@ -10,7 +10,7 @@ import jwt
 import pytest
 from cryptography.hazmat.primitives.asymmetric import rsa
 
-from mpt_mcp.token_validator import (
+from mpt_mcp.auth.token_validator import (
     TokenValidationCache,
     config,
     normalize_token,
@@ -46,7 +46,7 @@ def token_api(token_details):
     response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
     response.json.return_value = token_details
     client = AsyncMock(spec=httpx.AsyncClient, get=AsyncMock(return_value=response))
-    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+    with patch("mpt_mcp.auth.token_validator.httpx.AsyncClient") as mock_client_class:
         mock_client_class.return_value.__aenter__.return_value = client
         yield client
 
@@ -89,7 +89,7 @@ def mock_auth_http(jwks_state, auth_response_factory):
         get=AsyncMock(side_effect=auth_response_factory),
         jwks_state=jwks_state,
     )
-    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+    with patch("mpt_mcp.auth.token_validator.httpx.AsyncClient") as mock_client_class:
         mock_client_class.return_value.__aenter__.return_value = client
         yield client
 
@@ -274,7 +274,7 @@ async def test_validate_token_success(token_api, token_details):
 
 
 async def test_validate_token_logs_one_line(token_api, caplog):
-    with caplog.at_level(logging.INFO, logger="mpt_mcp.token_validator"):
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.auth.token_validator"):
         await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)  # act
 
     expected = (

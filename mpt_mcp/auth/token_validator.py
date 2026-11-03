@@ -13,9 +13,7 @@ import jwt
 from mpt_mcp.config import config
 
 ACTIVE_STATUS = "Active"
-
 DEFAULT_JWT_EXP_LEEWAY_SECONDS = 120
-
 HTTP_TIMEOUT = 30.0
 # Algorithms we accept for JWT signature verification (never trust token's alg header alone)
 JWT_ALGORITHMS = ["RS256", "RS384", "RS512", "ES256", "ES384", "ES512"]
@@ -64,6 +62,12 @@ class TokenValidationCache:
         self._lock = asyncio.Lock()
         logger.info("Token validation cache initialized (TTL: %sm, secure hash keys)", ttl_minutes)
 
+    async def clear(self) -> None:
+        """Clear all cached validations."""
+        async with self._lock:
+            self._cache.clear()
+            logger.info("Cleared all token validation cache")
+
     async def get(
         self,
         token: str,
@@ -97,6 +101,35 @@ class TokenValidationCache:
 
             return None
 
+    def get_stats(self) -> dict[str, Any]:
+        """Get cache statistics."""
+        now = dt.datetime.now(dt.UTC)
+        expiries = [expiry for _, expiry, _ in self._cache.values()]
+        valid_count = sum(1 for expiry in expiries if expiry > now)
+        expired_count = len(self._cache) - valid_count
+
+        return {
+            "total_entries": len(self._cache),
+            "valid_entries": valid_count,
+            "expired_entries": expired_count,
+            "ttl_minutes": self.ttl.total_seconds() / 60,
+        }
+
+    async def invalidate(self, token: str, api_base_url: str) -> None:
+        """
+        Invalidate a specific token in the cache.
+
+        Args:
+            token: The API token to invalidate
+            api_base_url: The API endpoint
+        """
+        cache_key = hash_token(token, api_base_url)
+
+        async with self._lock:
+            if cache_key in self._cache:
+                del self._cache[cache_key]
+                logger.debug("Invalidated token from cache")
+
     async def set(
         self,
         token: str,
@@ -123,43 +156,7 @@ class TokenValidationCache:
                 "Cached token validation (valid=%s, expires in %ss)", is_valid, self.ttl.seconds
             )
 
-    async def invalidate(self, token: str, api_base_url: str) -> None:
-        """
-        Invalidate a specific token in the cache.
 
-        Args:
-            token: The API token to invalidate
-            api_base_url: The API endpoint
-        """
-        cache_key = hash_token(token, api_base_url)
-
-        async with self._lock:
-            if cache_key in self._cache:
-                del self._cache[cache_key]
-                logger.debug("Invalidated token from cache")
-
-    async def clear(self) -> None:
-        """Clear all cached validations."""
-        async with self._lock:
-            self._cache.clear()
-            logger.info("Cleared all token validation cache")
-
-    def get_stats(self) -> dict[str, Any]:
-        """Get cache statistics."""
-        now = dt.datetime.now(dt.UTC)
-        expiries = [expiry for _, expiry, _ in self._cache.values()]
-        valid_count = sum(1 for expiry in expiries if expiry > now)
-        expired_count = len(self._cache) - valid_count
-
-        return {
-            "total_entries": len(self._cache),
-            "valid_entries": valid_count,
-            "expired_entries": expired_count,
-            "ttl_minutes": self.ttl.total_seconds() / 60,
-        }
-
-
-# Global token validation cache
 _token_cache: TokenValidationCache | None = None
 
 
@@ -195,7 +192,6 @@ async def fetch_jwks_cached(jwks_url: str) -> dict[str, Any] | None:
             del _jwks_cache[jwks_url]
 
     try:
-        # 30s connect and default for JWKS fetch
         timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
         async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as client:
             response = await client.get(jwks_url)
@@ -374,7 +370,6 @@ def parse_token_id(token: str) -> str | None:
         return None
 
     try:
-        # idt:TKN-XXXX-XXXX:secret
         parts = token.split(":")
         if len(parts) >= 2 and parts[1].startswith("TKN-"):
             return parts[1]
@@ -511,7 +506,6 @@ async def validate_token(
                 if response.status_code == HTTPStatus.OK:
                     user_info = response.json()
 
-                    # Extract user information
                     user_name = user_info.get("name", "Unknown")
                     user_email = user_info.get("email", "Unknown")
                     user_status = user_info.get("status", "Unknown")
@@ -519,14 +513,12 @@ async def validate_token(
                     # Use accountId from JWT if available, otherwise try API response
                     if account_id_from_jwt:
                         account_id = account_id_from_jwt
-                        # Try to get account name from API response, fallback to Unknown
                         account_name = (
                             user_info.get("account", {}).get("name", "Unknown")
                             if isinstance(user_info.get("account"), dict)
                             else "Unknown"
                         )
                     else:
-                        # Fallback to API response if JWT doesn't have accountId
                         account_id = (
                             user_info.get("account", {}).get("id", "Unknown")
                             if isinstance(user_info.get("account"), dict)
@@ -538,12 +530,10 @@ async def validate_token(
                             else "Unknown"
                         )
 
-                    # Check if user is active
                     if user_status != ACTIVE_STATUS:
                         error = f"User exists but is not active (status: {user_status})"
                         logger.warning("User %s: %s", user_id, error)
 
-                        # Create token_info structure similar to API token format
                         token_info = {
                             "id": user_id,
                             "name": f"JWT User: {user_name}",
@@ -560,7 +550,6 @@ async def validate_token(
                             "type": "jwt",
                         }
 
-                        # Cache inactive user as invalid
                         await cache.set(token, api_base_url, is_valid=False, token_info=token_info)
 
                         return (False, token_info, error)
@@ -576,7 +565,6 @@ async def validate_token(
                         user_status,
                     )
 
-                    # Create token_info structure similar to API token format
                     token_info = {
                         "id": user_id,
                         "name": f"JWT User: {user_name}",
@@ -593,7 +581,6 @@ async def validate_token(
                         "type": "jwt",
                     }
 
-                    # Cache successful validation
                     await cache.set(token, api_base_url, is_valid=True, token_info=token_info)
 
                     return (True, token_info, None)
@@ -602,7 +589,6 @@ async def validate_token(
                     error = "JWT token authentication failed (401 Unauthorized)"
                     logger.warning("%s", error)
 
-                    # Cache failed validation
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
@@ -611,7 +597,6 @@ async def validate_token(
                     error = f"User {user_id} not found (404)"
                     logger.warning("%s", error)
 
-                    # Cache failed validation
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
@@ -637,11 +622,9 @@ async def validate_token(
         except Exception as unexpected_error:
             error = f"Unexpected error during JWT token validation: {unexpected_error!s}"
             logger.exception("%s", error)
-            # Don't cache unexpected errors
             return (False, None, error)
 
     else:
-        # API token: validate via token endpoint
         validation_url = f"{api_base_url.rstrip('/')}/public/v1/accounts/api-tokens/{token_id}"
 
         try:
@@ -659,19 +642,16 @@ async def validate_token(
                 if response.status_code == HTTPStatus.OK:
                     token_info = response.json()
 
-                    # Extract account information for logging
                     account = token_info.get("account", {})
                     account_id = account.get("id", "Unknown")
                     account_name = account.get("name", "Unknown")
                     account_type = account.get("type", "Unknown")
                     token_status = token_info.get("status", "Unknown")
 
-                    # Check if token is active
                     if token_status != ACTIVE_STATUS:
                         error = f"Token exists but is not active (status: {token_status})"
                         logger.warning("Token %s: %s", token_id, error)
 
-                        # Cache inactive token as invalid
                         await cache.set(token, api_base_url, is_valid=False, token_info=token_info)
 
                         return (False, token_info, error)
@@ -685,7 +665,6 @@ async def validate_token(
                         token_status,
                     )
 
-                    # Cache successful validation
                     await cache.set(token, api_base_url, is_valid=True, token_info=token_info)
 
                     return (True, token_info, None)
@@ -694,7 +673,6 @@ async def validate_token(
                     error = "Token authentication failed (401 Unauthorized)"
                     logger.warning("%s", error)
 
-                    # Cache failed validation (but with shorter TTL)
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
@@ -703,7 +681,6 @@ async def validate_token(
                     error = f"Token {token_id} not found (404)"
                     logger.warning("%s", error)
 
-                    # Cache failed validation
                     await cache.set(token, api_base_url, is_valid=False, token_info=None)
 
                     return (False, None, error)
@@ -729,5 +706,4 @@ async def validate_token(
         except Exception as unexpected_error:
             error = f"Unexpected error during token validation: {unexpected_error!s}"
             logger.exception("%s", error)
-            # Don't cache unexpected errors
             return (False, None, error)

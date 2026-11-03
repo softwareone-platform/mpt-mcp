@@ -6,9 +6,9 @@ from typing import TYPE_CHECKING
 
 from fastmcp.server.dependencies import get_http_request
 
-from mpt_mcp.api_client import APIClient, normalize_endpoint_url
+from mpt_mcp.auth.token_validator import normalize_token, parse_token_id, validate_token
 from mpt_mcp.config import config
-from mpt_mcp.token_validator import normalize_token, parse_token_id, validate_token
+from mpt_mcp.marketplace.api_client import APIClient, normalize_endpoint_url
 
 if TYPE_CHECKING:
     from starlette.requests import Request

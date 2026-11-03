@@ -5,7 +5,7 @@ import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ResourceError
 
-from mpt_mcp.call_context import CallContext
+from mpt_mcp.auth.call_context import CallContext
 from mpt_mcp.mcp_server import create_mcp_server
 from mpt_mcp.server_resources import get_openapi_spec
 
@@ -30,7 +30,7 @@ async def test_get_openapi_spec_resource_success():
     with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, mock_token_info, None)
         with patch(
-            "mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
+            "mpt_mcp.marketplace.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
         ) as mock_get_spec:
             mock_get_spec.return_value = mock_spec
 
@@ -65,7 +65,7 @@ async def test_get_openapi_spec_resource_fetch_error():
     with patch("mpt_mcp.server_resources.validate_token", new_callable=AsyncMock) as mock_validate:
         mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
         with patch(
-            "mpt_mcp.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
+            "mpt_mcp.marketplace.endpoint_registry.get_openapi_spec", new_callable=AsyncMock
         ) as mock_get_spec:
             mock_get_spec.side_effect = RuntimeError("Connection refused")
 

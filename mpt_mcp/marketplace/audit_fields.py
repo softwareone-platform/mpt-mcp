@@ -10,10 +10,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
 # In-memory cache: key (api_base_url or spec URL) -> { "events", "regex", "by_resource" }
 _audit_cache: dict[str, dict[str, Any]] = {}
-
 # Fallback when spec not available: include "failed" so audit.failed.at triggers auto-add
 FALLBACK_STATIC_REGEX = re.compile(
     r"audit\.(created|updated|completed|processing|quoted|failed)\.(at|by)"

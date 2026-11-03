@@ -10,7 +10,7 @@ from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from mpt_mcp.analytics.models import mcp_events
-from mpt_mcp.token_validator import parse_token_id
+from mpt_mcp.auth.token_validator import parse_token_id
 
 logger = logging.getLogger(__name__)
 

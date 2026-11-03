@@ -7,7 +7,7 @@ from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
 from mpt_mcp.analytics.logger import get_analytics_logger
-from mpt_mcp.call_context import read_call_context
+from mpt_mcp.auth.call_context import read_call_context
 
 CLIENT_NAME_MAX_LENGTH = 50
 

@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, Mock, patch
 import httpx
 import pytest
 
-from mpt_mcp.api_client import APIClient, normalize_endpoint_url
+from mpt_mcp.marketplace.api_client import APIClient, normalize_endpoint_url
 
 API_BASE_URL = "https://api.example.com"
 PAGE_SIZE = 5
@@ -254,7 +254,7 @@ async def test_get_raises_http_errors(api_client, http_get, status):
 
 
 async def test_get_logs_request_url(api_client, http_get, caplog):
-    with caplog.at_level(logging.INFO, logger="mpt_mcp.api_client"):
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.marketplace.api_client"):
         await api_client.get(ORDERS_ENDPOINT, query_params={"limit": 10})  # act
 
     assert f"Marketplace API request: https://api.test.com{ORDERS_ENDPOINT}?limit=10" in caplog.text
@@ -281,7 +281,7 @@ async def test_get_logs_response_summary(api_client, http_get, caplog, response_
     http_get.return_value.status_code = HTTPStatus.OK
     http_get.return_value.json.return_value = response_data
 
-    with caplog.at_level(logging.INFO, logger="mpt_mcp.api_client"):
+    with caplog.at_level(logging.INFO, logger="mpt_mcp.marketplace.api_client"):
         await api_client.get(ORDERS_ENDPOINT)  # act
 
     assert f"Marketplace API response 200: {expected}" in caplog.text

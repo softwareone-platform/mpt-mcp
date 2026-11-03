@@ -28,9 +28,9 @@ Then inspect the code paths relevant to the task:
 - [`mpt_mcp/tools/`](mpt_mcp/tools): the Marketplace tools with their logic (`query.py`, `resources.py`, `debug.py`), result size limits and errors (`results.py`), response models (`responses.py`) and annotations
 - [`mpt_mcp/server_resources.py`](mpt_mcp/server_resources.py) and [`mpt_mcp/server_prompts.py`](mpt_mcp/server_prompts.py): the OpenAPI resource and the prompts of both transports
 - [`mpt_mcp/mcp_server.py`](mpt_mcp/mcp_server.py): the MCP server both transports serve, with its middlewares and debug tool visibility
-- [`mpt_mcp/call_context.py`](mpt_mcp/call_context.py): per-request credentials injected with FastMCP dependencies
+- [`mpt_mcp/auth/`](mpt_mcp/auth): per-request credentials injected with FastMCP dependencies (`call_context.py`) and token validation (`token_validator.py`)
 - [`mpt_mcp/analytics/`](mpt_mcp/analytics): analytics middleware, lifespan, logger and table model
-- [`mpt_mcp/api_client.py`](mpt_mcp/api_client.py), [`mpt_mcp/token_validator.py`](mpt_mcp/token_validator.py), [`mpt_mcp/endpoint_registry.py`](mpt_mcp/endpoint_registry.py): Marketplace API access, token validation and OpenAPI-based endpoint discovery
+- [`mpt_mcp/marketplace/`](mpt_mcp/marketplace): Marketplace API client, OpenAPI-based endpoint discovery and its disk cache, OpenAPI parsing and audit field detection
 - [`mpt_mcp/documentation/`](mpt_mcp/documentation): documentation server (its tools and the `docs://` resource, mounted into the MCP server), GitBook client, cache and startup loading
 - [`mpt_mcp/config.py`](mpt_mcp/config.py): configuration read from environment variables
 - [`tests/`](tests): pytest suite, one `test_<module>.py` per module
