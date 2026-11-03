@@ -26,7 +26,7 @@ def resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
         return {}
 
     parts = ref.replace("#/", "").split("/")
-    out = spec
+    out: Any = spec
     for part in parts:
         out = out.get(part, {}) if isinstance(out, dict) else {}
     return out if isinstance(out, dict) else {}
@@ -34,8 +34,8 @@ def resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
 
 def resolve_schema(
     spec: dict[str, Any],
-    schema: dict[str, Any],
-) -> dict[str, Any]:
+    schema: Any,
+) -> Any:
     """
     Resolve schema that may use $ref or allOf (common in downloaded OpenAPI specs).
 
@@ -182,7 +182,7 @@ def get_audit_data_from_spec(
         if ref is not None:
             schema = resolve_ref(spec, ref)
         schema = get_item_schema(spec, schema)
-        properties = schema.get("properties") if isinstance(schema, dict) else {}
+        properties = schema.get("properties")
         if not properties:
             continue
         if not any("audit" in name.lower() for name in properties):
@@ -239,7 +239,8 @@ def get_audit_regex(cache_key: str | None) -> re.Pattern[str]:
     If not in cache, return fallback static regex (includes failed).
     """
     if cache_key and cache_key in _audit_cache:
-        return _audit_cache[cache_key]["regex"]
+        regex: re.Pattern[str] = _audit_cache[cache_key]["regex"]
+        return regex
 
     return FALLBACK_STATIC_REGEX
 

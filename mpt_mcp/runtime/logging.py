@@ -2,6 +2,7 @@ import logging
 import sys
 import warnings
 from contextvars import ContextVar
+from typing import override
 
 # Loggers that follow the configured level; third-party libraries stay at INFO, so DEBUG never
 # dumps their internals (httpcore and hpack log the request headers, Authorization included)
@@ -21,6 +22,7 @@ current_user_id: ContextVar[str | None] = ContextVar("current_user_id", default=
 class RequestContextFilter(logging.Filter):
     """Add the caller's session and user ID of the current MCP request to every log record."""
 
+    @override
     def filter(self, record: logging.LogRecord) -> bool:
         """Set record.request_context to "[sess:...|user:...] ", or "" outside a request."""
         context_parts = []
@@ -41,6 +43,7 @@ class RequestContextFilter(logging.Filter):
 class AccessLogFilter(logging.Filter):
     """Drop the uvicorn access logs of the MCP endpoint and the health check."""
 
+    @override
     def filter(self, record: logging.LogRecord) -> bool:
         """Keep the record unless its request path is one of UNLOGGED_ACCESS_PATHS."""
         if isinstance(record.args, tuple) and len(record.args) > ACCESS_LOG_PATH_ARG:

@@ -502,7 +502,7 @@ async def execute_marketplace_query(
                 "Retrying query without auto-added 'audit' (using original select: %s)",
                 original_select or "None",
             )
-            retry_params = {}
+            retry_params: dict[str, Any] = {}
             if rql:
                 retry_params["rql"] = rql
             if limit is not None:

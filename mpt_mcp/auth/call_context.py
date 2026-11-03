@@ -54,7 +54,7 @@ class CallContext:
 
     async def _validate_token(self) -> None:
         is_valid, token_info, error = await validate_token(
-            self.token, self.endpoint, use_cache=not self.validate_fresh
+            self.token or "", self.endpoint, use_cache=not self.validate_fresh
         )
         if not is_valid:
             logger.warning("Token validation failed: %s", error)

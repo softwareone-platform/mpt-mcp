@@ -240,12 +240,12 @@ ignore-decorators = ["property"]
 enable_error_code = [
   "truthy-bool",
   "truthy-iterable",
-  # TBD: "redundant-expr" (6), enable again once fixed
+  "redundant-expr",
   "unused-awaitable",
   "ignore-without-code",
   "possibly-undefined",
   "redundant-self",
-  # TBD: "explicit-override" (6), enable again once fixed
+  "explicit-override",
   "mutable-override",
   "unimported-reveal",
   "deprecated",
@@ -256,12 +256,3 @@ ignore_missing_imports = true
 local_partial_types = true
 strict = true
 warn_unreachable = true
-# TBD: existing violations (code: count), fixed in follow-up commits
-disable_error_code = [
-  "arg-type",  # 3
-  "assignment",  # 3
-  "attr-defined",  # 1
-  "no-any-return",  # 7
-  "union-attr",  # 2
-  "unreachable",  # 1
-]

@@ -428,7 +428,7 @@ async def validate_token(
         middleware (server.py) before the token is stored in context. This function
         assumes it receives that normalized value; it only checks for empty/None.
     """
-    if not token or not isinstance(token, str) or not token.strip():
+    if not token or not token.strip():
         return (False, None, "Missing or empty token")
 
     token = token.strip()
@@ -477,7 +477,7 @@ async def validate_token(
             logger.warning("%s", error)
             return (False, None, error)
 
-        token_id = user_id
+        token_id: str | None = user_id
     else:
         token_id = parse_token_id(token)
 

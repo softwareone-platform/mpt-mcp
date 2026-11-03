@@ -177,6 +177,7 @@ class GitBookClient:
                         continue
                     response.raise_for_status()
                 response.raise_for_status()
-                return response.json()
+                page: dict[str, Any] = response.json()
+                return page
 
             raise RuntimeError("Unexpected retry loop exit")

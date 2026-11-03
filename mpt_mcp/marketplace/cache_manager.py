@@ -17,7 +17,8 @@ DEFAULT_FETCH_TIMEOUT = 30.0
 def read_json_path(path: Path) -> dict[str, Any]:
     """Read and parse a JSON file (sync; run via asyncio.to_thread from async code)."""
     with Path(path).open(encoding="utf-8") as json_file:
-        return json.load(json_file)
+        document: dict[str, Any] = json.load(json_file)
+        return document
 
 
 def read_cached_at(cached_at: str) -> dt.datetime:
@@ -76,7 +77,8 @@ class CacheManager:
 
         try:
             with Path(cache_path).open(encoding="utf-8") as cache_handle:
-                return json.load(cache_handle)
+                cached: dict[str, Any] = json.load(cache_handle)
+                return cached
         except OSError, json.JSONDecodeError:
             return None
 
@@ -240,7 +242,7 @@ async def fetch_with_cache(
                 logger.info("Final: %s", response.url)
 
             response.raise_for_status()
-            data = response.json()
+            data: dict[str, Any] = response.json()
     except (TimeoutError, httpx.HTTPError) as error:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
         logger.warning("Network fetch failed: %s", error)

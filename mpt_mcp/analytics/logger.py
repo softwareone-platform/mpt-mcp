@@ -92,13 +92,14 @@ class AnalyticsLogger:
 
     async def initialize(self) -> None:
         """Initialize database connection and start background flush task."""
-        if not self.enabled:
+        database_url = self.database_url
+        if not self.enabled or not database_url:
             logger.info("Analytics disabled (no database URL configured)")
             return
 
         try:
             self.engine = create_async_engine(
-                self.database_url, pool_size=5, max_overflow=10, echo=False
+                database_url, pool_size=5, max_overflow=10, echo=False
             )
 
             # Test connection

@@ -1,6 +1,6 @@
 import datetime as dt
 import logging
-from typing import Any
+from typing import Any, override
 
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
@@ -22,6 +22,7 @@ class RequestContextMiddleware(Middleware):
     def __init__(self) -> None:
         self._last_activity_log: dict[str, dt.datetime] = {}
 
+    @override
     async def on_request(
         self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]
     ) -> Any:

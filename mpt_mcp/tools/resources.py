@@ -80,11 +80,8 @@ def get_response_item_schema(
             if part and part != "#":
                 ref_schema = ref_schema.get(part, {})
         schema = ref_schema
-    item_schema = get_item_schema(openapi_spec, schema)
-    item_schema = (
-        resolve_schema(openapi_spec, item_schema) if isinstance(item_schema, dict) else item_schema
-    )
-    return item_schema if isinstance(item_schema, dict) else {}
+    resolved = resolve_schema(openapi_spec, get_item_schema(openapi_spec, schema))
+    return resolved if isinstance(resolved, dict) else {}
 
 
 def describe_resource(resource_name: str, endpoint_info: dict[str, Any]) -> dict[str, Any]:

@@ -1,6 +1,6 @@
 import json
 import time
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, override
 
 from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
@@ -37,6 +37,7 @@ class AnalyticsMiddleware(Middleware):
         """
         self._clock = clock
 
+    @override
     async def on_call_tool(
         self,
         context: MiddlewareContext[CallToolRequestParams],
@@ -69,6 +70,7 @@ class AnalyticsMiddleware(Middleware):
 
         return result
 
+    @override
     async def on_get_prompt(
         self,
         context: MiddlewareContext[GetPromptRequestParams],
@@ -98,6 +100,7 @@ class AnalyticsMiddleware(Middleware):
 
         return result
 
+    @override
     async def on_read_resource(
         self,
         context: MiddlewareContext[ReadResourceRequestParams],
@@ -130,6 +133,7 @@ class AnalyticsMiddleware(Middleware):
 
         return result
 
+    @override
     async def on_request(
         self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]
     ) -> Any:

@@ -43,7 +43,8 @@ class MCPPathMiddleware:
         await self.app(scope, receive, send)
 
 
-def health(request: Request) -> JSONResponse:
+# FastMCP custom routes must be coroutines, although this one awaits nothing
+async def health(request: Request) -> JSONResponse:  # ruff: ignore[unused-async]
     """Report that the server is up and where its MCP endpoint is."""
     return JSONResponse(dict(HEALTH_RESPONSE))
 

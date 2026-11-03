@@ -111,7 +111,7 @@ class DocumentationCache:
                     subsection = parts[1]
                     sections[section]["subsections"][subsection] += 1
 
-        result = {"total_pages": len(self._resources), "sections": []}
+        result: dict[str, Any] = {"total_pages": len(self._resources), "sections": []}
 
         for section_name in sorted(sections.keys()):
             section_data = sections[section_name]
@@ -146,8 +146,9 @@ class DocumentationCache:
 
         resource = self._resources[uri]
 
-        if resource.get("content") is not None:
-            return resource["content"]
+        cached_content: str | None = resource.get("content")
+        if cached_content is not None:
+            return cached_content
 
         # Fetch on-demand using page ID (more reliable than path)
         page_id = resource["metadata"].get("id")
@@ -155,6 +156,9 @@ class DocumentationCache:
         if not page_id:
             logger.error("Resource has no ID: %s", uri)
             return "Content not available - no page ID"
+
+        if self.gitbook_client is None:
+            return None
 
         try:
             page_data = await self.gitbook_client.fetch_page_by_id(page_id)
@@ -168,16 +172,14 @@ class DocumentationCache:
                 logger.debug("No markdown, extracting from document structure")
                 markdown = self._extract_text_from_document(page_data["document"])
 
-            resource["content"] = markdown or "No content available"
-
-            content_length = len(markdown) if markdown else 0
-            logger.info("Fetched and cached content for: %s (length: %s)", uri, content_length)
-
-            return resource["content"]
-
         except Exception as error:
             logger.exception("Failed to fetch resource %s", uri)
             return f"Error fetching content: {error!s}"
+
+        fetched_content: str = markdown or "No content available"
+        resource["content"] = fetched_content
+        logger.info("Fetched and cached content for: %s (length: %s)", uri, len(markdown or ""))
+        return fetched_content
 
     async def list_resources(
         self,
@@ -236,7 +238,7 @@ class DocumentationCache:
         Returns:
             True if refresh was successful, False otherwise
         """
-        if not self.is_enabled:
+        if self.gitbook_client is None:
             logger.warning("Documentation cache is disabled, skipping refresh")
             return False
 
