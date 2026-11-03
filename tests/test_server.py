@@ -6,7 +6,7 @@ from fastmcp import Client
 from mpt_mcp.config import config
 from mpt_mcp.documentation import lifespan
 from mpt_mcp.documentation.server import DOCUMENTATION_CACHE_UNAVAILABLE_MSG
-from mpt_mcp.mcp_server import create_mcp_server
+from mpt_mcp.server import create_mcp_server
 
 DEBUG_TOOLS = {"marketplace_cache_info", "marketplace_refresh_cache", "marketplace_resources_info"}
 

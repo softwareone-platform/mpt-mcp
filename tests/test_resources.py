@@ -6,8 +6,8 @@ from fastmcp import Client
 from fastmcp.exceptions import ResourceError
 
 from mpt_mcp.auth.call_context import CallContext
-from mpt_mcp.mcp_server import create_mcp_server
 from mpt_mcp.resources import get_openapi_spec
+from mpt_mcp.server import create_mcp_server
 
 
 @pytest.fixture

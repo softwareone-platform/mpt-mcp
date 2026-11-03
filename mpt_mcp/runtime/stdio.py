@@ -2,8 +2,8 @@ import logging
 import sys
 
 from mpt_mcp.config import config
-from mpt_mcp.mcp_server import create_mcp_server
 from mpt_mcp.runtime.logging import configure_logging
+from mpt_mcp.server import create_mcp_server
 
 logger = logging.getLogger(__name__)
 

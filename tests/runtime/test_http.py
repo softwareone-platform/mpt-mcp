@@ -3,8 +3,8 @@ from http import HTTPStatus
 import pytest
 from starlette.testclient import TestClient
 
-from mpt_mcp.mcp_server import create_mcp_server
 from mpt_mcp.runtime.http import create_http_app
+from mpt_mcp.server import create_mcp_server
 
 INITIALIZE_REQUEST = {
     "jsonrpc": "2.0",

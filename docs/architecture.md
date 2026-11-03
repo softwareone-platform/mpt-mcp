@@ -4,7 +4,7 @@ This document describes how the MCP server is structured. Shared Python rules li
 
 ## Transports
 
-The package serves one FastMCP server, built by `create_mcp_server()` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)), over two transports:
+The package serves one FastMCP server, built by `create_mcp_server()` ([`server.py`](../mpt_mcp/server.py)), over two transports:
 
 | Transport | Entry point | Tenancy | Credentials |
 |---|---|---|---|
@@ -48,7 +48,7 @@ Tool results are kept under `CHARACTER_LIMIT` (25,000 characters) ([`tools/resul
 - `marketplace_docs_read` returns long pages in parts, cut at a line break, with the `next_offset` of the next part.
 - `marketplace_resources` lists only resource names (or, for one category, names and summaries) when the full list does not fit, and adds a `note`.
 
-Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`mcp_server.py`](../mpt_mcp/mcp_server.py)) that describe the order to use the tools in and the RQL operators. Common questions are prompts ([`prompts.py`](../mpt_mcp/prompts.py)), which the user picks in the client, rather than a tool: each one fills in a `marketplace_query` call from its arguments for the model to run. The examples the model needs for a resource come from `marketplace_resource_info`, generated from the OpenAPI spec.
+Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyHint`) except `marketplace_refresh_cache`, and `openWorldHint` marks the tools that reach the Marketplace API or GitBook. The server sends `instructions` ([`server.py`](../mpt_mcp/server.py)) that describe the order to use the tools in and the RQL operators. Common questions are prompts ([`prompts.py`](../mpt_mcp/prompts.py)), which the user picks in the client, rather than a tool: each one fills in a `marketplace_query` call from its arguments for the model to run. The examples the model needs for a resource come from `marketplace_resource_info`, generated from the OpenAPI spec.
 
 ## Modules
 
@@ -61,7 +61,7 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`marketplace/cache_manager.py`](../mpt_mcp/marketplace/cache_manager.py) | Disk cache for fetched JSON documents (OpenAPI specs) |
 | [`marketplace/openapi_parser.py`](../mpt_mcp/marketplace/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
 | [`marketplace/audit_fields.py`](../mpt_mcp/marketplace/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
-| [`mcp_server.py`](../mpt_mcp/mcp_server.py) | Creates the server for a transport: instructions, middlewares, documentation and analytics lifespans (HTTP), tools, resources, prompts and debug tool visibility |
+| [`server.py`](../mpt_mcp/server.py) | Creates the server for a transport: instructions, middlewares, documentation and analytics lifespans (HTTP), tools, resources, prompts and debug tool visibility |
 | [`tools/`](../mpt_mcp/tools) | The Marketplace tools, each module with its tool functions, their logic and a `register_*_tools()` function: `query.py` (`marketplace_query`: select sanitization, audit fields, path parameters, retries), `resources.py` (resource list, info, schema and audit events), `debug.py` (the `DEBUG_TAG` tools); `results.py` holds the result size limit, pagination position and `tool_error()`, `responses.py` one Pydantic response model per tool, from which FastMCP builds its output schema, and `annotations.py` the MCP annotations every tool uses |
 | [`resources.py`](../mpt_mcp/resources.py), [`prompts.py`](../mpt_mcp/prompts.py) | The OpenAPI resource and the prompts, and their registration |
 | [`documentation/`](../mpt_mcp/documentation) | Marketplace documentation: `server.py` is a FastMCP server with the `marketplace_docs_*` tools and the `docs://` resource, which `create_mcp_server()` mounts without a namespace, so their names do not change; `gitbook.py` and `cache.py` are the GitBook client and the cache, created once per process; `lifespan.py` loads the cache, and `documentation_lifespan` does it at HTTP startup |
@@ -103,7 +103,7 @@ The tools `marketplace_cache_info`, `marketplace_refresh_cache` and `marketplace
 
 Where new code goes and what each layer may do:
 
-- Both transports serve the server that [`mpt_mcp/mcp_server.py`](../mpt_mcp/mcp_server.py) creates: add Marketplace tools to the [`tools/`](../mpt_mcp/tools) module of their domain, with their logic, Marketplace resources and prompts to `resources.py` and `prompts.py`, and documentation ones to [`documentation/server.py`](../mpt_mcp/documentation/server.py), never to the [`runtime/`](../mpt_mcp/runtime) entry points, which only start the transports.
+- Both transports serve the server that [`mpt_mcp/server.py`](../mpt_mcp/server.py) creates: add Marketplace tools to the [`tools/`](../mpt_mcp/tools) module of their domain, with their logic, Marketplace resources and prompts to `resources.py` and `prompts.py`, and documentation ones to [`documentation/server.py`](../mpt_mcp/documentation/server.py), never to the [`runtime/`](../mpt_mcp/runtime) entry points, which only start the transports.
 - Tools must get the caller's credentials with `call_context: CallContext = Depends(get_call_context)`, not by reading request headers or `config`.
 - Cross-cutting request behaviour (log context, analytics) must live in FastMCP middlewares, not in tools.
 - Development-only tools must be tagged with `DEBUG_TAG`.

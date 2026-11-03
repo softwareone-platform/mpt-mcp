@@ -22,7 +22,7 @@ The layout mirrors the package:
 - [`tests/marketplace/`](../tests/marketplace) and [`tests/auth/`](../tests/auth) for the [`mpt_mcp/marketplace/`](../mpt_mcp/marketplace) and [`mpt_mcp/auth/`](../mpt_mcp/auth) subpackages
 - [`tests/documentation/`](../tests/documentation) for the [`mpt_mcp/documentation/`](../mpt_mcp/documentation) subpackage
 
-Add a test where the behaviour lives: each tool and its logic in the `tests/tools/` file of its module, with the fixtures they share in [`tests/tools/conftest.py`](../tests/tools/conftest.py), tool registration and visibility in `test_mcp_server.py`, documentation tools and the `docs://` resource in `tests/documentation/test_server.py`, the health check and HTTP routing in `tests/runtime/test_http.py`, which builds the app with `create_http_app()` instead of importing `mpt_mcp.runtime.main`.
+Add a test where the behaviour lives: each tool and its logic in the `tests/tools/` file of its module, with the fixtures they share in [`tests/tools/conftest.py`](../tests/tools/conftest.py), tool registration and visibility in `test_server.py`, documentation tools and the `docs://` resource in `tests/documentation/test_server.py`, the health check and HTTP routing in `tests/runtime/test_http.py`, which builds the app with `create_http_app()` instead of importing `mpt_mcp.runtime.main`.
 
 ## Commands
 
@@ -56,7 +56,7 @@ Repository-specific guidance:
 - the `docs_cache_factory` and `doc_page_factory` fixtures in [`tests/conftest.py`](../tests/conftest.py) install a fake documentation cache for any test
 - module-level caches (OpenAPI specs, JWKS keys) live for the whole test process: give each test its own endpoint or issuer, as the `unique_endpoint` and `issuer` fixtures do, instead of clearing private state
 - test JWT validation with real RSA keys and mocked HTTP responses, as in `tests/auth/test_token_validator.py`
-- debug tool visibility depends on `DEBUG`, which `compose.yaml` sets to `true`: test it on servers created with `config.debug` set, as the `production_server` and `debug_server` fixtures in `test_mcp_server.py` do
+- debug tool visibility depends on `DEBUG`, which `compose.yaml` sets to `true`: test it on servers created with `config.debug` set, as the `production_server` and `debug_server` fixtures in `test_server.py` do
 
 ## When Tests Are Required
 

@@ -14,7 +14,6 @@ from mpt_mcp.tools.query import register_query_tools
 from mpt_mcp.tools.resources import register_resource_tools
 
 SERVER_NAME = "softwareone-marketplace"
-
 type Transport = Literal["http", "stdio"]
 SERVER_INSTRUCTIONS = """\
 Read-only access to the SoftwareOne Marketplace API, with the caller's credentials, and to the \
@@ -73,7 +72,6 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
     register_resources(mcp)
     register_prompts(mcp)
     mcp.mount(create_documentation_server())
-    # Debug tools are only listed and callable in development
     if not config.debug:
         mcp.disable(tags={DEBUG_TAG})
     return mcp
