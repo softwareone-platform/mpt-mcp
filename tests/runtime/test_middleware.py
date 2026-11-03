@@ -9,8 +9,8 @@ from mpt_mcp.runtime.middleware import RequestContextMiddleware
 
 
 @pytest.fixture
-def make_request():
-    def _make_request(headers, query_string=b""):
+def request_factory():
+    def factory(headers, query_string=b""):
         raw_headers = Headers(headers).raw
         scope = {
             "type": "http",
@@ -22,7 +22,7 @@ def make_request():
         }
         return Request(scope)
 
-    return _make_request
+    return factory
 
 
 @pytest.fixture
@@ -30,8 +30,8 @@ def capture_log_context():
     return AsyncMock(side_effect=lambda context: (current_user_id.get(), current_session_id.get()))
 
 
-async def test_on_request_sets_log_context_during_call(make_request, capture_log_context):
-    request = make_request(
+async def test_on_request_sets_log_context_during_call(request_factory, capture_log_context):
+    request = request_factory(
         {"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456"
     )
 
@@ -41,8 +41,8 @@ async def test_on_request_sets_log_context_during_call(make_request, capture_log
     assert result == ("TKN-1234-5678", "abcdef123456")
 
 
-async def test_on_request_resets_log_context_after_call(make_request, capture_log_context):
-    request = make_request(
+async def test_on_request_resets_log_context_after_call(request_factory, capture_log_context):
+    request = request_factory(
         {"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"}, query_string=b"session_id=abcdef123456"
     )
 

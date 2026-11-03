@@ -8,6 +8,7 @@ from fastmcp.tools import ToolResult
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
+from mpt_mcp.analytics.logger import AnalyticsLogger
 from mpt_mcp.analytics.middleware import AnalyticsMiddleware
 
 RESPONSE_TIME_MS = 250
@@ -16,15 +17,14 @@ RESPONSE_TIME_MS = 250
 @pytest.fixture
 def analytics():
     with patch("mpt_mcp.analytics.middleware.get_analytics_logger") as get_analytics_logger:
-        analytics_logger = AsyncMock(enabled=True)
-        analytics_logger.set_context = Mock()
+        analytics_logger = AsyncMock(spec=AnalyticsLogger, enabled=True, set_context=Mock())
         get_analytics_logger.return_value = analytics_logger
         yield analytics_logger
 
 
 @pytest.fixture
-def make_request():
-    def _make_request(headers, query_string=b""):
+def request_factory():
+    def factory(headers, query_string=b""):
         raw_headers = Headers(headers).raw
         scope = {
             "type": "http",
@@ -36,12 +36,11 @@ def make_request():
         }
         return Request(scope)
 
-    return _make_request
+    return factory
 
 
 @pytest.fixture
 def middleware():
-    # Every call takes 250 ms: the clock is read at the start and at the end of the call
     return AnalyticsMiddleware(clock=Mock(side_effect=[100.0, 100.25]))
 
 
@@ -211,9 +210,9 @@ async def test_on_get_prompt_reraises_exception(middleware, analytics, prompt_co
     ],
 )
 async def test_on_request_sets_analytics_context(
-    middleware, analytics, make_request, headers, client_info, client_ip
+    middleware, analytics, request_factory, headers, client_info, client_ip
 ):
-    request = make_request(
+    request = request_factory(
         {
             "X-MPT-Authorization": "idt:TKN-1234-5678:SECRET",
             "X-MPT-Endpoint": "https://api.s1.show/public",

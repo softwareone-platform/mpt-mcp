@@ -16,7 +16,6 @@ def mcp_server():
 
 
 async def test_get_openapi_spec_resource_success():
-
     mock_spec = {
         "openapi": "3.0.0",
         "info": {"title": "Test API", "version": "1.0.0"},
@@ -38,7 +37,6 @@ async def test_get_openapi_spec_resource_success():
             result = await get_openapi_spec(call_context=call_context)
             result_dict = json.loads(result)
 
-            # The function wraps the spec with metadata
             assert result_dict["spec"] == mock_spec
             assert result_dict["api_endpoint"] == "https://api.test.com"
             assert result_dict["authenticated_as"] == "Test Account"
@@ -81,32 +79,10 @@ async def test_openapi_resource_error_reaches_client(mcp_server):
             await client.read_resource("api://openapi.json")
 
 
-async def test_openapi_resource_listed_in_resources(mcp_server):
+async def test_openapi_resource_listed_with_metadata(mcp_server):
+    result = {str(resource.uri): resource for resource in await mcp_server.list_resources()}
 
-    resources = {str(resource.uri): resource for resource in (await mcp_server.list_resources())}
-    resource_uris = [str(uri) for uri in resources]
-
-    assert "api://openapi.json" in resource_uris
-
-
-async def test_openapi_resource_has_correct_metadata(mcp_server):
-
-    resources = {str(resource.uri): resource for resource in (await mcp_server.list_resources())}
-    openapi_resource = resources.get("api://openapi.json")
-
-    assert openapi_resource is not None
-    # The resource should have a name
-    if hasattr(openapi_resource, "name") and openapi_resource.name:
-        assert (
-            "openapi" in openapi_resource.name.lower()
-            or "specification" in openapi_resource.name.lower()
-        )
-
-
-async def test_openapi_resource_mime_type(mcp_server):
-
-    resources = {str(resource.uri): resource for resource in (await mcp_server.list_resources())}
-    openapi_resource = resources.get("api://openapi.json")
-
-    assert openapi_resource is not None
-    assert openapi_resource.mime_type == "application/json"
+    assert (result["api://openapi.json"].name, result["api://openapi.json"].mime_type) == (
+        "OpenAPI Specification",
+        "application/json",
+    )

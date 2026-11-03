@@ -8,7 +8,7 @@ from mpt_mcp.runtime import migrations
 
 @pytest.fixture
 def upgrade(monkeypatch):
-    upgrade_mock = Mock()
+    upgrade_mock = Mock(spec=migrations.command.upgrade)
     monkeypatch.setattr(migrations.command, "upgrade", upgrade_mock)
     return upgrade_mock
 

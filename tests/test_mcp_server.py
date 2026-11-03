@@ -168,8 +168,8 @@ async def test_transports_serve_the_same_resources():
     http_templates = {
         template.uri_template for template in await http_server.list_resource_templates()
     }
-
     stdio_server = create_mcp_server(transport="stdio")
+
     result = {template.uri_template for template in await stdio_server.list_resource_templates()}
 
     assert result == http_templates

@@ -2,9 +2,9 @@ from fastmcp import FastMCP
 from fastmcp.exceptions import ResourceError
 
 from mpt_mcp.documentation import lifespan
-from mpt_mcp.mcp_tools import cut_text_to_budget, tool_error
-from mpt_mcp.tool_annotations import READ_ONLY_REMOTE
-from mpt_mcp.tool_responses import DocsIndexResponse, DocsListResponse, DocsReadResponse
+from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
+from mpt_mcp.tools.responses import DocsIndexResponse, DocsListResponse, DocsReadResponse
+from mpt_mcp.tools.results import cut_text_to_budget, tool_error
 
 SERVER_NAME = "documentation"
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (

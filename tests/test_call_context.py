@@ -16,8 +16,8 @@ from mpt_mcp.config import config
 
 
 @pytest.fixture
-def make_request():
-    def _make_request(headers):
+def request_factory():
+    def factory(headers):
         raw_headers = Headers(headers).raw
         return Request({
             "type": "http",
@@ -27,11 +27,11 @@ def make_request():
             "headers": raw_headers,
         })
 
-    return _make_request
+    return factory
 
 
-def test_read_call_context_reads_mpt_headers(make_request):
-    request = make_request({
+def test_read_call_context_reads_mpt_headers(request_factory):
+    request = request_factory({
         "X-MPT-Authorization": "Bearer idt:TKN-1234-5678:SECRET",
         "X-MPT-Endpoint": "https://api.s1.show/public/",
         "X-MPT-Validate-Fresh": "true",
@@ -44,8 +44,8 @@ def test_read_call_context_reads_mpt_headers(make_request):
     )
 
 
-def test_call_context_defaults_without_headers(make_request):
-    request = make_request({})
+def test_call_context_defaults_without_headers(request_factory):
+    request = request_factory({})
 
     result = read_call_context(request)
 
@@ -54,8 +54,8 @@ def test_call_context_defaults_without_headers(make_request):
     )
 
 
-def test_get_call_context_reads_http_request(make_request, monkeypatch):
-    request = make_request({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"})
+def test_get_call_context_reads_http_request(request_factory, monkeypatch):
+    request = request_factory({"X-MPT-Authorization": "idt:TKN-1234-5678:SECRET"})
     monkeypatch.setattr("mpt_mcp.call_context.get_http_request", lambda: request)
 
     result = get_call_context()
@@ -82,8 +82,8 @@ def test_get_call_context_reads_environment(monkeypatch):
         ("", False),
     ],
 )
-def test_read_call_context_validate_fresh_values(make_request, header_value, expected):
-    request = make_request({"X-MPT-Validate-Fresh": header_value})
+def test_read_call_context_validate_fresh_values(request_factory, header_value, expected):
+    request = request_factory({"X-MPT-Validate-Fresh": header_value})
 
     result = read_call_context(request)
 
@@ -164,7 +164,6 @@ async def test_create_api_client_for_caller_endpoint():
 
 
 async def test_missing_authorization_header():
-
     with pytest.raises(ValueError) as exc_info:
         await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
 
@@ -173,13 +172,10 @@ async def test_missing_authorization_header():
 
 
 async def test_missing_auth_error_message_is_clear():
-
     with pytest.raises(ValueError) as exc_info:
         await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
 
     error_message = str(exc_info.value)
-
-    # Should contain key information
     assert "Missing" in error_message
     assert "X-MPT-Authorization" in error_message
     assert "header" in error_message.lower()

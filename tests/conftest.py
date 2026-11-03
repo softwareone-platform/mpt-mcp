@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 
 from mpt_mcp.documentation import lifespan
+from mpt_mcp.documentation.cache import DocumentationCache
 
 
 @pytest.fixture
@@ -25,8 +26,11 @@ def doc_page_factory():
 @pytest.fixture
 def docs_cache_factory(monkeypatch):
     def factory(resources=(), index=None, content_by_uri=None):
-        cache = Mock(is_enabled=True)
-        cache.list_resources = AsyncMock(return_value=list(resources))
+        cache = Mock(
+            spec=DocumentationCache,
+            is_enabled=True,
+            list_resources=AsyncMock(return_value=list(resources)),
+        )
         cache.get_documentation_index = AsyncMock(
             return_value=index or {"total_pages": 0, "sections": []}
         )
@@ -40,7 +44,6 @@ def docs_cache_factory(monkeypatch):
         def install_cache():
             lifespan.documentation_cache = cache
 
-        # Tools must read the cache that initialize_documentation_cache sets, not a stale import
         monkeypatch.setattr(lifespan, "documentation_cache", None)
         monkeypatch.setattr(
             lifespan, "initialize_documentation_cache", AsyncMock(side_effect=install_cache)

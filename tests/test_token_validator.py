@@ -31,6 +31,108 @@ TOKEN_CACHE_TTL_MINUTES = 30
 WIDE_LEEWAY_SECONDS = 300
 
 
+@pytest.fixture
+def token_details():
+    return {
+        "id": "TKN-1234-5678",
+        "status": "Active",
+        "name": "Test Token",
+        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
+    }
+
+
+@pytest.fixture
+def token_api(token_details):
+    response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
+    response.json.return_value = token_details
+    client = AsyncMock(spec=httpx.AsyncClient, get=AsyncMock(return_value=response))
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_client_class.return_value.__aenter__.return_value = client
+        yield client
+
+
+@pytest.fixture
+def issuer(request):
+    slug = request.node.name.translate(SLUG_TRANSLATION)
+    return f"https://{slug}.auth.test.com"
+
+
+@pytest.fixture(scope="module")
+def jwks(rsa_private_key):
+    public_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(rsa_private_key.public_key()))
+    return {"keys": [{**public_jwk, "kid": "test-key", "alg": "RS256", "use": "sig"}]}
+
+
+@pytest.fixture
+def jwks_state(jwks):
+    return {"jwks": jwks}
+
+
+@pytest.fixture
+def auth_response_factory(jwks_state):
+    def factory(url, **kwargs):
+        response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
+        response.json.return_value = (
+            jwks_state["jwks"]
+            if url.endswith("/.well-known/jwks.json")
+            else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
+        )
+        return response
+
+    return factory
+
+
+@pytest.fixture
+def mock_auth_http(jwks_state, auth_response_factory):
+    client = AsyncMock(
+        spec=httpx.AsyncClient,
+        get=AsyncMock(side_effect=auth_response_factory),
+        jwks_state=jwks_state,
+    )
+    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
+        mock_client_class.return_value.__aenter__.return_value = client
+        yield client
+
+
+@pytest.fixture(scope="module")
+def rsa_key_factory():
+    def factory():
+        return rsa.generate_private_key(public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE)
+
+    return factory
+
+
+@pytest.fixture(scope="module")
+def rsa_private_key(rsa_key_factory):
+    return rsa_key_factory()
+
+
+@pytest.fixture
+def jwt_factory(rsa_private_key, issuer):
+    def factory(claims, *, kid="test-key", private_key=None, algorithm="RS256"):
+        headers = {"kid": kid} if kid else None
+        full_claims = {
+            "iss": issuer,
+            "https://claims.softwareone.com/userId": JWT_USER_ID,
+            **claims,
+        }
+        return jwt.encode(
+            full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers
+        )
+
+    return factory
+
+
+@pytest.fixture
+def validate_jwt(jwt_factory, mock_auth_http):
+    async def factory(claims, **sign_kwargs):
+        return await validate_token(
+            jwt_factory(claims, **sign_kwargs), API_BASE_URL, use_cache=False
+        )
+
+    return factory
+
+
 def test_cache_initialization():
     cache = TokenValidationCache(ttl_minutes=TOKEN_CACHE_TTL_MINUTES)
 
@@ -165,27 +267,6 @@ def test_normalize_token(token, expected):
     assert result == expected
 
 
-@pytest.fixture
-def token_details():
-    return {
-        "id": "TKN-1234-5678",
-        "status": "Active",
-        "name": "Test Token",
-        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
-    }
-
-
-@pytest.fixture
-def token_api(token_details):
-    response = Mock(status_code=HTTPStatus.OK)
-    response.json.return_value = token_details
-    client = AsyncMock()
-    client.get = AsyncMock(return_value=response)
-    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-        mock_client_class.return_value.__aenter__.return_value = client
-        yield client
-
-
 async def test_validate_token_success(token_api, token_details):
     result = await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)
 
@@ -207,19 +288,18 @@ async def test_validate_token_logs_one_line(token_api, caplog):
 async def test_validate_token_inactive(token_api, token_details):
     token_details["status"] = "Inactive"
 
-    is_valid, token_info, error = await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)
+    result = await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)
 
-    assert (is_valid, token_info) == (False, token_details)
-    assert "not active" in error.lower()
-    assert "Inactive" in error
+    assert result == (False, token_details, "Token exists but is not active (status: Inactive)")
 
 
 @pytest.mark.parametrize("api_error", ["404 Not Found", "401 Unauthorized"])
 async def test_validate_token_api_error(token_api, api_error):
     token_api.get.side_effect = Exception(api_error)
 
-    is_valid, token_info, error = await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)
+    result = await validate_token(API_TOKEN, API_BASE_URL, use_cache=False)
 
+    is_valid, token_info, error = result
     assert (is_valid, token_info) == (False, None)
     assert api_error in error
 
@@ -248,99 +328,29 @@ async def test_validate_token_sends_bearer_prefix(token_api):
     assert token_api.get.call_args.kwargs["headers"]["Authorization"] == f"Bearer {API_TOKEN}"
 
 
-async def test_validate_jwt_requires_jwks_url_or_iss():
-
-    payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}  # no iss
+async def test_validate_jwt_requires_jwks_url_or_iss(monkeypatch):
+    payload = {"https://claims.softwareone.com/userId": "USR-1234-5678"}
     payload_json = json.dumps(payload).encode()
     payload_b64 = base64.urlsafe_b64encode(payload_json).decode().rstrip("=")
     token = f"eyJhbGciOiJSUzI1NiJ9.{payload_b64}.sig"
-    api_base_url = "https://api.test.com"
+    monkeypatch.setattr(config, "jwt_jwks_url", "")
 
-    with patch("mpt_mcp.token_validator.config") as mock_config:
-        mock_config.jwt_jwks_url = ""
+    result = await validate_token(token, "https://api.test.com", use_cache=False)
 
-        is_valid, token_info, error = await validate_token(token, api_base_url, use_cache=False)
-
-        assert is_valid is False
-        assert token_info is None
-        assert error is not None
-        assert "JWT verification" in error or "JWT_JWKS_URL" in error or "iss" in error
-
-
-@pytest.fixture
-def issuer(request):
-    # One issuer per test: the JWKS URL is derived from it and its keys are cached per URL
-    slug = request.node.name.translate(SLUG_TRANSLATION)
-    return f"https://{slug}.auth.test.com"
-
-
-@pytest.fixture(scope="module")
-def jwks(rsa_private_key):
-    public_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(rsa_private_key.public_key()))
-    return {"keys": [{**public_jwk, "kid": "test-key", "alg": "RS256", "use": "sig"}]}
-
-
-@pytest.fixture
-def mock_auth_http(jwks):
-    def _response(url, **kwargs):
-        response = Mock(status_code=HTTPStatus.OK)
-        payload = (
-            mock_auth_http_state["jwks"]
-            if url.endswith("/.well-known/jwks.json")
-            else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
-        )
-        response.json.return_value = payload
-        return response
-
-    mock_auth_http_state = {"jwks": jwks}
-    client = AsyncMock()
-    client.get = AsyncMock(side_effect=_response)
-    client.jwks_state = mock_auth_http_state
-    with patch("mpt_mcp.token_validator.httpx.AsyncClient") as mock_client_class:
-        mock_client_class.return_value.__aenter__.return_value = client
-        yield client
-
-
-@pytest.fixture(scope="module")
-def other_private_key():
-    return rsa.generate_private_key(public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE)
-
-
-@pytest.fixture(scope="module")
-def rsa_private_key():
-    return rsa.generate_private_key(public_exponent=RSA_PUBLIC_EXPONENT, key_size=RSA_KEY_SIZE)
-
-
-@pytest.fixture
-def sign_jwt(rsa_private_key, issuer):
-    def _sign_jwt(claims, *, kid="test-key", private_key=None, algorithm="RS256"):
-        headers = {"kid": kid} if kid else None
-        full_claims = {
-            "iss": issuer,
-            "https://claims.softwareone.com/userId": JWT_USER_ID,
-            **claims,
-        }
-        return jwt.encode(
-            full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers
-        )
-
-    return _sign_jwt
-
-
-@pytest.fixture
-def validate_jwt(sign_jwt, mock_auth_http):
-    async def _validate_jwt(claims, **sign_kwargs):
-        return await validate_token(sign_jwt(claims, **sign_kwargs), API_BASE_URL, use_cache=False)
-
-    return _validate_jwt
+    assert result == (
+        False,
+        None,
+        "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. Auth0).",
+    )
 
 
 async def test_validate_jwt_within_exp_leeway_accepted(validate_jwt):
     now = int(time.time())
     claims = {"exp": now - 60, "iat": now - ISSUED_SECONDS_AGO}
 
-    is_valid, _, error = await validate_jwt(claims)
+    result = await validate_jwt(claims)
 
+    is_valid, _, error = result
     assert (is_valid, error) == (True, None)
 
 
@@ -357,32 +367,37 @@ async def test_validate_jwt_exp_leeway_uses_config(validate_jwt):
     claims = {"exp": now - EXPIRED_SECONDS_AGO, "iat": now - ISSUED_SECONDS_AGO}
 
     with patch.object(config, "jwt_exp_leeway_seconds", WIDE_LEEWAY_SECONDS):
-        is_valid, _, error = await validate_jwt(claims)
+        result = await validate_jwt(claims)
 
+    is_valid, _, error = result
     assert (is_valid, error) == (True, None)
 
 
 async def test_validate_jwt_without_exp_accepted(validate_jwt):
     claims = {"iat": int(time.time()) - 60}
 
-    is_valid, _, error = await validate_jwt(claims)
+    result = await validate_jwt(claims)
 
+    is_valid, _, error = result
     assert (is_valid, error) == (True, None)
 
 
 async def test_validate_jwt_without_kid_tries_every_key(
-    validate_jwt, jwks, other_private_key, mock_auth_http
+    validate_jwt, jwks, rsa_key_factory, mock_auth_http
 ):
-    other_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(other_private_key.public_key()))
+    other_jwk = json.loads(jwt.algorithms.RSAAlgorithm.to_jwk(rsa_key_factory().public_key()))
     other_key = {**other_jwk, "kid": "other-key"}
     mock_auth_http.jwks_state["jwks"] = {"keys": [other_key, *jwks["keys"]]}
 
-    is_valid, _, error = await validate_jwt({}, kid=None)
+    result = await validate_jwt({}, kid=None)
 
+    is_valid, _, error = result
     assert (is_valid, error) == (True, None)
 
 
-async def test_validate_jwt_rejects_unknown_key(validate_jwt, other_private_key):
+async def test_validate_jwt_rejects_unknown_key(validate_jwt, rsa_key_factory):
+    other_private_key = rsa_key_factory()
+
     result = await validate_jwt({}, private_key=other_private_key)
 
     assert result == (False, None, "JWT signature or claims invalid")

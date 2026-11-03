@@ -247,3 +247,27 @@ def test_get_audit_regex_falls_back_without_spec(cache_key):
     result = get_audit_regex(cache_key)
 
     assert result is FALLBACK_STATIC_REGEX
+
+
+@pytest.mark.parametrize(
+    ("field", "expected"),
+    [
+        ("audit.created.at", True),
+        ("audit.updated.at", True),
+        ("audit.completed.at", True),
+        ("audit.processing.at", True),
+        ("audit.quoted.at", True),
+        ("audit.failed.at", True),
+        ("audit.created.by", True),
+        ("audit.quoted.by", True),
+        ("audit.created.by.id", True),  # matches the prefix
+        ("status", False),
+        ("created.at", False),
+        ("audit.status", False),
+        ("audit.created", False),
+    ],
+)
+def test_fallback_audit_regex_matches_fields(field, expected):
+    result = FALLBACK_STATIC_REGEX.search(field) is not None
+
+    assert result is expected

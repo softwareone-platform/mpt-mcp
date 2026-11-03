@@ -19,10 +19,10 @@ def log_record():
 def request_context():
     tokens = []
 
-    def _request_context(session_id, user_id):
+    def factory(session_id, user_id):
         tokens.append((current_session_id.set(session_id), current_user_id.set(user_id)))
 
-    yield _request_context
+    yield factory
     for session_token, user_token in reversed(tokens):
         current_session_id.reset(session_token)
         current_user_id.reset(user_token)

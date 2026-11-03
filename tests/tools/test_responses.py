@@ -1,6 +1,6 @@
 import pytest
 
-from mpt_mcp.tool_responses import DocsPage, QueryResponse
+from mpt_mcp.tools.responses import DocsPage, QueryResponse
 
 
 def test_unset_optional_fields_are_left_out():

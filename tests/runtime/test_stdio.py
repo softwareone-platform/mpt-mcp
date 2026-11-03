@@ -2,13 +2,14 @@ import logging
 from unittest.mock import Mock
 
 import pytest
+from fastmcp import FastMCP
 
 from mpt_mcp.runtime import stdio
 
 
 @pytest.fixture
 def mcp_server(monkeypatch):
-    server = Mock()
+    server = Mock(spec=FastMCP)
     monkeypatch.setattr(stdio, "create_mcp_server", Mock(return_value=server))
     monkeypatch.setattr(stdio, "configure_logging", Mock())
     return server

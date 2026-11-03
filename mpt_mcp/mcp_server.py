@@ -9,7 +9,9 @@ from mpt_mcp.documentation.server import create_documentation_server
 from mpt_mcp.runtime.middleware import RequestContextMiddleware
 from mpt_mcp.server_prompts import register_prompts
 from mpt_mcp.server_resources import register_resources
-from mpt_mcp.server_tools import DEBUG_TAG, register_tools
+from mpt_mcp.tools.debug import DEBUG_TAG, register_debug_tools
+from mpt_mcp.tools.query import register_query_tools
+from mpt_mcp.tools.resources import register_resource_tools
 
 SERVER_NAME = "softwareone-marketplace"
 
@@ -65,7 +67,9 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
             instructions=SERVER_INSTRUCTIONS,
             middleware=[RequestContextMiddleware()],
         )
-    register_tools(mcp)
+    register_query_tools(mcp)
+    register_resource_tools(mcp)
+    register_debug_tools(mcp)
     register_resources(mcp)
     register_prompts(mcp)
     mcp.mount(create_documentation_server())

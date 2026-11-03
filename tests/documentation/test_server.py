@@ -5,9 +5,9 @@ from fastmcp import Client
 from fastmcp.exceptions import ResourceError, ToolError
 
 from mpt_mcp.documentation import lifespan, server
-from mpt_mcp.mcp_tools import CHARACTER_LIMIT
+from mpt_mcp.documentation.cache import DocumentationCache
+from mpt_mcp.tools.results import CHARACTER_LIMIT
 
-# Documentation page of about 100,000 characters, in lines of about 100
 LINE_COUNT = 1000
 LINE_LENGTH = 95
 
@@ -27,9 +27,11 @@ async def test_docs_list_exposes_browser_url_and_note():
             },
         },
     ]
-    mock_cache = Mock()
-    mock_cache.is_enabled = True
-    mock_cache.list_resources = AsyncMock(return_value=mock_resources)
+    mock_cache = Mock(
+        spec=DocumentationCache,
+        is_enabled=True,
+        list_resources=AsyncMock(return_value=mock_resources),
+    )
 
     with (
         patch("mpt_mcp.documentation.lifespan.documentation_cache", mock_cache),
@@ -57,9 +59,11 @@ async def test_docs_list_without_browser_url_metadata():
             "metadata": {"id": "abc", "path": "some/page", "title": "Some Page"},
         },
     ]
-    mock_cache = Mock()
-    mock_cache.is_enabled = True
-    mock_cache.list_resources = AsyncMock(return_value=mock_resources)
+    mock_cache = Mock(
+        spec=DocumentationCache,
+        is_enabled=True,
+        list_resources=AsyncMock(return_value=mock_resources),
+    )
 
     with (
         patch("mpt_mcp.documentation.lifespan.documentation_cache", mock_cache),
@@ -147,14 +151,15 @@ async def test_docs_read_splits_long_page(docs_cache_factory):
     docs_cache_factory(content_by_uri={"docs://billing/charges": page})
 
     first = await server.marketplace_docs_read(uri="docs://billing/charges")
-    second = await server.marketplace_docs_read(
+
+    result = await server.marketplace_docs_read(
         uri="docs://billing/charges", offset=first.next_offset
     )
 
     assert len(first.text) <= CHARACTER_LIMIT
     assert first.text.endswith("\n")
     assert first.total_characters == len(page)
-    assert page.startswith(first.text + second.text)
+    assert page.startswith(first.text + result.text)
 
 
 async def test_docs_read_last_part_has_no_next_offset(docs_cache_factory):

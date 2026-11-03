@@ -9,9 +9,18 @@ PORT = 9090
 
 @pytest.fixture
 def uvicorn_run(monkeypatch):
-    run_mock = Mock()
+    run_mock = Mock(spec=runner.uvicorn.run)
     monkeypatch.setattr(runner.uvicorn, "run", run_mock)
     return run_mock
+
+
+@pytest.fixture
+def startup(monkeypatch):
+    steps = Mock()
+    monkeypatch.setattr(runner, "configure_logging", steps.configure_logging)
+    monkeypatch.setattr(runner, "run_migrations", steps.run_migrations)
+    monkeypatch.setattr(runner, "run_uvicorn", steps.run_uvicorn)
+    return steps
 
 
 @pytest.mark.parametrize(
@@ -33,15 +42,6 @@ def test_run_uvicorn_reloads_only_with_debug(monkeypatch, uvicorn_run, debug, ex
     assert uvicorn_run.call_args.args == (runner.APP_IMPORT_PATH,)
     assert (kwargs["host"], kwargs["port"]) == (runner.SERVER_HOST, PORT)
     assert {key: kwargs[key] for key in expected} == expected
-
-
-@pytest.fixture
-def startup(monkeypatch):
-    steps = Mock()
-    monkeypatch.setattr(runner, "configure_logging", steps.configure_logging)
-    monkeypatch.setattr(runner, "run_migrations", steps.run_migrations)
-    monkeypatch.setattr(runner, "run_uvicorn", steps.run_uvicorn)
-    return steps
 
 
 def test_main_migrates_then_serves_on_port(monkeypatch, startup):

@@ -41,14 +41,14 @@ def cache(mock_gitbook_client):
 
 
 @pytest.fixture
-def cache_with_pages(mock_gitbook_client):
-    async def _cache_with_pages(pages, **cache_args):
+def cache_factory(mock_gitbook_client):
+    async def factory(pages, **cache_args):
         mock_gitbook_client.fetch_space_content.return_value = {"pages": pages}
         cache = DocumentationCache(gitbook_client=mock_gitbook_client, **cache_args)
         await cache.refresh()
         return cache
 
-    return _cache_with_pages
+    return factory
 
 
 def test_cache_initialization_with_client(mock_gitbook_client):
@@ -71,17 +71,15 @@ def test_needs_refresh_when_empty(mock_gitbook_client):
 
 
 async def test_refresh_success(cache):
-
-    success = await cache.refresh()
+    result = await cache.refresh()
 
     cache_info = cache.get_cache_info()
-    assert (success, cache_info["has_content"], cache_info["resource_count"]) == (True, True, 2)
+    assert (result, cache_info["has_content"], cache_info["resource_count"]) == (True, True, 2)
     assert cache_info["last_refresh"] is not None
 
 
 async def test_refresh_builds_resource_index(cache):
-
-    await cache.refresh()
+    await cache.refresh()  # act
 
     resources = {resource["uri"]: resource for resource in await cache.list_resources()}
     assert set(resources) == {"docs://getting-started", "docs://api-reference"}
@@ -91,9 +89,8 @@ async def test_refresh_builds_resource_index(cache):
     ) == ("Getting Started", "text/markdown")
 
 
-async def test_refresh_indexes_nested_pages(cache_with_pages):
-    # Mock client with nested page structure
-    cache = await cache_with_pages(
+async def test_refresh_indexes_nested_pages(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -135,22 +132,22 @@ async def test_refresh_indexes_nested_pages(cache_with_pages):
 async def test_refresh_disabled_cache():
     cache = DocumentationCache(gitbook_client=None)
 
-    success = await cache.refresh()
+    result = await cache.refresh()
 
-    assert success is False
+    assert result is False
 
 
 async def test_list_resources(cache):
     await cache.refresh()
 
-    resources = await cache.list_resources()
+    result = await cache.list_resources()
 
-    assert len(resources) == 2
-    assert any(resource["uri"] == "docs://getting-started" for resource in resources)
+    assert len(result) == 2
+    assert any(resource["uri"] == "docs://getting-started" for resource in result)
 
 
-async def test_list_resources_with_section_filter(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_list_resources_with_section_filter(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -166,15 +163,14 @@ async def test_list_resources_with_section_filter(cache_with_pages):
         ],
     )
 
-    # Filter by developer-resources section
-    resources = await cache.list_resources(section="developer-resources")
+    result = await cache.list_resources(section="developer-resources")
 
-    assert len(resources) == 2
-    assert all("developer-resources" in resource["uri"] for resource in resources)
+    assert len(result) == 2
+    assert all("developer-resources" in resource["uri"] for resource in result)
 
 
-async def test_list_resources_with_subsection_filter(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_list_resources_with_subsection_filter(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -194,15 +190,14 @@ async def test_list_resources_with_subsection_filter(cache_with_pages):
         ],
     )
 
-    # Filter by rest-api subsection
-    resources = await cache.list_resources(subsection="rest-api")
+    result = await cache.list_resources(subsection="rest-api")
 
-    assert len(resources) == 2
-    assert all("rest-api" in resource["uri"] for resource in resources)
+    assert len(result) == 2
+    assert all("rest-api" in resource["uri"] for resource in result)
 
 
-async def test_list_resources_with_search(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_list_resources_with_search(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -214,30 +209,28 @@ async def test_list_resources_with_search(cache_with_pages):
         ],
     )
 
-    # Search for "billing"
-    resources = await cache.list_resources(search="billing")
+    result = await cache.list_resources(search="billing")
 
-    assert len(resources) == 2
-    searched_texts = [f"{resource['name']} {resource['uri']}".lower() for resource in resources]
+    assert len(result) == 2
+    searched_texts = [f"{resource['name']} {resource['uri']}".lower() for resource in result]
     assert all("billing" in text for text in searched_texts)
 
 
-async def test_list_resources_with_limit(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_list_resources_with_limit(cache_factory):
+    cache = await cache_factory(
         [
             {"id": f"page{index}", "title": f"Page {index}", "path": f"section/page-{index}"}
             for index in range(10)
         ],
     )
 
-    # Limit to 5 results
-    resources = await cache.list_resources(limit=5)
+    result = await cache.list_resources(limit=5)
 
-    assert len(resources) == 5
+    assert len(result) == 5
 
 
-async def test_list_resources_combined_filters(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_list_resources_combined_filters(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -257,15 +250,14 @@ async def test_list_resources_combined_filters(cache_with_pages):
         ],
     )
 
-    # Filter by section AND search for "billing"
-    resources = await cache.list_resources(section="developer-resources", search="billing")
+    result = await cache.list_resources(section="developer-resources", search="billing")
 
-    assert len(resources) == 1
-    assert resources[0]["name"] == "Billing API"
+    assert len(result) == 1
+    assert result[0]["name"] == "Billing API"
 
 
-async def test_list_resources_with_public_url(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_list_resources_with_public_url(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -277,9 +269,9 @@ async def test_list_resources_with_public_url(cache_with_pages):
         public_url="https://docs.example.com",
     )
 
-    resources = await cache.list_resources()
+    result = await cache.list_resources()
 
-    browser_urls = {resource["uri"]: resource["metadata"]["browser_url"] for resource in resources}
+    browser_urls = {resource["uri"]: resource["metadata"]["browser_url"] for resource in result}
     assert browser_urls == {
         "docs://help-and-support/contact-support": (
             "https://docs.example.com/help-and-support/contact-support"
@@ -288,8 +280,8 @@ async def test_list_resources_with_public_url(cache_with_pages):
     }
 
 
-async def test_get_documentation_index(cache_with_pages):
-    cache = await cache_with_pages(
+async def test_get_documentation_index(cache_factory):
+    cache = await cache_factory(
         [
             {
                 "id": "page1",
@@ -306,47 +298,39 @@ async def test_get_documentation_index(cache_with_pages):
         ],
     )
 
-    index = await cache.get_documentation_index()
+    result = await cache.get_documentation_index()
 
-    assert index["total_pages"] == 4
-    assert len(index["sections"]) == 2
-
-    # Check developer-resources section
-    dev_section = next(
-        section for section in index["sections"] if section["name"] == "developer-resources"
-    )
-    assert dev_section["total_pages"] == 2
-    assert len(dev_section["subsections"]) == 1
-    assert dev_section["subsections"][0]["name"] == "rest-api"
-    assert dev_section["subsections"][0]["pages"] == 2
-
-    # Check help-and-support section
-    help_section = next(
-        section for section in index["sections"] if section["name"] == "help-and-support"
-    )
-    assert help_section["total_pages"] == 2
-    assert len(help_section["subsections"]) == 2
+    assert result["total_pages"] == 4
+    assert {
+        section["name"]: (
+            section["total_pages"],
+            {subsection["name"]: subsection["pages"] for subsection in section["subsections"]},
+        )
+        for section in result["sections"]
+    } == {
+        "developer-resources": (2, {"rest-api": 2}),
+        "help-and-support": (2, {"faqs": 1, "contact-support": 1}),
+    }
 
 
 async def test_get_resource_success(cache):
     await cache.refresh()
 
-    page_content = await cache.get_resource("docs://getting-started")
+    result = await cache.get_resource("docs://getting-started")
 
-    assert page_content is not None
-    assert "Getting Started" in page_content
+    assert result is not None
+    assert "Getting Started" in result
 
 
 async def test_get_resource_not_found(cache):
     await cache.refresh()
 
-    page_content = await cache.get_resource("docs://non-existent")
+    result = await cache.get_resource("docs://non-existent")
 
-    assert page_content is None
+    assert result is None
 
 
 async def test_ensure_cached_refreshes_if_needed(cache, mock_gitbook_client):
-
     await cache.ensure_cached()  # act
 
     assert cache.get_cache_info()["has_content"] is True
@@ -354,7 +338,6 @@ async def test_ensure_cached_refreshes_if_needed(cache, mock_gitbook_client):
 
 
 def test_get_cache_info(cache):
-
     result = cache.get_cache_info()
 
     assert result["enabled"] is True
@@ -407,7 +390,6 @@ async def test_get_resource_without_markdown(cache, mock_gitbook_client):
             },
         ]
     }
-
     mock_gitbook_client.fetch_page_by_id.return_value = {"id": "page1", "document": document}
     await cache.refresh()
 

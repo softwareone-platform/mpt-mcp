@@ -8,20 +8,44 @@ import pytest
 from mpt_mcp.api_client import APIClient, normalize_endpoint_url
 
 API_BASE_URL = "https://api.example.com"
-
 PAGE_SIZE = 5
-
 PRODUCTS_ENDPOINT = "/public/v1/catalog/products"
-
 PRODUCTS_URL = f"https://api.test.com{PRODUCTS_ENDPOINT}"
-
 ORDERS_ENDPOINT = "/public/v1/commerce/orders"
-
 REAL_IDT_TOKEN = (
     "idt:TKN-0291-1452:4l6Fq7jrGSfZVjDYHabJkxTuv4nynuj5f8qVTbbHJS5rFXpetnvRYfvwiaRjGzrF"
 )
-
 TIMEOUT = 30.0
+
+
+@pytest.fixture
+def http_get():
+    response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
+    response.json.return_value = {"data": []}
+    with patch("httpx.AsyncClient") as mock_client:
+        get = AsyncMock(return_value=response)
+        mock_client.return_value.__aenter__.return_value.get = get
+        yield get
+
+
+@pytest.fixture
+def api_client():
+    return APIClient(base_url="https://api.test.com", token="test_token", timeout=TIMEOUT)
+
+
+@pytest.fixture
+def products_response():
+    return {
+        "data": [
+            {
+                "id": "prod-123",
+                "name": "Microsoft Office 365",
+                "status": "Published",
+                "description": "Office suite",
+            }
+        ],
+        "$meta": {"pagination": {"total": 100, "limit": 1, "offset": 0}},
+    }
 
 
 @pytest.mark.parametrize(
@@ -132,36 +156,6 @@ def test_real_world_token_example():
     )
 
 
-@pytest.fixture
-def http_get():
-    response = Mock()
-    response.json.return_value = {"data": []}
-    with patch("httpx.AsyncClient") as mock_client:
-        get = AsyncMock(return_value=response)
-        mock_client.return_value.__aenter__.return_value.get = get
-        yield get
-
-
-@pytest.fixture
-def api_client():
-    return APIClient(base_url="https://api.test.com", token="test_token", timeout=TIMEOUT)
-
-
-@pytest.fixture
-def products_response():
-    return {
-        "data": [
-            {
-                "id": "prod-123",
-                "name": "Microsoft Office 365",
-                "status": "Published",
-                "description": "Office suite",
-            }
-        ],
-        "$meta": {"pagination": {"total": 100, "limit": 1, "offset": 0}},
-    }
-
-
 @pytest.mark.parametrize(
     ("token", "expected_authorization"),
     [
@@ -248,9 +242,9 @@ async def test_get_paginates_with_offset(api_client, http_get):
     ],
 )
 async def test_get_raises_http_errors(api_client, http_get, status):
-    error_response = Mock(status_code=status, text=status.phrase)
+    error_response = Mock(spec=httpx.Response, status_code=status, text=status.phrase)
     http_get.side_effect = httpx.HTTPStatusError(
-        f"{status.value} {status.phrase}", request=Mock(), response=error_response
+        f"{status.value} {status.phrase}", request=Mock(spec=httpx.Request), response=error_response
     )
 
     with pytest.raises(httpx.HTTPStatusError) as exc_info:

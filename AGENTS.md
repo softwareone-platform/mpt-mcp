@@ -25,10 +25,9 @@ When applicable, read this repository in the following order:
 Then inspect the code paths relevant to the task:
 
 - [`mpt_mcp/runtime/`](mpt_mcp/runtime): transport entry points (`runner.py` for HTTP, `stdio.py`), HTTP app and health check, migrations, request log context and logging setup
-- [`mpt_mcp/server_tools.py`](mpt_mcp/server_tools.py), [`mpt_mcp/server_resources.py`](mpt_mcp/server_resources.py) and [`mpt_mcp/server_prompts.py`](mpt_mcp/server_prompts.py): tools, resources and prompts of both transports
+- [`mpt_mcp/tools/`](mpt_mcp/tools): the Marketplace tools with their logic (`query.py`, `resources.py`, `debug.py`), result size limits and errors (`results.py`), response models (`responses.py`) and annotations
+- [`mpt_mcp/server_resources.py`](mpt_mcp/server_resources.py) and [`mpt_mcp/server_prompts.py`](mpt_mcp/server_prompts.py): the OpenAPI resource and the prompts of both transports
 - [`mpt_mcp/mcp_server.py`](mpt_mcp/mcp_server.py): the MCP server both transports serve, with its middlewares and debug tool visibility
-- [`mpt_mcp/mcp_tools.py`](mpt_mcp/mcp_tools.py): tool logic shared by both transports (query, resources, schema)
-- [`mpt_mcp/tool_responses.py`](mpt_mcp/tool_responses.py): Pydantic response models, which give each tool its output schema
 - [`mpt_mcp/call_context.py`](mpt_mcp/call_context.py): per-request credentials injected with FastMCP dependencies
 - [`mpt_mcp/analytics/`](mpt_mcp/analytics): analytics middleware, lifespan, logger and table model
 - [`mpt_mcp/api_client.py`](mpt_mcp/api_client.py), [`mpt_mcp/token_validator.py`](mpt_mcp/token_validator.py), [`mpt_mcp/endpoint_registry.py`](mpt_mcp/endpoint_registry.py): Marketplace API access, token validation and OpenAPI-based endpoint discovery

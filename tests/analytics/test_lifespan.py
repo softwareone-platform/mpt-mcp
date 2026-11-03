@@ -3,10 +3,11 @@ from unittest.mock import AsyncMock, patch
 from fastmcp import FastMCP
 
 from mpt_mcp.analytics.lifespan import analytics_lifespan
+from mpt_mcp.analytics.logger import AnalyticsLogger
 
 
 async def test_lifespan_closes_logger_on_shutdown():
-    analytics_logger = AsyncMock(enabled=True)
+    analytics_logger = AsyncMock(spec=AnalyticsLogger, enabled=True)
     server = FastMCP("test")
 
     with patch(

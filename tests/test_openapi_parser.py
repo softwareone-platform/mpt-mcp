@@ -3,11 +3,8 @@ import pytest
 from mpt_mcp.openapi_parser import OpenAPIParser
 
 ORDERS_PATH = "/public/v1/commerce/orders"
-
 PRODUCTS_PATH = "/public/v1/catalog/products"
-
 TOKENS_PATH = "/public/v1/accounts/api-tokens"
-
 SCHEMA_PROPERTY_LIMIT = 10
 
 
