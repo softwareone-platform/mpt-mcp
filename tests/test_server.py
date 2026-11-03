@@ -8,7 +8,10 @@ from mpt_mcp.documentation import lifespan
 from mpt_mcp.documentation.server import DOCUMENTATION_CACHE_UNAVAILABLE_MSG
 from mpt_mcp.server import create_mcp_server
 
-DEBUG_TOOLS = {"marketplace_cache_info", "marketplace_refresh_cache", "marketplace_resources_info"}
+
+@pytest.fixture
+def debug_tools():
+    return {"marketplace_cache_info", "marketplace_refresh_cache", "marketplace_resources_info"}
 
 
 @pytest.fixture
@@ -47,10 +50,10 @@ async def test_debug_tools_not_callable_without_debug(production_server):
     assert result.is_error
 
 
-async def test_debug_tools_listed_with_debug(debug_server):
+async def test_debug_tools_listed_with_debug(debug_server, debug_tools):
     result = {tool.name for tool in await debug_server.list_tools()}
 
-    assert result >= DEBUG_TOOLS
+    assert result >= debug_tools
 
 
 async def test_every_tool_has_a_description(debug_server):

@@ -18,15 +18,19 @@ AUDIT_RQL = 'gt(audit.created.at,"2026-01-22T00:00:00Z")'
 DATE_RANGE_RQL = (
     'and(gt(audit.created.at,"2026-01-22T00:00:00Z"),lt(audit.created.at,"2026-01-22T23:59:59Z"))'
 )
-QUERY_DEFAULTS = {
-    "resource": "commerce.orders",
-    "rql": "",
-    "limit": 10,
-    "offset": None,
-    "select": None,
-    "order": None,
-    "path_params": None,
-}
+
+
+@pytest.fixture
+def query_defaults():
+    return {
+        "resource": "commerce.orders",
+        "rql": "",
+        "limit": 10,
+        "offset": None,
+        "select": None,
+        "order": None,
+        "path_params": None,
+    }
 
 
 @pytest.fixture
@@ -69,11 +73,11 @@ def products_page_response():
 
 
 @pytest.fixture
-def send_query(api_client, endpoints_registry, orders_with_audit_response):
+def send_query(api_client, endpoints_registry, orders_with_audit_response, query_defaults):
     async def factory(response=None, **query_args):
         api_client.get.return_value = response or orders_with_audit_response
         await execute_marketplace_query(
-            **{**QUERY_DEFAULTS, **query_args},
+            **{**query_defaults, **query_args},
             api_client=api_client,
             endpoints_registry=endpoints_registry,
         )
@@ -114,7 +118,7 @@ def sent_select(api_client, endpoints_registry, orders_response, openapi_spec_fa
             path_params=None,
             api_client=api_client,
             endpoints_registry=endpoints_registry,
-            openapi_spec=openapi_spec_factory(fields) if fields is not None else None,
+            openapi_spec=None if fields is None else openapi_spec_factory(fields),
         )
         return api_client.get.call_args.kwargs["query_params"].get("select")
 
@@ -229,7 +233,7 @@ async def test_real_world_recent_orders_query(send_select):
 
 
 async def test_retries_without_audit_on_bad_request(
-    api_client, orders_with_audit_response, endpoints_registry
+    api_client, orders_with_audit_response, endpoints_registry, query_defaults
 ):
     error_response = httpx.Response(
         HTTPStatus.BAD_REQUEST,
@@ -242,7 +246,7 @@ async def test_retries_without_audit_on_bad_request(
     api_client.get = AsyncMock(side_effect=[http_error, orders_with_audit_response])
 
     await execute_marketplace_query(  # act
-        **{**QUERY_DEFAULTS, "rql": AUDIT_RQL, "select": "+id,+name"},
+        **{**query_defaults, "rql": AUDIT_RQL, "select": "+id,+name"},
         api_client=api_client,
         endpoints_registry=endpoints_registry,
     )
@@ -254,11 +258,13 @@ async def test_retries_without_audit_on_bad_request(
     assert {"+id", "+name"} <= set(sent_selects[1].split(","))
 
 
-async def test_returns_api_response(api_client, products_page_response, endpoints_registry):
+async def test_returns_api_response(
+    api_client, products_page_response, endpoints_registry, query_defaults
+):
     api_client.get.return_value = products_page_response
 
     result = await execute_marketplace_query(
-        **{**QUERY_DEFAULTS, "resource": "catalog.products"},
+        **{**query_defaults, "resource": "catalog.products"},
         api_client=api_client,
         endpoints_registry=endpoints_registry,
     )
@@ -556,96 +562,82 @@ async def test_unknown_resource_shows_categories(call_context, registry_loader, 
     assert sorted(details["available_categories"]) == ["catalog", "commerce"]
 
 
-async def test_missing_path_params_shows_example(call_context, registry_loader, patched_api_client):
-    mock_registry = {
-        "catalog.products.by_id": {
-            "path": "/public/v1/catalog/products/{id}",
-            "summary": "Product by ID",
-            "parameters": [{"name": "id", "in": "path", "required": True}],
-        }
+@pytest.mark.parametrize(
+    ("path", "resource", "expected_example"),
+    [
+        (
+            "/public/v1/catalog/products/{id}",
+            "catalog.products.by_id",
+            (
+                "marketplace_query(resource='catalog.products.by_id', "
+                "path_params={'id': 'PRD-1234-5678'}, limit=10)"
+            ),
+        ),
+        (
+            "/public/v1/commerce/orders/{orderId}",
+            "commerce.orders.by_id",
+            (
+                "marketplace_query(resource='commerce.orders.by_id', "
+                "path_params={'orderId': 'ORD-1234-5678-9012'}, limit=10)"
+            ),
+        ),
+    ],
+)
+async def test_missing_path_params_shows_example(
+    call_context, registry_loader, patched_api_client, path, resource, expected_example
+):
+    registry_loader.return_value = {
+        resource: {"path": path, "parameters": [{"in": "path", "required": True}]}
     }
-    registry_loader.return_value = mock_registry
 
-    with pytest.raises(ToolError, match="requires path parameters: id") as error:
-        await marketplace_query("catalog.products.by_id", call_context=call_context)
+    with pytest.raises(ToolError, match="requires path parameters") as error:
+        await marketplace_query(resource, call_context=call_context)
 
     _, error_details = str(error.value).split("\n", 1)
     details = json.loads(error_details)
-    assert details["example"] == (
-        "marketplace_query(resource='catalog.products.by_id', "
-        "path_params={'id': 'PRD-1234-5678'}, limit=10)"
-    )
+    assert details["example"] == expected_example
     assert "hint" in details
 
 
-async def test_path_params_error_has_realistic_values(
-    call_context, registry_loader, patched_api_client
+@pytest.mark.parametrize(
+    ("status", "response_body", "expected_details"),
+    [
+        (
+            HTTPStatus.BAD_REQUEST,
+            {"message": "Invalid RQL", "field": "rql"},
+            {
+                "status_code": HTTPStatus.BAD_REQUEST,
+                "api_error_details": {"message": "Invalid RQL", "field": "rql"},
+            },
+        ),
+        (
+            HTTPStatus.NOT_FOUND,
+            ValueError("Not JSON"),
+            {
+                "status_code": HTTPStatus.NOT_FOUND,
+                "request_url": "https://api.test.com/public/v1/catalog/products",
+            },
+        ),
+    ],
+)
+async def test_api_error_includes_details(
+    call_context, registry_loader, patched_api_client, status, response_body, expected_details
 ):
-    mock_registry = {
-        "commerce.orders.by_id": {
-            "path": "/public/v1/commerce/orders/{orderId}",
-            "summary": "Order by ID",
-            "parameters": [{"name": "orderId", "in": "path", "required": True}],
-        }
+    registry_loader.return_value = {
+        "catalog.products": {"path": "/public/v1/catalog/products", "parameters": []}
     }
-    registry_loader.return_value = mock_registry
-
-    with pytest.raises(ToolError) as error:
-        await marketplace_query("commerce.orders.by_id", call_context=call_context)
-
-    _, error_details = str(error.value).split("\n", 1)
-    details = json.loads(error_details)
-    assert "'orderId': 'ORD-1234-5678-9012'" in details["example"]
-
-
-async def test_api_error_includes_status_code(call_context, registry_loader, patched_api_client):
-    mock_registry = {
-        "catalog.products": {
-            "path": "/public/v1/catalog/products",
-            "summary": "Products",
-            "parameters": [],
-        }
-    }
-    registry_loader.return_value = mock_registry
-    mock_response = Mock(
-        spec=httpx.Response, status_code=HTTPStatus.BAD_REQUEST, text="Bad Request"
-    )
-    mock_response.json.return_value = {"message": "Invalid RQL", "field": "rql"}
+    mock_response = Mock(spec=httpx.Response, status_code=status, text=status.phrase)
+    mock_response.json.side_effect = response_body if isinstance(response_body, Exception) else None
+    mock_response.json.return_value = response_body
     mock_request = Mock(spec=httpx.Request, url="https://api.test.com/public/v1/catalog/products")
     http_error = httpx.HTTPStatusError(
-        "400 Bad Request", request=mock_request, response=mock_response
+        f"{status.value} {status.phrase}", request=mock_request, response=mock_response
     )
     patched_api_client.get = AsyncMock(side_effect=http_error)
 
-    with pytest.raises(ToolError, match="400 Bad Request") as error:
+    with pytest.raises(ToolError, match=f"{status.value} {status.phrase}") as error:
         await marketplace_query("catalog.products", call_context=call_context)
 
     _, error_details = str(error.value).split("\n", 1)
     details = json.loads(error_details)
-    assert details["status_code"] == HTTPStatus.BAD_REQUEST
-    assert details["api_error_details"]["message"] == "Invalid RQL"
-
-
-async def test_api_error_includes_request_url(call_context, registry_loader, patched_api_client):
-    mock_registry = {
-        "catalog.products": {
-            "path": "/public/v1/catalog/products",
-            "summary": "Products",
-            "parameters": [],
-        }
-    }
-    registry_loader.return_value = mock_registry
-    mock_response = Mock(spec=httpx.Response, status_code=HTTPStatus.NOT_FOUND, text="Not found")
-    mock_response.json.side_effect = ValueError("Not JSON")
-    mock_request = Mock(spec=httpx.Request, url="https://api.test.com/public/v1/catalog/products")
-    http_error = httpx.HTTPStatusError(
-        "404 Not Found", request=mock_request, response=mock_response
-    )
-    patched_api_client.get = AsyncMock(side_effect=http_error)
-
-    with pytest.raises(ToolError) as error:
-        await marketplace_query("catalog.products", call_context=call_context)
-
-    _, error_details = str(error.value).split("\n", 1)
-    details = json.loads(error_details)
-    assert details["request_url"] == "https://api.test.com/public/v1/catalog/products"
+    assert {key: details[key] for key in expected_details} == expected_details

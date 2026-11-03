@@ -6,16 +6,19 @@ from starlette.testclient import TestClient
 from mpt_mcp.runtime.http import create_http_app
 from mpt_mcp.server import create_mcp_server
 
-INITIALIZE_REQUEST = {
-    "jsonrpc": "2.0",
-    "id": 0,
-    "method": "initialize",
-    "params": {
-        "protocolVersion": "2024-11-05",
-        "capabilities": {},
-        "clientInfo": {"name": "test", "version": "1.0"},
-    },
-}
+
+@pytest.fixture
+def initialize_request():
+    return {
+        "jsonrpc": "2.0",
+        "id": 0,
+        "method": "initialize",
+        "params": {
+            "protocolVersion": "2024-11-05",
+            "capabilities": {},
+            "clientInfo": {"name": "test", "version": "1.0"},
+        },
+    }
 
 
 @pytest.fixture
@@ -51,9 +54,9 @@ def test_unknown_path_returns_mcp_hint(http_client, method, path):
 
 
 @pytest.mark.parametrize("path", ["/mcp/", "/"])
-def test_post_is_rewritten_to_mcp_endpoint(http_client, path):
+def test_post_is_rewritten_to_mcp_endpoint(http_client, initialize_request, path):
     result = http_client.post(
-        path, json=INITIALIZE_REQUEST, headers={"Accept": "application/json, text/event-stream"}
+        path, json=initialize_request, headers={"Accept": "application/json, text/event-stream"}
     )
 
     assert result.status_code != HTTPStatus.NOT_FOUND

@@ -1,3 +1,4 @@
+from functools import partial
 from unittest.mock import AsyncMock, Mock
 
 import pytest
@@ -41,12 +42,11 @@ def docs_cache_factory(monkeypatch):
             "enabled": True,
         }
 
-        def install_cache():
-            lifespan.documentation_cache = cache
-
         monkeypatch.setattr(lifespan, "documentation_cache", None)
         monkeypatch.setattr(
-            lifespan, "initialize_documentation_cache", AsyncMock(side_effect=install_cache)
+            lifespan,
+            "initialize_documentation_cache",
+            AsyncMock(side_effect=partial(setattr, lifespan, "documentation_cache", cache)),
         )
         return cache
 

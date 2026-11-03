@@ -2,7 +2,8 @@ import re
 
 import pytest
 
-from mpt_mcp.marketplace.audit_fields import (
+# The tests cover most of the module's functions, so they import them by name
+from mpt_mcp.marketplace.audit_fields import (  # noqa: WPS235
     FALLBACK_STATIC_REGEX,
     build_audit_regex,
     collect_audit_events_and_paths_from_props,
@@ -90,7 +91,8 @@ def audit_spec():
 
 @pytest.fixture
 def cache_key(request):
-    return f"https://{request.node.name}.example.com"
+    test_name = request.node.name
+    return f"https://{test_name}.example.com"
 
 
 @pytest.mark.parametrize(

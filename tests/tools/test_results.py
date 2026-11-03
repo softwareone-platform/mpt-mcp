@@ -98,9 +98,11 @@ def test_fit_result_cuts_long_page(big_page_factory):
     assert 0 < returned < 100
     assert len(json.dumps(result)) <= CHARACTER_LIMIT
     assert result["data"] == page["data"][:returned]
-    assert result["$meta"]["pagination"] == page["$meta"]["pagination"]
-    assert result["$meta"]["truncated"]["suggested_limit"] == returned
-    assert result["$meta"]["truncated"]["requested"] == 100
+    assert (
+        result["$meta"]["pagination"],
+        result["$meta"]["truncated"]["suggested_limit"],
+        result["$meta"]["truncated"]["requested"],
+    ) == (page["$meta"]["pagination"], returned, 100)
 
 
 def test_fit_result_ignores_single_item():

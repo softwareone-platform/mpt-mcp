@@ -1,7 +1,7 @@
-from contextlib import asynccontextmanager
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
+from sqlalchemy.ext.asyncio import AsyncEngine
 
 from mpt_mcp.analytics.logger import AnalyticsLogger
 
@@ -13,12 +13,10 @@ def connection():
 
 @pytest.fixture
 def analytics_logger(connection):
-    @asynccontextmanager
-    async def begin():
-        yield connection
-
+    transaction = AsyncMock()
+    transaction.__aenter__.return_value = connection
     analytics_logger = AnalyticsLogger(database_url="postgresql+asyncpg://user:pass@localhost/db")
-    analytics_logger.engine = Mock(begin=begin)
+    analytics_logger.engine = Mock(spec=AsyncEngine, begin=Mock(return_value=transaction))
     return analytics_logger
 
 
