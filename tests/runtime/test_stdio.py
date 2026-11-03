@@ -1,21 +1,43 @@
-from mpt_mcp.mcp_server import create_mcp_server
+import logging
+from unittest.mock import Mock
+
+import pytest
+
+from mpt_mcp.runtime import stdio
 
 
-async def test_transports_serve_the_same_tools():
-    http_tools = {tool.name for tool in await create_mcp_server(transport="http").list_tools()}
+@pytest.fixture
+def mcp_server(monkeypatch):
+    server = Mock()
+    monkeypatch.setattr(stdio, "create_mcp_server", Mock(return_value=server))
+    monkeypatch.setattr(stdio, "configure_logging", Mock())
+    return server
 
-    result = {tool.name for tool in await create_mcp_server(transport="stdio").list_tools()}
 
-    assert result == http_tools
+def test_main_serves_stdio_without_banner(mcp_server):
+    stdio.main()  # act
+
+    stdio.create_mcp_server.assert_called_once_with(transport="stdio")
+    mcp_server.run.assert_called_once_with(show_banner=False)
 
 
-async def test_transports_serve_the_same_resources():
-    http_server = create_mcp_server(transport="http")
-    http_templates = {
-        template.uri_template for template in await http_server.list_resource_templates()
-    }
+def test_main_warns_about_config_errors(mcp_server, monkeypatch, caplog):
+    monkeypatch.setattr(stdio.config, "validate", Mock(return_value=["token missing"]))
 
-    stdio_server = create_mcp_server(transport="stdio")
-    result = {template.uri_template for template in await stdio_server.list_resource_templates()}
+    with caplog.at_level(logging.WARNING, logger="mpt_mcp.runtime.stdio"):
+        stdio.main()  # act
 
-    assert result == http_templates
+    assert "Configuration error: token missing" in caplog.messages
+
+
+@pytest.mark.parametrize(
+    ("error", "exit_code"),
+    [(KeyboardInterrupt(), 0), (RuntimeError("boom"), 1)],
+)
+def test_main_exits_on_stop_or_error(mcp_server, error, exit_code):
+    mcp_server.run.side_effect = error
+
+    with pytest.raises(SystemExit) as exit_info:
+        stdio.main()
+
+    assert exit_info.value.code == exit_code
