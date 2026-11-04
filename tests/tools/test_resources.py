@@ -230,7 +230,7 @@ def test_resource_schema_resolves_field_refs(endpoints_registry):
     assert result["filtering_hints"]["simple_filters"] == ["eq(id,value)"]
 
 
-async def test_resource_info_shows_children(call_context, registry_loader, patched_api_client):
+def test_resource_info_shows_children(spec_factory):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -248,10 +248,9 @@ async def test_resource_info_shows_children(call_context, registry_loader, patch
             "parameters": [],
         },
     }
-    registry_loader.return_value = mock_registry
 
     result = (
-        await marketplace_resource_info("catalog.products", call_context=call_context)
+        marketplace_resource_info("catalog.products", spec=spec_factory(registry=mock_registry))
     ).model_dump()
 
     assert "related_resources" in result
@@ -260,7 +259,7 @@ async def test_resource_info_shows_children(call_context, registry_loader, patch
     assert "catalog.products.by_id" in child_resources
 
 
-async def test_resource_info_shows_parent(call_context, registry_loader, patched_api_client):
+def test_resource_info_shows_parent(spec_factory):
     mock_registry = {
         "catalog.products": {
             "path": "/public/v1/catalog/products",
@@ -273,10 +272,11 @@ async def test_resource_info_shows_parent(call_context, registry_loader, patched
             "parameters": [],
         },
     }
-    registry_loader.return_value = mock_registry
 
     result = (
-        await marketplace_resource_info("catalog.products.by_id", call_context=call_context)
+        marketplace_resource_info(
+            "catalog.products.by_id", spec=spec_factory(registry=mock_registry)
+        )
     ).model_dump()
 
     assert "related_resources" in result
@@ -284,8 +284,8 @@ async def test_resource_info_shows_parent(call_context, registry_loader, patched
     assert result["related_resources"]["parent"]["resource"] == "catalog.products"
 
 
-async def test_resource_info_shows_multiple_examples(
-    call_context, registry_loader, patched_api_client
+def test_resource_info_shows_multiple_examples(
+    spec_factory,
 ):
     mock_registry = {
         "commerce.orders": {
@@ -300,10 +300,9 @@ async def test_resource_info_shows_multiple_examples(
             ],
         }
     }
-    registry_loader.return_value = mock_registry
 
     result = (
-        await marketplace_resource_info("commerce.orders", call_context=call_context)
+        marketplace_resource_info("commerce.orders", spec=spec_factory(registry=mock_registry))
     ).model_dump()
 
     assert "example_queries" in result
@@ -312,8 +311,8 @@ async def test_resource_info_shows_multiple_examples(
     assert "Active" in example_strings or "Completed" in example_strings
 
 
-async def test_resource_info_shows_filtering_tips(
-    call_context, registry_loader, patched_api_client
+def test_resource_info_shows_filtering_tips(
+    spec_factory,
 ):
     mock_registry = {
         "commerce.orders": {
@@ -324,10 +323,9 @@ async def test_resource_info_shows_filtering_tips(
             ],
         }
     }
-    registry_loader.return_value = mock_registry
 
     result = (
-        await marketplace_resource_info("commerce.orders", call_context=call_context)
+        marketplace_resource_info("commerce.orders", spec=spec_factory(registry=mock_registry))
     ).model_dump()
 
     assert "filtering_tips" in result

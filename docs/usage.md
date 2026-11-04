@@ -74,7 +74,7 @@ marketplace_query(resource="catalog.products.by_id", path_params={"id": "PRD-123
 
 Query behaviour:
 
-- `limit` defaults to 10 and is capped at 100; use `offset` to paginate. When the API gives the total, `$meta.pagination` adds `has_more` and the `next_offset` of the next page, which also continues a page cut to fit the result size. `$meta.pagination.returned` gives the items of the page. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
+- `limit` defaults to 10 and goes from 0 to 100: a larger `limit` or a negative `offset` fails validation; use `offset` to paginate. When the API gives the total, `$meta.pagination` adds `has_more` and the `next_offset` of the next page, which also continues a page cut to fit the result size. `$meta.pagination.returned` gives the items of the page. Resources that return a single item (`*.by_id`) take no `limit` or `offset`.
 - A page longer than 25,000 characters is cut to the items that fit, so it does not fill the model's context or go over the tool result limit of clients that have one. `$meta.truncated` gives the items the API returned and a `suggested_limit` that fits with the same `select`, to fetch the next pages in parallel; `$meta.pagination.next_offset` continues the cut page. A page whose first item alone is longer fails and asks for a narrower `select`.
 - Each item comes with the resource's default fields. `select` starting with `-*` returns only the listed fields (`-*,+id,+product.name`); without it, `+field` adds a field omitted by default (listed in `$meta.omitted`) and `-field` removes one. `id`, `status` and `name` are always kept when the resource has them.
 - `catalog.products` returns only `id`, `status`, `name` and `shortDescription` when no `select` is given.

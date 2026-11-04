@@ -1,25 +1,32 @@
 import logging
 
-from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
+from fastmcp.server.providers import LocalProvider
 
-from mpt_mcp.auth.call_context import CallContext, get_call_context
 from mpt_mcp.auth.token_validator import get_token_cache
 from mpt_mcp.documentation import lifespan as documentation
-from mpt_mcp.marketplace import endpoint_registry
+from mpt_mcp.marketplace.api_client import APIClient
+from mpt_mcp.marketplace.endpoint_registry import (
+    OpenAPISpecFetchError,
+    get_cache_manager,
+    get_endpoints_registry,
+)
 from mpt_mcp.tools.annotations import READ_ONLY_LOCAL, REFRESHES_CACHE
+from mpt_mcp.tools.dependencies import get_api_client
 from mpt_mcp.tools.responses import (
     CacheInfoResponse,
     RefreshCacheResponse,
     ResourcesInfoResponse,
 )
-from mpt_mcp.tools.results import AUTH_HEADER_HINT, OPENAPI_SPEC_LOAD_ERROR, tool_error
+from mpt_mcp.tools.results import OPENAPI_SPEC_LOAD_ERROR, tool_error
 
 logger = logging.getLogger(__name__)
+debug_tools = LocalProvider()
 
 DEBUG_TAG = "debug"
 
 
+@debug_tools.tool(title="OpenAPI spec cache state", tags={DEBUG_TAG}, annotations=READ_ONLY_LOCAL)
 def marketplace_cache_info() -> CacheInfoResponse:
     """
     Get information about the OpenAPI spec cache.
@@ -31,15 +38,17 @@ def marketplace_cache_info() -> CacheInfoResponse:
     """
     return CacheInfoResponse.model_validate({
         "cache_status": "enabled",
-        "cache_info": endpoint_registry.get_cache_manager().get_cache_info(),
+        "cache_info": get_cache_manager().get_cache_info(),
         "note": "Cache reduces startup time and allows offline operation. Cache is automatically "
         "refreshed every 24 hours.",
     })
 
 
+@debug_tools.tool(
+    title="Refresh the OpenAPI spec cache", tags={DEBUG_TAG}, annotations=REFRESHES_CACHE
+)
 async def marketplace_refresh_cache(
-    # FastMCP injects the caller's credentials as a Depends(...) default
-    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    api_client: APIClient = Depends(get_api_client),  # noqa: WPS404
 ) -> RefreshCacheResponse:
     """
     Force refresh the OpenAPI spec cache of your endpoint.
@@ -48,20 +57,18 @@ async def marketplace_refresh_cache(
 
     Use this to manually update the endpoint registry if you know the API has changed.
 
+    Args:
+        api_client: Caller's API client, injected by FastMCP (not a tool argument)
+
     Returns:
         Status message indicating cache refresh result
     """
-    try:
-        api_client = await call_context.create_api_client()
-    except ValueError as error:
-        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
-
     logger.info("Force refreshing OpenAPI spec cache...")
     try:
-        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(
+        endpoints_registry_data = await get_endpoints_registry(
             api_client.base_url, force_refresh=True
         )
-    except Exception as error:
+    except OpenAPISpecFetchError as error:
         raise tool_error(
             OPENAPI_SPEC_LOAD_ERROR,
             details=str(error),
@@ -75,6 +82,9 @@ async def marketplace_refresh_cache(
     )
 
 
+@debug_tools.tool(
+    title="Documentation and token cache state", tags={DEBUG_TAG}, annotations=READ_ONLY_LOCAL
+)
 def marketplace_resources_info() -> ResourcesInfoResponse:
     """
     Get the state of the documentation and token validation caches.
@@ -107,13 +117,3 @@ def marketplace_resources_info() -> ResourcesInfoResponse:
         result["token_validation"] = {"enabled": False, "error": str(e_inner)}
 
     return ResourcesInfoResponse.model_validate(result)
-
-
-def register_debug_tools(mcp: FastMCP) -> None:
-    """Register the debug tools, tagged DEBUG_TAG so they only show with DEBUG=true."""
-    for tool, title, annotations in (
-        (marketplace_cache_info, "OpenAPI spec cache state", READ_ONLY_LOCAL),
-        (marketplace_refresh_cache, "Refresh the OpenAPI spec cache", REFRESHES_CACHE),
-        (marketplace_resources_info, "Documentation and token cache state", READ_ONLY_LOCAL),
-    ):
-        mcp.tool(title=title, tags={DEBUG_TAG}, annotations=annotations)(tool)

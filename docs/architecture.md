@@ -34,7 +34,7 @@ The [`runtime/`](../mpt_mcp/runtime) package starts the transports:
 3. FastMCP middlewares run for every MCP request, in this order:
    - `RequestContextMiddleware` ([`runtime/middleware.py`](../mpt_mcp/runtime/middleware.py)) sets the caller's user ID and the `session_id` query parameter as the log prefix, and logs caller activity (at most every 30 seconds per caller).
    - `AnalyticsMiddleware` ([`analytics/middleware.py`](../mpt_mcp/analytics/middleware.py)) sets the analytics context and records one event per tool call and per resource read.
-4. Tools and the OpenAPI resource receive a `CallContext` with `Depends(get_call_context)` ([`auth/call_context.py`](../mpt_mcp/auth/call_context.py)), built from the `X-MPT-*` headers. `CallContext.create_api_client()` validates the token and returns an `APIClient` for the caller's endpoint.
+4. Tools and the OpenAPI resource receive a `CallContext` with `Depends(get_call_context)` ([`auth/call_context.py`](../mpt_mcp/auth/call_context.py)), built from the `X-MPT-*` headers. `CallContext.create_api_client()` validates the token and returns an `APIClient` for the caller's endpoint. The Marketplace tools receive that client and the endpoint's OpenAPI spec through the dependencies of [`tools/dependencies.py`](../mpt_mcp/tools/dependencies.py) (`get_api_client`, `get_marketplace_spec`), which FastMCP resolves once per call. A spec that cannot be loaded raises `OpenAPISpecFetchError` in [`marketplace/endpoint_registry.py`](../mpt_mcp/marketplace/endpoint_registry.py), which the dependency turns into a tool error.
 
 The stdio server has no HTTP request: `get_call_context()` builds the `CallContext` from `MARKETPLACE_API_BASE_URL` and `MARKETPLACE_API_TOKEN`, and the tools run the same way.
 
@@ -62,7 +62,7 @@ Every tool declares a `title` and MCP annotations: all are read-only (`readOnlyH
 | [`marketplace/openapi_parser.py`](../mpt_mcp/marketplace/openapi_parser.py) | Extracts the GET endpoints of an OpenAPI spec |
 | [`marketplace/audit_fields.py`](../mpt_mcp/marketplace/audit_fields.py) | Detects audit fields per resource so queries that filter or sort by them add those fields to `select` (`+audit.created.at`) |
 | [`server.py`](../mpt_mcp/server.py) | Creates the server for a transport: instructions, middlewares, documentation and analytics lifespans (HTTP), tools, resources, prompts and debug tool visibility |
-| [`tools/`](../mpt_mcp/tools) | The Marketplace tools, each module with its tool functions, their logic and a `register_*_tools()` function: `query.py` (`marketplace_query`: select sanitization, audit fields, path parameters, retries), `resources.py` (resource list, info, schema and audit events), `debug.py` (the `DEBUG_TAG` tools); `results.py` holds the result size limit, pagination position and `tool_error()`, `responses.py` one Pydantic response model per tool, from which FastMCP builds its output schema, and `annotations.py` the MCP annotations every tool uses |
+| [`tools/`](../mpt_mcp/tools) | The Marketplace tools, registered on a FastMCP `LocalProvider` per module (`query_tools`, `resource_tools`, `debug_tools`) that `create_mcp_server()` adds with `mcp.add_provider()`: the `query/` package (`marketplace_query` in `tool.py`, its query parameters, select sanitization and audit fields in `params.py`, resource and path parameter lookup in `paths.py`, and the API request, retry, token redaction and analytics in `request.py`); `dependencies.py` (the API client and OpenAPI spec as FastMCP dependencies), `resources.py` (resource list, info, schema and audit events), `debug.py` (the `DEBUG_TAG` tools); `results.py` holds the result size limit, pagination position and `tool_error()`, `responses.py` one Pydantic response model per tool, from which FastMCP builds its output schema, and `annotations.py` the MCP annotations every tool uses |
 | [`resources.py`](../mpt_mcp/resources.py), [`prompts.py`](../mpt_mcp/prompts.py) | The OpenAPI resource and the prompts, and their registration |
 | [`documentation/`](../mpt_mcp/documentation) | Marketplace documentation: `server.py` is a FastMCP server with the `marketplace_docs_*` tools and the `docs://` resource, which `create_mcp_server()` mounts without a namespace, so their names do not change; `gitbook.py` and `cache.py` are the GitBook client and the cache, created once per process; `lifespan.py` loads the cache, and `documentation_lifespan` does it at HTTP startup |
 | [`runtime/`](../mpt_mcp/runtime) | Transport entry points, HTTP app, migrations, request log context and logging configuration (see [Transports](#transports)) |
@@ -85,7 +85,7 @@ Analytics is optional and only runs in the HTTP server when `ANALYTICS_DATABASE_
 
 - `analytics_lifespan` ([`analytics/lifespan.py`](../mpt_mcp/analytics/lifespan.py)) creates the logger inside the server's event loop and closes it on shutdown, which flushes pending events.
 - `AnalyticsLogger` ([`analytics/logger.py`](../mpt_mcp/analytics/logger.py)) buffers events and inserts them in batches (every 5 seconds or 50 events) into `mcp_events`.
-- Tool calls and resource reads are recorded by `AnalyticsMiddleware`; Marketplace API queries are recorded by `execute_marketplace_query` with their RQL, pagination and status code.
+- Tool calls and resource reads are recorded by `AnalyticsMiddleware`; Marketplace API queries are recorded by `MarketplaceRequest` ([`tools/query/request.py`](../mpt_mcp/tools/query/request.py)) with their RQL, pagination and status code.
 
 The schema is managed with Alembic, see [migrations.md](migrations.md).
 
@@ -97,14 +97,16 @@ The tools `marketplace_cache_info`, `marketplace_refresh_cache` and `marketplace
 
 - **Stateless HTTP**: no MCP sessions, so horizontal scaling and redeploys do not break clients. Per-process caches (OpenAPI specs, token validations, documentation) are rebuilt on demand.
 - **Credentials per request**: the HTTP server never stores client tokens; it validates the caller's token on each tool call (cached by a hash of token and endpoint).
-- **Dependency injection over context vars for credentials**: tools receive `CallContext` explicitly through `Depends`, which keeps them testable with a plain `CallContext(...)` argument.
+- **Dependency injection over context vars for credentials**: tools receive `CallContext`, the API client or the endpoint spec explicitly through `Depends`, which keeps them testable with plain arguments.
+- **A `LocalProvider` per tools module over `@mcp.tool`**: the server is created in a factory, so each module declares its tools on its own provider (`@resource_tools.tool(...)`) and the factory only adds the providers; no module needs a server instance at import time, and a new tool does not touch `server.py`.
 
 ## Design Rules
 
 Where new code goes and what each layer may do:
 
 - Both transports serve the server that [`mpt_mcp/server.py`](../mpt_mcp/server.py) creates: add Marketplace tools to the [`tools/`](../mpt_mcp/tools) module of their domain, with their logic, Marketplace resources and prompts to `resources.py` and `prompts.py`, and documentation ones to [`documentation/server.py`](../mpt_mcp/documentation/server.py), never to the [`runtime/`](../mpt_mcp/runtime) entry points, which only start the transports.
-- Tools must get the caller's credentials with `call_context: CallContext = Depends(get_call_context)`, not by reading request headers or `config`.
+- Tools must get the caller's credentials with `call_context: CallContext = Depends(get_call_context)`, or the API client and spec with `Depends(get_api_client)` and `Depends(get_marketplace_spec)`, not by reading request headers or `config`.
+- Tool arguments with a fixed range must declare it with `Annotated[..., Field(...)]`, so the input schema shows it and FastMCP rejects other values before the tool runs.
 - Cross-cutting request behaviour (log context, analytics) must live in FastMCP middlewares, not in tools.
 - Development-only tools must be tagged with `DEBUG_TAG`.
 - Tool docstrings are the descriptions MCP clients send to the model; treat changes to them as user-facing changes.

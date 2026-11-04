@@ -10,7 +10,6 @@ from mpt_mcp.marketplace import endpoint_registry
 
 
 async def get_openapi_spec(
-    # FastMCP injects the caller's credentials as a Depends(...) default
     call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> str:
     """

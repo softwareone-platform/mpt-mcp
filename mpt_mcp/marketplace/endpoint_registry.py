@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class OpenAPISpecFetchError(Exception):
-    """Raised when the OpenAPI spec cannot be fetched from primary or fallback URL."""
+    """Raised when the OpenAPI spec cannot be fetched or read, from the endpoint or the fallback."""
 
 
 # Keyed by API base URL, then by resource ID, holding each endpoint's info
@@ -66,7 +66,8 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
         OpenAPI specification dictionary
 
     Raises:
-        Exception: If both primary and fallback fetches fail
+        OpenAPISpecFetchError: The spec request failed (also from the fallback URL), timed out,
+            or its cache file or JSON could not be read
     """
     cache_mgr = get_cache_manager()
 
@@ -100,7 +101,10 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
             logger.info("Loaded OpenAPI spec from fallback")
             return spec
 
-        raise
+        raise OpenAPISpecFetchError(f"Failed to fetch OpenAPI spec from {openapi_url}") from error
+    except (OSError, ValueError) as error:
+        # Timeouts are OSError too; ValueError is a spec or cache file that is not valid JSON
+        raise OpenAPISpecFetchError(f"Failed to read OpenAPI spec from {openapi_url}") from error
 
     logger.info("Loaded OpenAPI spec from %s", api_base_url)
     return spec
@@ -139,7 +143,7 @@ async def get_endpoints_registry(
         Dictionary mapping resource IDs to endpoint information
 
     Raises:
-        Exception: The OpenAPI spec could not be fetched or parsed
+        OpenAPISpecFetchError: The OpenAPI spec could not be fetched or read
     """
     if api_base_url in _endpoint_registries and not force_refresh:
         logger.info("Using cached endpoints registry for %s", api_base_url)
@@ -168,7 +172,7 @@ async def get_endpoints_registry(
         except Exception as audit_err:
             logger.warning("Audit fields cache skipped: %s", audit_err)
 
-    except Exception:
+    except OpenAPISpecFetchError:
         # Nothing is cached, so the next call retries the spec instead of serving no resources
         logger.exception("Failed to initialize endpoints registry for %s", api_base_url)
         raise
@@ -189,6 +193,9 @@ async def get_openapi_spec(api_base_url: str, *, force_refresh: bool = False) ->
 
     Returns:
         OpenAPI specification dictionary
+
+    Raises:
+        OpenAPISpecFetchError: The OpenAPI spec could not be fetched or read
     """
     await get_endpoints_registry(api_base_url, force_refresh=force_refresh)
 

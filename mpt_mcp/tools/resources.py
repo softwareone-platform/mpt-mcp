@@ -2,29 +2,24 @@ import json
 import logging
 from typing import Any
 
-from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
+from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
 from mpt_mcp.marketplace import audit_fields as audit_fields_module
-from mpt_mcp.marketplace import endpoint_registry
 from mpt_mcp.marketplace.audit_fields import get_item_schema, resolve_schema
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
+from mpt_mcp.tools.dependencies import MarketplaceSpec, get_marketplace_spec
 from mpt_mcp.tools.responses import (
     AuditFieldsResponse,
     ResourceInfoResponse,
     ResourceSchemaResponse,
     ResourcesResponse,
 )
-from mpt_mcp.tools.results import (
-    AUTH_HEADER_HINT,
-    CHARACTER_LIMIT,
-    KEY_META,
-    OPENAPI_SPEC_LOAD_ERROR,
-    tool_error,
-)
+from mpt_mcp.tools.results import CHARACTER_LIMIT, KEY_META, tool_error
 
 logger = logging.getLogger(__name__)
+resource_tools = LocalProvider()
 
 type ResourceEntries = list[dict[str, Any]]
 
@@ -218,8 +213,8 @@ def execute_marketplace_resources(
             "filtering": "Use RQL for complex filters: eq(field,value), ilike(name,*keyword*), "
             "and(condition1,condition2)",
             "pagination": (
-                "Use limit= and offset= for pagination. Max limit 100 (capped). When using limit "
-                "up to 100, use "
+                "Use limit= and offset= for pagination. Max limit 100 (larger fails). When using "
+                "limit up to 100, use "
                 "select= with only the fields you need (from marketplace_resource_schema); "
                 "otherwise the response may cause a context limit error."
             ),
@@ -552,11 +547,12 @@ def execute_marketplace_resource_schema(
     return schema_info
 
 
-async def marketplace_resources(
+@resource_tools.tool(title="List Marketplace resources", annotations=READ_ONLY_REMOTE)
+def marketplace_resources(
     category: str | None = None,
     search: str | None = None,
-    # FastMCP injects the caller's credentials as a Depends(...) default
     call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    spec: MarketplaceSpec = Depends(get_marketplace_spec),  # noqa: WPS404
 ) -> ResourcesResponse:
     """
     List the queryable API resources, grouped by category.
@@ -569,70 +565,49 @@ async def marketplace_resources(
         category: Only resources of this category, with their details (e.g. commerce, catalog)
         search: Only resources whose name or summary contains this text (e.g. order)
         call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+        spec: OpenAPI spec of the caller's endpoint, injected by FastMCP (not a tool argument)
 
     Returns:
         Resources by category
     """
-    try:
-        api_client = await call_context.create_api_client()
-    except ValueError as error:
-        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
-
-    api_base_url = api_client.base_url
-    try:
-        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-    except Exception as error:
-        raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
-
     return ResourcesResponse.model_validate(
         execute_marketplace_resources(
-            api_base_url=api_base_url,
+            api_base_url=spec.api_base_url,
             user_id=call_context.user_id,
-            endpoints_registry=endpoints_registry_data,
+            endpoints_registry=spec.endpoints_registry,
             category=category,
             search=search,
         )
     )
 
 
-async def marketplace_resource_info(
+@resource_tools.tool(title="Describe a Marketplace resource", annotations=READ_ONLY_REMOTE)
+def marketplace_resource_info(
     resource: str,
-    # FastMCP injects the caller's credentials as a Depends(...) default
-    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    spec: MarketplaceSpec = Depends(get_marketplace_spec),  # noqa: WPS404
 ) -> ResourceInfoResponse:
     """
     Get detailed information about a specific resource.
 
     Args:
         resource: The resource identifier (e.g., catalog.products)
-        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+        spec: OpenAPI spec of the caller's endpoint, injected by FastMCP (not a tool argument)
 
     Returns:
         Detailed information about the resource including available parameters
     """
-    try:
-        api_client = await call_context.create_api_client()
-    except ValueError as error:
-        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
-
-    api_base_url = api_client.base_url
-    try:
-        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-    except Exception as error:
-        raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
-
     return ResourceInfoResponse.model_validate(
         execute_marketplace_resource_info(
             resource=resource,
-            endpoints_registry=endpoints_registry_data,
+            endpoints_registry=spec.endpoints_registry,
         )
     )
 
 
-async def marketplace_resource_schema(
+@resource_tools.tool(title="Marketplace resource schema", annotations=READ_ONLY_REMOTE)
+def marketplace_resource_schema(
     resource: str,
-    # FastMCP injects the caller's credentials as a Depends(...) default
-    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    spec: MarketplaceSpec = Depends(get_marketplace_spec),  # noqa: WPS404
 ) -> ResourceSchemaResponse:
     """
     Get the response schema of a resource.
@@ -642,36 +617,24 @@ async def marketplace_resource_schema(
 
     Args:
         resource: The resource to get the schema for (e.g., catalog.products, commerce.orders)
-        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+        spec: OpenAPI spec of the caller's endpoint, injected by FastMCP (not a tool argument)
 
     Returns:
         Response schema, item fields and RQL filter hints of the resource
     """
-    try:
-        api_client = await call_context.create_api_client()
-    except ValueError as error:
-        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
-
-    api_base_url = api_client.base_url
-    try:
-        spec = await endpoint_registry.get_openapi_spec(api_base_url)
-        endpoints_registry_data = await endpoint_registry.get_endpoints_registry(api_base_url)
-    except Exception as error:
-        raise tool_error(OPENAPI_SPEC_LOAD_ERROR, details=str(error)) from error
-
     return ResourceSchemaResponse.model_validate(
         execute_marketplace_resource_schema(
             resource=resource,
-            openapi_spec=spec,
-            endpoints_registry=endpoints_registry_data,
+            openapi_spec=spec.openapi_spec,
+            endpoints_registry=spec.endpoints_registry,
         )
     )
 
 
-async def marketplace_audit_fields(
+@resource_tools.tool(title="Marketplace audit events", annotations=READ_ONLY_REMOTE)
+def marketplace_audit_fields(
     resource: str | None = None,
-    # FastMCP injects the caller's credentials as a Depends(...) default
-    call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    spec: MarketplaceSpec = Depends(get_marketplace_spec),  # noqa: WPS404
 ) -> AuditFieldsResponse:
     """
     Get audit event names per resource for filtering by "when" something happened.
@@ -684,39 +647,13 @@ async def marketplace_audit_fields(
     Args:
         resource: Optional. If provided, returns events for this resource only
                   (e.g. commerce.orders). If omitted, returns all resources.
-        call_context: Caller's credentials, injected by FastMCP (not a tool argument)
+        spec: OpenAPI spec of the caller's endpoint, injected by FastMCP (not a tool argument)
 
     Returns:
         Audit events of the resource, or of every resource
     """
-    try:
-        api_client = await call_context.create_api_client()
-    except ValueError as error:
-        raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
-
-    api_base_url = api_client.base_url
-    try:
-        await endpoint_registry.get_endpoints_registry(api_base_url)
-    except Exception as error:
-        raise tool_error(
-            f"{OPENAPI_SPEC_LOAD_ERROR} for audit fields",
-            details=str(error),
-            api_endpoint=api_base_url,
-        ) from error
-
-    result = audit_fields_module.get_audit_fields(api_base_url, resource)
+    result = audit_fields_module.get_audit_fields(spec.api_base_url, resource)
     if "error" in result:
         raise tool_error(result.pop("error"), **result)
 
     return AuditFieldsResponse.model_validate(result)
-
-
-def register_resource_tools(mcp: FastMCP) -> None:
-    """Register the tools that describe the Marketplace resources."""
-    for tool, title, annotations in (
-        (marketplace_resources, "List Marketplace resources", READ_ONLY_REMOTE),
-        (marketplace_resource_info, "Describe a Marketplace resource", READ_ONLY_REMOTE),
-        (marketplace_resource_schema, "Marketplace resource schema", READ_ONLY_REMOTE),
-        (marketplace_audit_fields, "Marketplace audit events", READ_ONLY_REMOTE),
-    ):
-        mcp.tool(title=title, annotations=annotations)(tool)

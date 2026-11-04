@@ -15,7 +15,7 @@ All tests are unit tests: external systems (Marketplace API, GitBook, PostgreSQL
 
 The layout mirrors the package:
 
-- one [`tests/test_<module>.py`](../tests) per module in [`mpt_mcp/`](../mpt_mcp), for example `tests/test_config.py` for `mpt_mcp/config.py`, and `tests/tools/test_query.py` for `mpt_mcp/tools/query.py`
+- one [`tests/test_<module>.py`](../tests) per module in [`mpt_mcp/`](../mpt_mcp), for example `tests/test_config.py` for `mpt_mcp/config.py`, and `tests/tools/query/test_tool.py` for `mpt_mcp/tools/query/tool.py`
 - [`tests/analytics/`](../tests/analytics) for the [`mpt_mcp/analytics/`](../mpt_mcp/analytics) subpackage
 - [`tests/runtime/`](../tests/runtime) for the [`mpt_mcp/runtime/`](../mpt_mcp/runtime) subpackage
 - [`tests/tools/`](../tests/tools) for the [`mpt_mcp/tools/`](../mpt_mcp/tools) subpackage
@@ -51,7 +51,7 @@ Repository-specific settings come from [`pyproject.toml`](../pyproject.toml):
 
 Repository-specific guidance:
 
-- call tools as the module functions of `tools/` or `documentation/server.py` and pass an explicit `call_context` fixture instead of building HTTP requests
+- call tools as the module functions of `tools/` or `documentation/server.py` and pass their dependencies explicitly (`call_context`, `api_client`, or `spec` from the `spec_factory` fixture of [`tests/tools/conftest.py`](../tests/tools/conftest.py)) instead of building HTTP requests; check argument validation and the input schema with an in-memory `fastmcp.Client`
 - patch names where they are used, for example `mpt_mcp.resources.validate_token`
 - the `docs_cache_factory` and `doc_page_factory` fixtures in [`tests/conftest.py`](../tests/conftest.py) install a fake documentation cache for any test
 - module-level caches (OpenAPI specs, JWKS keys) live for the whole test process: give each test its own endpoint or issuer, as the `unique_endpoint` and `issuer` fixtures do, instead of clearing private state
