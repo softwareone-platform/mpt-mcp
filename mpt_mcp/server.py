@@ -5,9 +5,9 @@ from fastmcp import FastMCP
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
 from mpt_mcp.documentation.lifespan import documentation_lifespan
-from mpt_mcp.documentation.server import create_documentation_server
-from mpt_mcp.prompts import register_prompts
-from mpt_mcp.resources import register_resources
+from mpt_mcp.documentation.server import documentation_provider
+from mpt_mcp.prompts import marketplace_prompts
+from mpt_mcp.resources import openapi_resources
 from mpt_mcp.runtime.middleware import RequestContextMiddleware
 from mpt_mcp.tools.debug import DEBUG_TAG, debug_tools
 from mpt_mcp.tools.query import query_tools
@@ -66,11 +66,15 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
             instructions=SERVER_INSTRUCTIONS,
             middleware=[RequestContextMiddleware()],
         )
-    for tool_provider in (query_tools, resource_tools, debug_tools):
-        mcp.add_provider(tool_provider)
-    register_resources(mcp)
-    register_prompts(mcp)
-    mcp.mount(create_documentation_server())
+    for provider in (
+        query_tools,
+        resource_tools,
+        debug_tools,
+        documentation_provider,
+        openapi_resources,
+        marketplace_prompts,
+    ):
+        mcp.add_provider(provider)
     if not config.debug:
         mcp.disable(tags={DEBUG_TAG})
     return mcp

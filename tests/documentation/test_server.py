@@ -1,7 +1,7 @@
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
-from fastmcp import Client
+from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ResourceError, ToolError
 
 from mpt_mcp.documentation import lifespan, server
@@ -10,6 +10,13 @@ from mpt_mcp.tools.results import CHARACTER_LIMIT
 
 LINE_COUNT = 1000
 LINE_LENGTH = 95
+
+
+@pytest.fixture
+def docs_server():
+    mcp = FastMCP("test")
+    mcp.add_provider(server.documentation_provider)
+    return mcp
 
 
 async def test_docs_list_exposes_browser_url_and_note():
@@ -203,18 +210,16 @@ async def test_docs_resource_not_found_when_missing(docs_cache_factory):
         await server.get_documentation_page("readme")
 
 
-async def test_docs_resource_reads_nested_paths(docs_cache_factory):
+async def test_docs_resource_reads_nested_paths(docs_cache_factory, docs_server):
     docs_cache_factory(content_by_uri={"docs://help-and-support/contact-support": "# Contact"})
 
-    async with Client(server.create_documentation_server()) as client:
+    async with Client(docs_server) as client:
         result = await client.read_resource("docs://help-and-support/contact-support")
 
     assert result[0].text == "# Contact"
 
 
-async def test_server_serves_docs_tools_and_resource():
-    docs_server = server.create_documentation_server()
-
+async def test_server_serves_docs_tools_and_resource(docs_server):
     result = (
         {tool.name for tool in await docs_server.list_tools()},
         {template.uri_template for template in await docs_server.list_resource_templates()},

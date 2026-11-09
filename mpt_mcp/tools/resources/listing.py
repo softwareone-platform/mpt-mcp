@@ -4,6 +4,7 @@ from typing import Any
 
 from mpt_mcp.tools.responses import ResourceEntry, ResourcesResponse
 from mpt_mcp.tools.results import CHARACTER_LIMIT, KEY_META, tool_error
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 MAX_FILTERABLE_FIELDS = 5
 COMPACT_CATEGORY_NOTE = (
@@ -53,9 +54,8 @@ RESOURCES_TIPS = MappingProxyType({
 
 
 def list_resources(
-    endpoints_registry: dict[str, Any],
+    spec: MarketplaceSpec,
     *,
-    api_base_url: str,
     user_id: str | None,
     category: str | None,
     search: str | None,
@@ -68,8 +68,7 @@ def list_resources(
     says so: names only without a category, names and summaries with one.
 
     Args:
-        endpoints_registry: Registry of available endpoints
-        api_base_url: The API base URL
+        spec: OpenAPI spec of the caller's endpoint, with its registry
         user_id: Current user ID (for display)
         category: Only resources of this category, with their details
         search: Only resources whose name or summary contains this text (case-insensitive)
@@ -80,19 +79,19 @@ def list_resources(
     Raises:
         ToolError: The category does not exist
     """
-    all_categories = sorted({resource_name.split(".")[0] for resource_name in endpoints_registry})
+    all_categories = spec.get_categories()
     if category is not None and category not in all_categories:
         raise tool_error(f"Unknown category: {category}", available_categories=all_categories)
 
     categories: dict[str, list[ResourceEntry]] = {}
-    for resource_name, endpoint_info in endpoints_registry.items():
+    for resource_name, endpoint_info in spec.endpoints_registry.items():
         if matches_filters(resource_name, endpoint_info, category=category, search=search):
             categories.setdefault(resource_name.split(".")[0], []).append(
                 describe_resource(resource_name, endpoint_info, detailed=category is not None)
             )
 
     resources_response = ResourcesResponse(
-        api_endpoint=api_base_url,
+        api_endpoint=spec.api_base_url,
         user=user_id or "unknown",
         total_resources=sum(len(entries) for entries in categories.values()),
         categories=categories,

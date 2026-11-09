@@ -4,8 +4,7 @@ from fastmcp.server.providers import LocalProvider
 from mpt_mcp.auth.call_context import CallContext, get_call_context
 from mpt_mcp.marketplace.audit_fields import get_audit_fields
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
-from mpt_mcp.tools.dependencies import MarketplaceSpec, get_marketplace_spec
-from mpt_mcp.tools.endpoints import get_endpoint
+from mpt_mcp.tools.dependencies import get_marketplace_spec
 from mpt_mcp.tools.resources.info import describe_resource_info
 from mpt_mcp.tools.resources.listing import list_resources
 from mpt_mcp.tools.resources.schema import describe_resource_schema
@@ -16,6 +15,7 @@ from mpt_mcp.tools.responses import (
     ResourcesResponse,
 )
 from mpt_mcp.tools.results import tool_error
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 resource_tools = LocalProvider()
 
@@ -44,8 +44,7 @@ def marketplace_resources(
         Resources by category
     """
     return list_resources(
-        spec.endpoints_registry,
-        api_base_url=spec.api_base_url,
+        spec,
         user_id=call_context.user_id,
         category=category,
         search=search,
@@ -67,8 +66,7 @@ def marketplace_resource_info(
     Returns:
         Detailed information about the resource including available parameters
     """
-    endpoint_info = get_endpoint(resource, spec.endpoints_registry)
-    return describe_resource_info(resource, endpoint_info, spec.endpoints_registry)
+    return describe_resource_info(resource, spec)
 
 
 @resource_tools.tool(title="Marketplace resource schema", annotations=READ_ONLY_REMOTE)
@@ -89,8 +87,7 @@ def marketplace_resource_schema(
     Returns:
         Response schema, item fields and RQL filter hints of the resource
     """
-    endpoint_info = get_endpoint(resource, spec.endpoints_registry)
-    return describe_resource_schema(resource, endpoint_info["path"], spec)
+    return describe_resource_schema(resource, spec)
 
 
 @resource_tools.tool(title="Marketplace audit events", annotations=READ_ONLY_REMOTE)

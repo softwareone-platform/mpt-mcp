@@ -1,13 +1,9 @@
 from typing import Any
 
-from mpt_mcp.marketplace.schemas import (
-    get_response_item_schema,
-    get_response_schema,
-    resolve_schema,
-)
-from mpt_mcp.tools.dependencies import MarketplaceSpec
+from mpt_mcp.marketplace.schemas import OpenAPISpec
 from mpt_mcp.tools.responses import FilteringHints, ResourceSchemaResponse, SchemaField
 from mpt_mcp.tools.results import tool_error
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 MAX_ENUM_FILTERS = 3
 MAX_NESTED_FIELDS = 5
@@ -17,32 +13,29 @@ MAX_SIMPLE_FILTERS = 5
 UNFILTERABLE_TYPES = frozenset(("array", "object", "unknown"))
 
 
-def describe_resource_schema(
-    resource: str, endpoint_path: str, spec: MarketplaceSpec
-) -> ResourceSchemaResponse:
+def describe_resource_schema(resource: str, spec: MarketplaceSpec) -> ResourceSchemaResponse:
     """
     Describe the response of a resource: its schema, the fields of one item and filter hints.
 
     Args:
         resource: Resource name
-        endpoint_path: API path template of the resource
         spec: OpenAPI spec of the endpoint, with its registry
 
     Returns:
         Response schema, item fields and RQL filter hints of the resource
 
     Raises:
-        ToolError: The path or its GET operation is not in the OpenAPI spec
+        ToolError: The resource is unknown, or its path or GET operation is not in the spec
     """
-    path_item = spec.openapi_spec.get("paths", {}).get(endpoint_path)
-    if path_item is None:
+    endpoint_path = spec.get_endpoint(resource)["path"]
+    if endpoint_path not in (spec.openapi.document.get("paths") or {}):
         raise tool_error(f"Path {endpoint_path} not found in OpenAPI spec", resource=resource)
 
-    operation = path_item.get("get")
+    operation = spec.openapi.get_operation(endpoint_path)
     if operation is None:
         raise tool_error(f"GET operation not found for {endpoint_path}", resource=resource)
 
-    response_schema = get_response_schema(spec.openapi_spec, operation)
+    response_schema = spec.openapi.get_response_schema(operation)
     fields = None
     if response_schema is not None:
         fields = describe_item_fields(resource, spec)
@@ -102,18 +95,18 @@ def build_filtering_hints(fields: dict[str, SchemaField]) -> FilteringHints:
     )
 
 
-def describe_field(openapi_spec: dict[str, Any], declared_schema: dict[str, Any]) -> SchemaField:
+def describe_field(openapi: OpenAPISpec, declared_schema: dict[str, Any]) -> SchemaField:
     """
     Describe one field of a resource item.
 
     Args:
-        openapi_spec: The full OpenAPI specification
+        openapi: OpenAPI spec of the endpoint, to resolve the field schema
         declared_schema: Schema of the field as the item declares it, maybe a $ref or allOf
 
     Returns:
         Type, description, enum values, example, format and nested fields of the field
     """
-    field_schema = resolve_schema(openapi_spec, declared_schema)
+    field_schema = openapi.resolve_schema(declared_schema)
     field_enum = field_schema.get("enum")
     nested_properties = field_schema.get("properties")
     untyped = "object" if "properties" in field_schema else "unknown"
@@ -141,13 +134,12 @@ def describe_item_fields(resource: str, spec: MarketplaceSpec) -> dict[str, Sche
     Returns:
         Fields by name, or None when the item schema has no properties
     """
-    item_schema = get_response_item_schema(spec.openapi_spec, spec.endpoints_registry, resource)
-    item_properties = item_schema.get("properties")
+    item_properties = spec.get_item_schema(resource).get("properties")
     if item_properties is None:
         return None
 
     return {
-        field_name: describe_field(spec.openapi_spec, declared_schema)
+        field_name: describe_field(spec.openapi, declared_schema)
         for field_name, declared_schema in item_properties.items()
     }
 

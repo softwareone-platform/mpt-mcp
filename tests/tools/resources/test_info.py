@@ -42,10 +42,10 @@ def products_registry():
 
 
 @pytest.fixture
-def resource_info_factory(products_registry):
+def resource_info_factory(spec_factory, products_registry):
     def factory(resource):
         return describe_resource_info(
-            resource, products_registry[resource], products_registry
+            resource, spec_factory(registry=products_registry)
         ).model_dump()
 
     return factory

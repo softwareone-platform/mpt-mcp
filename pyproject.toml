@@ -65,17 +65,17 @@ extend-ignore = [
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
   "WPS202",  # 4
   "WPS204",  # 6
-  "WPS210",  # 25
+  "WPS210",  # 24
   "WPS211",  # 6
-  "WPS212",  # 3
+  "WPS212",  # 2
   "WPS213",  # 6
   "WPS214",  # 4
   "WPS217",  # 1
   "WPS219",  # 1
-  "WPS220",  # 28
+  "WPS220",  # 27
   "WPS229",  # 24
-  "WPS231",  # 15
-  "WPS232",  # 3
+  "WPS231",  # 14
+  "WPS232",  # 2
   "WPS328",  # 1
   "WPS420",  # 1
   "WPS476",  # 4
@@ -178,7 +178,7 @@ ignore = [
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "complex-structure",  # 11
+    "complex-structure",  # 10
     "too-many-statements-in-try-clause",  # 12
 ]
 external = [ "AAA", "WPS" ]

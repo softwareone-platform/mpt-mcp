@@ -3,8 +3,7 @@ import re
 from dataclasses import dataclass, replace
 from typing import Any
 
-from mpt_mcp.marketplace.schemas import get_response_item_schema
-from mpt_mcp.tools.dependencies import MarketplaceSpec
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 logger = logging.getLogger(__name__)
 
@@ -107,19 +106,8 @@ def build_query(
         rql=RQL_COMMA_SPACES.sub(",", requested.rql),
     )
     with_audit = fitted.with_used_audit_fields(spec.audit_regex)
-    allowed_fields = get_allowed_select_fields(spec.openapi_spec, spec.endpoints_registry, resource)
-    query = with_audit.with_allowed_select(allowed_fields)
+    query = with_audit.with_allowed_select(spec.get_item_fields(resource))
     return query, None if with_audit.select == fitted.select else fitted
-
-
-def get_allowed_select_fields(
-    openapi_spec: dict[str, Any],
-    endpoints_registry: dict[str, Any],
-    resource: str,
-) -> set[str]:
-    """Return the top-level fields allowed in select, from the GET response item schema."""
-    item_schema = get_response_item_schema(openapi_spec, endpoints_registry, resource)
-    return set((item_schema.get("properties") or {}).keys())
 
 
 def get_used_audit_paths(rql: str, order: str | None, audit_pattern: re.Pattern[str]) -> list[str]:

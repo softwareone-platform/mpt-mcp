@@ -5,7 +5,7 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
-from mpt_mcp.marketplace.schemas import get_item_schema, get_response_schema, resolve_schema
+from mpt_mcp.marketplace.schemas import OpenAPISpec
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -23,7 +23,7 @@ FALLBACK_STATIC_REGEX = re.compile(
 
 
 def collect_audit_events_and_paths_from_props(
-    spec: dict[str, Any],
+    spec: OpenAPISpec,
     properties: dict[str, Any],
 ) -> tuple[set[str], AuditPaths]:
     """
@@ -38,7 +38,7 @@ def collect_audit_events_and_paths_from_props(
         if "audit" not in prop_name.lower():
             continue
         audit_schema = (
-            resolve_schema(spec, prop_schema) if isinstance(prop_schema, dict) else prop_schema
+            spec.resolve_schema(prop_schema) if isinstance(prop_schema, dict) else prop_schema
         )
         if not isinstance(audit_schema, dict):
             continue
@@ -46,7 +46,7 @@ def collect_audit_events_and_paths_from_props(
         for event_name, event_schema in nested.items():
             if not isinstance(event_schema, dict):
                 continue
-            resolved_schema = resolve_schema(spec, event_schema)
+            resolved_schema = spec.resolve_schema(event_schema)
             event_props = (
                 (resolved_schema.get("properties") or {})
                 if isinstance(resolved_schema, dict)
@@ -66,7 +66,7 @@ def collect_audit_events_and_paths_from_props(
 
 
 def get_audit_data_from_spec(
-    spec: dict[str, Any],
+    spec: OpenAPISpec,
     path_to_resource_id: Callable[[str], str],
 ) -> dict[str, Any]:
     """
@@ -87,16 +87,16 @@ def get_audit_data_from_spec(
     """
     all_events: set[str] = set()
     by_resource: dict[str, list[str]] = {}
-    paths = spec.get("paths") or {}
+    paths = spec.document.get("paths") or {}
     get_paths = [path for path, path_item in paths.items() if "get" in path_item]
     logger.debug("audit_fields: scanning %d GET paths for audit schemas", len(get_paths))
     for path, path_item in paths.items():
         if "get" not in path_item:
             continue
-        schema = get_response_schema(spec, path_item["get"])
+        schema = spec.get_response_schema(path_item["get"])
         if not schema:
             continue
-        schema = get_item_schema(spec, schema)
+        schema = spec.get_item_schema(schema)
         properties = schema.get("properties")
         if not properties:
             continue
@@ -139,7 +139,7 @@ def update_cache(
     """
     if os.getenv("DEBUG", "").lower() == "true":
         logger.setLevel(logging.DEBUG)
-    data = get_audit_data_from_spec(spec, path_to_resource_id)
+    data = get_audit_data_from_spec(OpenAPISpec(spec), path_to_resource_id)
     _audit_cache[cache_key] = {
         "events": data["events"],
         "regex": build_audit_regex(data["events"]),

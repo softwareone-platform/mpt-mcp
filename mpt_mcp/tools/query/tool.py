@@ -8,13 +8,13 @@ from pydantic import Field
 from mpt_mcp.analytics import AnalyticsLogger, get_analytics_logger
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
-from mpt_mcp.tools.dependencies import MarketplaceSpec, get_api_client, get_marketplace_spec
-from mpt_mcp.tools.endpoints import get_endpoint
+from mpt_mcp.tools.dependencies import get_api_client, get_marketplace_spec
 from mpt_mcp.tools.query.params import DEFAULT_LIMIT, QueryParams, build_query
 from mpt_mcp.tools.query.paths import fill_path_params
 from mpt_mcp.tools.query.request import MarketplaceRequest
 from mpt_mcp.tools.responses import QueryResponse
 from mpt_mcp.tools.results import KEY_META, add_page_position, fit_result_to_budget
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 logger = logging.getLogger(__name__)
 query_tools = LocalProvider()
@@ -98,7 +98,7 @@ async def marketplace_query(
     logger.info(
         "marketplace_query resource=%s rql=%s limit=%s", resource, rql[:RQL_LOG_LENGTH], limit
     )
-    endpoint_path = get_endpoint(resource, spec.endpoints_registry)["path"]
+    endpoint_path = spec.get_endpoint(resource)["path"]
     api_path = fill_path_params(resource, endpoint_path, path_params)
     requested = QueryParams(limit=limit, offset=offset, order=order, rql=rql, select=select)
     query, fallback_query = build_query(resource, endpoint_path, requested, spec)

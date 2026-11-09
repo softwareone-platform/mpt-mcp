@@ -29,9 +29,9 @@ def orders_openapi_spec():
 
 @pytest.fixture
 def resource_schema_factory(spec_factory, orders_openapi_spec):
-    def factory(openapi_spec=None, endpoint_path=ORDERS_PATH):
+    def factory(openapi_spec=None):
         spec = spec_factory(openapi_spec=openapi_spec or orders_openapi_spec)
-        return describe_resource_schema("commerce.orders", endpoint_path, spec).model_dump()
+        return describe_resource_schema("commerce.orders", spec).model_dump()
 
     return factory
 

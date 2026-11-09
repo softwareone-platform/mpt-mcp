@@ -44,11 +44,10 @@ def long_registry():
 
 
 @pytest.fixture
-def listing_factory():
+def listing_factory(spec_factory):
     def factory(endpoints_registry, category=None, search=None):
         return list_resources(
-            endpoints_registry,
-            api_base_url="https://api.test.com",
+            spec_factory(registry=endpoints_registry),
             user_id=None,
             category=category,
             search=search,

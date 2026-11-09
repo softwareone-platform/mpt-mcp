@@ -1,15 +1,23 @@
 import json
 
-from fastmcp import FastMCP
 from fastmcp.dependencies import Depends
 from fastmcp.exceptions import ResourceError
+from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
 from mpt_mcp.auth.token_validator import validate_token
-from mpt_mcp.marketplace import endpoint_registry
+from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError, get_openapi_spec
+
+openapi_resources = LocalProvider()
 
 
-async def get_openapi_spec(
+@openapi_resources.resource(
+    "api://openapi.json",
+    name="OpenAPI Specification",
+    description="OpenAPI 3 spec for the current API endpoint (requires auth).",
+    mime_type="application/json",
+)
+async def read_openapi_spec(
     call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
 ) -> str:
     """
@@ -38,8 +46,8 @@ async def get_openapi_spec(
         )
 
     try:
-        openapi_spec = await endpoint_registry.get_openapi_spec(endpoint, force_refresh=False)
-    except Exception as error:
+        openapi_spec = await get_openapi_spec(endpoint, force_refresh=False)
+    except OpenAPISpecFetchError as error:
         raise ResourceError(f"Failed to fetch the OpenAPI spec of {endpoint}: {error}") from error
 
     spec_with_metadata = {
@@ -55,13 +63,3 @@ async def get_openapi_spec(
         "spec": openapi_spec,
     }
     return json.dumps(spec_with_metadata, indent=2)
-
-
-def register_resources(mcp: FastMCP) -> None:
-    """Register the OpenAPI spec resource."""
-    mcp.resource(
-        "api://openapi.json",
-        name="OpenAPI Specification",
-        description="OpenAPI 3 spec for the current API endpoint (requires auth).",
-        mime_type="application/json",
-    )(get_openapi_spec)

@@ -8,8 +8,10 @@ from mpt_mcp.auth.call_context import CallContext
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
-from mpt_mcp.tools.dependencies import MarketplaceSpec, get_api_client, get_marketplace_spec
+from mpt_mcp.marketplace.schemas import OpenAPISpec
+from mpt_mcp.tools.dependencies import get_api_client, get_marketplace_spec
 from mpt_mcp.tools.results import AUTH_HEADER_HINT
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 
 @pytest.fixture
@@ -65,7 +67,7 @@ async def test_get_marketplace_spec(api_client, registry_loader, spec_loader, en
         api_base_url="https://api.test.com",
         audit_regex=FALLBACK_STATIC_REGEX,
         endpoints_registry=endpoints_registry,
-        openapi_spec={"paths": {}},
+        openapi=OpenAPISpec({"paths": {}}),
     )
 
 

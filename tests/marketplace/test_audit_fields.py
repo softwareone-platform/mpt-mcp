@@ -13,6 +13,7 @@ from mpt_mcp.marketplace.audit_fields import (  # noqa: WPS235
     update_cache,
 )
 from mpt_mcp.marketplace.endpoint_registry import path_to_resource_id
+from mpt_mcp.marketplace.schemas import OpenAPISpec
 
 
 @pytest.fixture
@@ -104,7 +105,7 @@ def test_collect_audit_events_and_paths():
         "name": {"type": "string"},
     }
 
-    result = collect_audit_events_and_paths_from_props({}, properties)
+    result = collect_audit_events_and_paths_from_props(OpenAPISpec({}), properties)
 
     events, paths = result
     assert events == {"created", "updated"}
@@ -116,7 +117,7 @@ def test_collect_audit_events_and_paths():
 
 
 def test_get_audit_data_from_spec(audit_spec):
-    result = get_audit_data_from_spec(audit_spec, path_to_resource_id)
+    result = get_audit_data_from_spec(OpenAPISpec(audit_spec), path_to_resource_id)
 
     assert result == {
         "events": {"created", "failed"},

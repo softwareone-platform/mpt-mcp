@@ -1,19 +1,12 @@
 import pytest
 
-from mpt_mcp.marketplace.schemas import (
-    get_get_operation,
-    get_item_schema,
-    get_response_item_schema,
-    get_response_schema,
-    resolve_ref,
-    resolve_schema,
-)
+from mpt_mcp.marketplace.schemas import OpenAPISpec
 
 ORDERS_PATH = "/public/v1/commerce/orders"
 
 
 @pytest.fixture
-def orders_spec():
+def orders_document():
     order = {"type": "object", "properties": {"id": {"type": "string"}}}
     list_schema = {
         "properties": {"data": {"type": "array", "items": {"$ref": "#/components/schemas/Order"}}}
@@ -29,23 +22,34 @@ def orders_spec():
     }
 
 
-def test_get_get_operation(orders_spec):
-    result = get_get_operation(orders_spec, ORDERS_PATH)
+@pytest.fixture
+def orders_spec(orders_document):
+    return OpenAPISpec(orders_document)
 
-    assert result is orders_spec["paths"][ORDERS_PATH]["get"]
+
+def test_get_operation(orders_spec, orders_document):
+    result = orders_spec.get_operation(ORDERS_PATH)
+
+    assert result is orders_document["paths"][ORDERS_PATH]["get"]
+
+
+def test_get_operation_of_method(orders_spec):
+    result = orders_spec.get_operation("/public/v1/empty", method="post")
+
+    assert result == {}
 
 
 @pytest.mark.parametrize("path", ["/public/v1/empty", "/public/v1/missing"])
-def test_get_get_operation_missing(orders_spec, path):
-    result = get_get_operation(orders_spec, path)
+def test_get_operation_missing(orders_spec, path):
+    result = orders_spec.get_operation(path)
 
     assert result is None
 
 
-def test_get_response_schema_resolves_ref(orders_spec):
-    result = get_response_schema(orders_spec, orders_spec["paths"][ORDERS_PATH]["get"])
+def test_get_response_schema_resolves_ref(orders_spec, orders_document):
+    result = orders_spec.get_response_schema(orders_document["paths"][ORDERS_PATH]["get"])
 
-    assert result == orders_spec["components"]["schemas"]["OrderList"]
+    assert result == orders_document["components"]["schemas"]["OrderList"]
 
 
 @pytest.mark.parametrize(
@@ -58,29 +62,20 @@ def test_get_response_schema_resolves_ref(orders_spec):
     ],
 )
 def test_get_response_schema_missing(operation):
-    result = get_response_schema({}, operation)
+    result = OpenAPISpec({}).get_response_schema(operation)
 
     assert result is None
 
 
-def test_get_response_item_schema_unwraps_list(orders_spec):
-    registry = {"commerce.orders": {"path": ORDERS_PATH}}
+def test_get_response_item_schema_unwraps_list(orders_spec, orders_document):
+    result = orders_spec.get_response_item_schema(ORDERS_PATH)
 
-    result = get_response_item_schema(orders_spec, registry, "commerce.orders")
-
-    assert result == orders_spec["components"]["schemas"]["Order"]
+    assert result == orders_document["components"]["schemas"]["Order"]
 
 
-@pytest.mark.parametrize(
-    ("registry", "resource"),
-    [
-        ({}, "commerce.orders"),
-        ({"commerce.orders": {}}, "commerce.orders"),
-        ({"empty": {"path": "/public/v1/empty"}}, "empty"),
-    ],
-)
-def test_get_response_item_schema_missing(orders_spec, registry, resource):
-    result = get_response_item_schema(orders_spec, registry, resource)
+@pytest.mark.parametrize("path", ["/public/v1/empty", "/public/v1/missing"])
+def test_get_response_item_schema_missing(orders_spec, path):
+    result = orders_spec.get_response_item_schema(path)
 
     assert result == {}
 
@@ -95,19 +90,20 @@ def test_get_response_item_schema_missing(orders_spec, registry, resource):
     ],
 )
 def test_resolve_ref(ref, expected):
-    spec = {"components": {"schemas": {"Order": {"type": "object"}}}}
+    spec = OpenAPISpec({"components": {"schemas": {"Order": {"type": "object"}}}})
 
-    result = resolve_ref(spec, ref)
+    result = spec.resolve_ref(ref)
 
     assert result == expected
 
 
 def test_resolve_schema_follows_ref_and_all_of():
-    spec = {"components": {"schemas": {"Order": {"properties": {"id": {}}}}}}
+    order = {"properties": {"id": {}}}
+    spec = OpenAPISpec({"components": {"schemas": {"Order": order}}})
 
-    result = resolve_schema(spec, {"allOf": [{"$ref": "#/components/schemas/Order"}]})
+    result = spec.resolve_schema({"allOf": [{"$ref": "#/components/schemas/Order"}]})
 
-    assert result == {"properties": {"id": {}}}
+    assert result == order
 
 
 @pytest.mark.parametrize(
@@ -119,9 +115,9 @@ def test_resolve_schema_follows_ref_and_all_of():
     ],
 )
 def test_get_item_schema_unwraps_lists(schema):
-    spec = {"components": {"schemas": {"Order": {"id": 1}}}}
+    spec = OpenAPISpec({"components": {"schemas": {"Order": {"id": 1}}}})
 
-    result = get_item_schema(spec, schema)
+    result = spec.get_item_schema(schema)
 
     assert result == {"id": 1}
 
@@ -129,6 +125,6 @@ def test_get_item_schema_unwraps_lists(schema):
 def test_get_item_schema_keeps_object_schema():
     schema = {"type": "object", "properties": {"id": {"type": "string"}}}
 
-    result = get_item_schema({}, schema)
+    result = OpenAPISpec({}).get_item_schema(schema)
 
     assert result == schema

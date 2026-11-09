@@ -8,6 +8,7 @@ from mpt_mcp.tools.responses import (
     ResourceInfoResponse,
 )
 from mpt_mcp.tools.results import KEY_META
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 MAX_CHILDREN = 10
 MAX_SIMILAR = 5
@@ -31,20 +32,21 @@ OMITTED_FIELDS_NOTE = (
 )
 
 
-def describe_resource_info(
-    resource: str, endpoint_info: dict[str, Any], endpoints_registry: dict[str, Any]
-) -> ResourceInfoResponse:
+def describe_resource_info(resource: str, spec: MarketplaceSpec) -> ResourceInfoResponse:
     """
     Describe a resource: its parameters, enum values, related resources and example queries.
 
     Args:
         resource: Resource name
-        endpoint_info: Registry entry of the resource
-        endpoints_registry: Registry of available endpoints, for the related resources
+        spec: OpenAPI spec of the endpoint, with its registry
 
     Returns:
         Detailed resource information
+
+    Raises:
+        ToolError: The resource is unknown
     """
+    endpoint_info = spec.get_endpoint(resource)
     enum_fields = get_query_enum_fields(endpoint_info)
     path_parameters = get_path_parameters(endpoint_info)
     return ResourceInfoResponse(
@@ -61,7 +63,7 @@ def describe_resource_info(
         filtering_tips=build_filtering_tips(enum_fields),
         path_parameters=path_parameters or None,
         path_params_required=build_path_params_required(path_parameters),
-        related_resources=find_related_resources(resource, endpoint_info, endpoints_registry),
+        related_resources=find_related_resources(resource, endpoint_info, spec.endpoints_registry),
     )
 
 

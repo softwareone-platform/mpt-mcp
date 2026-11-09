@@ -6,8 +6,9 @@ import pytest
 from mpt_mcp.auth.call_context import CallContext
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.audit_fields import FALLBACK_STATIC_REGEX
-from mpt_mcp.tools.dependencies import MarketplaceSpec
+from mpt_mcp.marketplace.schemas import OpenAPISpec
 from mpt_mcp.tools.query.params import DEFAULT_LIMIT, QueryParams
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 
 @pytest.fixture
@@ -113,7 +114,7 @@ def spec_factory(endpoints_registry):
             api_base_url="https://api.test.com",
             audit_regex=FALLBACK_STATIC_REGEX,
             endpoints_registry=endpoints_registry if registry is None else registry,
-            openapi_spec=openapi_spec or {},
+            openapi=OpenAPISpec(openapi_spec or {}),
         )
 
     return factory

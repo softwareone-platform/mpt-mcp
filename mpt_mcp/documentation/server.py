@@ -1,18 +1,21 @@
-from fastmcp import FastMCP
 from fastmcp.exceptions import ResourceError
+from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.documentation import lifespan
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
 from mpt_mcp.tools.responses import DocsIndexResponse, DocsListResponse, DocsReadResponse
 from mpt_mcp.tools.results import cut_text_to_budget, tool_error
 
-SERVER_NAME = "documentation"
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
     "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 )
 MANY_DOCS_RESULTS = 50
+# No lifespan here: the HTTP server loads the documentation at startup with documentation_lifespan,
+# and stdio loads it on the first documentation call
+documentation_provider = LocalProvider()
 
 
+@documentation_provider.tool(title="Documentation index", annotations=READ_ONLY_REMOTE)
 async def marketplace_docs_index() -> DocsIndexResponse:
     """
     Get the documentation table of contents.
@@ -28,6 +31,7 @@ async def marketplace_docs_index() -> DocsIndexResponse:
     return DocsIndexResponse.model_validate(await dc.get_documentation_index())
 
 
+@documentation_provider.tool(title="List documentation pages", annotations=READ_ONLY_REMOTE)
 async def marketplace_docs_list(
     section: str | None = None,
     subsection: str | None = None,
@@ -87,6 +91,7 @@ async def marketplace_docs_list(
     return DocsListResponse.model_validate(result)
 
 
+@documentation_provider.tool(title="Read a documentation page", annotations=READ_ONLY_REMOTE)
 async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
     """
     Read a documentation page.
@@ -128,6 +133,12 @@ async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
     )
 
 
+@documentation_provider.resource(
+    "docs://{path*}",
+    name="Documentation",
+    description="Documentation pages. Use marketplace_docs_list() for available URIs.",
+    mime_type="text/markdown",
+)
 async def get_documentation_page(path: str) -> str:
     """
     Return the markdown of the documentation page at docs://{path}.
@@ -155,30 +166,3 @@ async def get_documentation_page(path: str) -> str:
         )
 
     return page_content
-
-
-def create_documentation_server() -> FastMCP:
-    """
-    Create the server of the Marketplace documentation tools and the docs:// resource.
-
-    The MCP server mounts it without a namespace, so the tool names do not change. It has no
-    lifespan: the HTTP server loads the documentation at startup with documentation_lifespan,
-    and stdio loads it on the first documentation call.
-
-    Returns:
-        Documentation server to mount
-    """
-    docs_server = FastMCP(SERVER_NAME)
-    for tool, title in (
-        (marketplace_docs_index, "Documentation index"),
-        (marketplace_docs_list, "List documentation pages"),
-        (marketplace_docs_read, "Read a documentation page"),
-    ):
-        docs_server.tool(title=title, annotations=READ_ONLY_REMOTE)(tool)
-    docs_server.resource(
-        "docs://{path*}",
-        name="Documentation",
-        description="Documentation pages. Use marketplace_docs_list() for available URIs.",
-        mime_type="text/markdown",
-    )(get_documentation_page)
-    return docs_server

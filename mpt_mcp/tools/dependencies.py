@@ -1,7 +1,4 @@
 import logging
-import re
-from dataclasses import dataclass
-from typing import Any
 
 from fastmcp.dependencies import Depends
 
@@ -13,19 +10,11 @@ from mpt_mcp.marketplace.endpoint_registry import (
     get_endpoints_registry,
     get_openapi_spec,
 )
+from mpt_mcp.marketplace.schemas import OpenAPISpec
 from mpt_mcp.tools.results import AUTH_HEADER_HINT, OPENAPI_SPEC_LOAD_ERROR, tool_error
+from mpt_mcp.tools.spec import MarketplaceSpec
 
 logger = logging.getLogger(__name__)
-
-
-@dataclass(frozen=True)
-class MarketplaceSpec:
-    """OpenAPI spec of the caller's endpoint, with the registry and audit fields built from it."""
-
-    api_base_url: str
-    audit_regex: re.Pattern[str]
-    endpoints_registry: dict[str, Any]
-    openapi_spec: dict[str, Any]
 
 
 async def get_api_client(
@@ -83,5 +72,5 @@ async def get_marketplace_spec(
         api_base_url=api_base_url,
         audit_regex=audit_fields.get_audit_regex(api_base_url),
         endpoints_registry=endpoints_registry,
-        openapi_spec=openapi_spec,
+        openapi=OpenAPISpec(openapi_spec),
     )
