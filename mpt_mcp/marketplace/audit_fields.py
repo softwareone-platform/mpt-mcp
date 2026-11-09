@@ -5,6 +5,8 @@ import os
 import re
 from typing import TYPE_CHECKING, Any
 
+from mpt_mcp.marketplace.schemas import get_item_schema, get_response_schema, resolve_schema
+
 if TYPE_CHECKING:
     from collections.abc import Callable
 
@@ -18,86 +20,6 @@ _audit_cache: dict[str, dict[str, Any]] = {}
 FALLBACK_STATIC_REGEX = re.compile(
     r"audit\.(created|updated|completed|processing|quoted|failed)\.(at|by)"
 )
-
-
-def resolve_ref(spec: dict[str, Any], ref: str) -> dict[str, Any]:
-    """Resolve $ref (e.g. #/components/schemas/Order) to the schema object."""
-    if not ref or not ref.startswith("#/"):
-        return {}
-
-    parts = ref.replace("#/", "").split("/")
-    out: Any = spec
-    for part in parts:
-        out = out.get(part, {}) if isinstance(out, dict) else {}
-    return out if isinstance(out, dict) else {}
-
-
-def resolve_schema(
-    spec: dict[str, Any],
-    schema: Any,
-) -> Any:
-    """
-    Resolve schema that may use $ref or allOf (common in downloaded OpenAPI specs).
-
-    Returns the schema that actually has 'properties' so we can detect audit events.
-    """
-    if not isinstance(schema, dict):
-        return schema
-
-    ref = schema.get("$ref")
-    if ref is not None:
-        return resolve_schema(spec, resolve_ref(spec, ref))
-
-    for part in schema.get("allOf", ()):
-        part_ref = part.get("$ref") if isinstance(part, dict) else None
-        if part_ref is not None:
-            resolved = resolve_schema(spec, resolve_ref(spec, part_ref))
-            if resolved:
-                return resolved
-
-    return schema
-
-
-def get_item_schema(
-    spec: dict[str, Any],
-    schema: dict[str, Any],
-) -> dict[str, Any]:
-    """
-    Get the item schema for list-like responses.
-
-    Handles: (1) array with items, (2) $ref to array/list schema,
-    (3) object with a 'data' property that is an array (marketplace API list responses).
-    """
-    if schema.get("type") == "array" and "items" in schema:
-        item_schema = schema["items"]
-        if isinstance(item_schema, dict) and "$ref" in item_schema:
-            return resolve_ref(spec, item_schema["$ref"])
-
-        return item_schema if isinstance(item_schema, dict) else {}
-
-    ref = schema.get("$ref")
-    if ref is not None:
-        return get_item_schema(spec, resolve_ref(spec, ref))
-
-    # List endpoints often return { "$meta", "data": [ items ] }; use item schema for audit
-    # Some specs omit "type": "object", so check for "properties" with "data" as well
-    if schema.get("type") == "object" or "properties" in schema:
-        properties = schema.get("properties") or {}
-        for key in ("data", "items", "results"):
-            prop = properties.get(key)
-            if prop is not None:
-                prop_ref = prop.get("$ref") if isinstance(prop, dict) else None
-                if prop_ref is not None:
-                    prop = resolve_ref(spec, prop_ref)
-                is_array = isinstance(prop, dict) and prop.get("type") == "array"
-                if is_array and "items" in prop:
-                    item_schema = prop["items"]
-                    if isinstance(item_schema, dict) and "$ref" in item_schema:
-                        return resolve_ref(spec, item_schema["$ref"])
-
-                    return item_schema if isinstance(item_schema, dict) else {}
-
-    return schema
 
 
 def collect_audit_events_and_paths_from_props(
@@ -171,16 +93,9 @@ def get_audit_data_from_spec(
     for path, path_item in paths.items():
         if "get" not in path_item:
             continue
-        get_op = path_item["get"]
-        responses = get_op.get("responses") or {}
-        response_content = (responses.get("200") or {}).get("content") or {}
-        json_content = response_content.get("application/json") or {}
-        schema = json_content.get("schema")
+        schema = get_response_schema(spec, path_item["get"])
         if not schema:
             continue
-        ref = schema.get("$ref")
-        if ref is not None:
-            schema = resolve_ref(spec, ref)
         schema = get_item_schema(spec, schema)
         properties = schema.get("properties")
         if not properties:

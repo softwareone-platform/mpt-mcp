@@ -10,9 +10,6 @@ from mpt_mcp.marketplace.audit_fields import (  # noqa: WPS235
     get_audit_data_from_spec,
     get_audit_fields,
     get_audit_regex,
-    get_item_schema,
-    resolve_ref,
-    resolve_schema,
     update_cache,
 )
 from mpt_mcp.marketplace.endpoint_registry import path_to_resource_id
@@ -93,55 +90,6 @@ def audit_spec():
 def cache_key(request):
     test_name = request.node.name
     return f"https://{test_name}.example.com"
-
-
-@pytest.mark.parametrize(
-    ("ref", "expected"),
-    [
-        ("#/components/schemas/Order", {"type": "object"}),
-        ("#/components/schemas/Missing", {}),
-        ("other.json#/Order", {}),
-        ("", {}),
-    ],
-)
-def test_resolve_ref(ref, expected):
-    spec = {"components": {"schemas": {"Order": {"type": "object"}}}}
-
-    result = resolve_ref(spec, ref)
-
-    assert result == expected
-
-
-def test_resolve_schema_follows_ref_and_all_of():
-    spec = {"components": {"schemas": {"Order": {"properties": {"id": {}}}}}}
-
-    result = resolve_schema(spec, {"allOf": [{"$ref": "#/components/schemas/Order"}]})
-
-    assert result == {"properties": {"id": {}}}
-
-
-@pytest.mark.parametrize(
-    "schema",
-    [
-        {"type": "array", "items": {"$ref": "#/components/schemas/Order"}},
-        {"type": "object", "properties": {"data": {"type": "array", "items": {"id": 1}}}},
-        {"properties": {"results": {"type": "array", "items": {"id": 1}}}},
-    ],
-)
-def test_get_item_schema_unwraps_lists(schema):
-    spec = {"components": {"schemas": {"Order": {"id": 1}}}}
-
-    result = get_item_schema(spec, schema)
-
-    assert result == {"id": 1}
-
-
-def test_get_item_schema_keeps_object_schema():
-    schema = {"type": "object", "properties": {"id": {"type": "string"}}}
-
-    result = get_item_schema({}, schema)
-
-    assert result == schema
 
 
 def test_collect_audit_events_and_paths():

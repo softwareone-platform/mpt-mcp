@@ -3,8 +3,8 @@ import re
 from dataclasses import dataclass, replace
 from typing import Any
 
+from mpt_mcp.marketplace.schemas import get_response_item_schema
 from mpt_mcp.tools.dependencies import MarketplaceSpec
-from mpt_mcp.tools.resources import get_response_item_schema
 
 logger = logging.getLogger(__name__)
 

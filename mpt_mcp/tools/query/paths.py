@@ -1,12 +1,7 @@
-import difflib
 import re
 from types import MappingProxyType
-from typing import TYPE_CHECKING, Any
 
 from mpt_mcp.tools.results import tool_error
-
-if TYPE_CHECKING:
-    from collections.abc import Iterable
 
 PATH_PARAM_EXAMPLES = MappingProxyType({
     "id": "PRD-1234-5678",
@@ -20,39 +15,6 @@ PATH_PARAM_EXAMPLES = MappingProxyType({
     "assetId": "AST-1234-5678",
 })
 PATH_PARAM_PATTERN = re.compile(r"\{(\w+)\}")
-# Suggestions for an unknown resource: how many, and how close a misspelled name must be (0-1)
-SUGGESTION_COUNT = 5
-SUGGESTION_SIMILARITY = 0.6
-
-
-def get_endpoint_path(resource: str, endpoints_registry: dict[str, Any]) -> str:
-    """
-    Return the API path template of a resource.
-
-    Args:
-        resource: Resource name, e.g. commerce.orders
-        endpoints_registry: Registry of available endpoints
-
-    Returns:
-        API path with its path parameters in braces, e.g. /public/v1/commerce/orders/{orderId}
-
-    Raises:
-        ToolError: The resource is unknown; the error suggests similar resources
-    """
-    endpoint = endpoints_registry.get(resource)
-    if endpoint is not None:
-        endpoint_path: str = endpoint["path"]
-        return endpoint_path
-
-    hints: dict[str, Any] = {
-        "hint": "Use marketplace_resources() to see all available resources",
-        "available_categories": list({known.split(".")[0] for known in endpoints_registry}),
-    }
-    similar_resources = suggest_resources(resource, endpoints_registry)
-    if similar_resources:
-        hints["did_you_mean"] = similar_resources
-
-    raise tool_error(f"Unknown resource: '{resource}'", **hints)
 
 
 def fill_path_params(resource: str, endpoint_path: str, path_params: dict[str, str] | None) -> str:
@@ -94,37 +56,3 @@ def fill_path_params(resource: str, endpoint_path: str, path_params: dict[str, s
         example=f"marketplace_query(resource='{resource}', path_params={example_dict}, limit=10)",
         hint=f"You must provide path_params dictionary. For example: path_params={{{hint_dict}}}",
     )
-
-
-def suggest_resources(resource: str, resources: Iterable[str]) -> list[str]:
-    """
-    Suggest known resources for an unknown resource name.
-
-    Resources that contain the name, or are contained in it, come first, closest spelling first;
-    then resources with a similar spelling, so typos such as catalog.prodcts still get a suggestion.
-
-    Args:
-        resource: Unknown resource name, e.g. catalog.prodcts
-        resources: Known resource IDs
-
-    Returns:
-        Up to SUGGESTION_COUNT resource IDs, best matches first
-    """
-    resource_lower = resource.lower()
-    resources_by_lower = {known.lower(): known for known in resources}
-    containing = sorted(
-        (
-            known_lower
-            for known_lower in resources_by_lower
-            if resource_lower in known_lower or known_lower in resource_lower
-        ),
-        key=lambda known_lower: -difflib.SequenceMatcher(None, resource_lower, known_lower).ratio(),
-    )
-    similar = [
-        resources_by_lower[known_lower]
-        for known_lower in difflib.get_close_matches(
-            resource_lower, resources_by_lower, n=SUGGESTION_COUNT, cutoff=SUGGESTION_SIMILARITY
-        )
-    ]
-    containing_resources = [resources_by_lower[known_lower] for known_lower in containing]
-    return list(dict.fromkeys(containing_resources + similar))[:SUGGESTION_COUNT]
