@@ -27,12 +27,14 @@ def tool_error(message: str, **details: Any) -> ToolError:
         details: Hints for the caller, such as an example or similar resources
 
     Returns:
-        Tool error with the message followed by the hints as JSON
+        Tool error with the message followed by the hints as JSON; the message is kept on one
+        line, so the hints are always the second line
     """
     if not details:
         return ToolError(message)
 
-    return ToolError(f"{message}\n{json.dumps(details, default=str)}")
+    one_line_message = " ".join(message.split())
+    return ToolError(f"{one_line_message}\n{json.dumps(details, default=str)}")
 
 
 def cut_text_to_budget(text: str, offset: int) -> tuple[str, int | None]:

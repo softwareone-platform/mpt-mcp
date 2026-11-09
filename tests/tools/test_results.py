@@ -36,6 +36,14 @@ def test_tool_error_appends_details_as_json():
     assert str(result) == 'Unknown resource: x\n{"did_you_mean": ["catalog.products"]}'
 
 
+def test_tool_error_keeps_message_on_one_line():
+    result = tool_error("Client error\nFor more information check: x", resource="commerce.orders")
+
+    message, details = str(result).split("\n")
+    assert message == "Client error For more information check: x"
+    assert json.loads(details) == {"resource": "commerce.orders"}
+
+
 @pytest.mark.parametrize(
     ("pagination", "item_count", "expected"),
     [
