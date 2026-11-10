@@ -63,7 +63,7 @@ extend-ignore = [
   "WPS226",
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "WPS202",  # 3
+  "WPS202",  # 2
   "WPS204",  # 3
   "WPS210",  # 19
   "WPS211",  # 2
