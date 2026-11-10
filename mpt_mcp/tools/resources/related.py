@@ -8,7 +8,7 @@ MAX_SIMILAR = 5
 SIMILAR_PREFIX_PARTS = 2
 
 
-def find_related_resources(
+def find_related_resources(  # noqa: WPS210
     resource: str, endpoint_info: dict[str, Any], endpoints_registry: dict[str, Any]
 ) -> RelatedResources | None:
     """

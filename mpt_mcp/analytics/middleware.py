@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from starlette.requests import Request
 
 
-class AnalyticsMiddleware(Middleware):
+class AnalyticsMiddleware(Middleware):  # noqa: WPS214
     """Record a usage event for every tool call, prompt get and resource read."""
 
     def __init__(self, clock: Callable[[], float] = time.monotonic) -> None:

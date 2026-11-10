@@ -25,7 +25,7 @@ RQL_LOG_LENGTH = 80
 
 
 @query_tools.tool(title="Query a Marketplace resource", annotations=READ_ONLY_REMOTE)
-async def marketplace_query(  # noqa: WPS211
+async def marketplace_query(  # noqa: WPS210, WPS211
     resource: str,
     rql: str = "",
     limit: Annotated[int, Field(ge=0, le=MAX_LIMIT)] = DEFAULT_LIMIT,
@@ -111,7 +111,7 @@ async def marketplace_query(  # noqa: WPS211
     return QueryResponse.model_validate(add_page_position(fit_result_to_budget(result)))
 
 
-def log_query_result(result: Any) -> None:
+def log_query_result(result: Any) -> None:  # noqa: WPS210
     """
     Log what marketplace_query returns, so agents can check that $meta and omitted are present.
 

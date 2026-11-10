@@ -68,7 +68,7 @@ def cut_text_to_budget(text: str, offset: int) -> tuple[str, int | None]:
     return text[offset:end], end
 
 
-def fit_result_to_budget(result: Any) -> Any:
+def fit_result_to_budget(result: Any) -> Any:  # noqa: WPS210
     """
     Cut a page of items to the ones that fit in CHARACTER_LIMIT.
 
@@ -123,7 +123,7 @@ def fit_result_to_budget(result: Any) -> Any:
     return {**result, KEY_META: {**meta, "truncated": truncated}, "data": kept_items}
 
 
-def add_page_position(result: Any) -> Any:
+def add_page_position(result: Any) -> Any:  # noqa: WPS210
     """
     Add returned, has_more and next_offset to the pagination of a page of items.
 

@@ -62,9 +62,6 @@ doctests = true
 extend-ignore = [
   "WPS226",
   "WPS412",
-  # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "WPS210",  # 14
-  "WPS214",  # 3
 ]
 extend-exclude = [
   ".coverage",
@@ -85,8 +82,9 @@ statistics = false
 per-file-ignores = [
   "*alembic/versions/**:WPS102,WPS221,WPS432",
   "*mpt_mcp/analytics/models.py:WPS432",
+  # WPS210: tests build their nested inputs step by step, one local per level
   # WPS441: with AAA the asserts read the with targets (pytest.raises, patch) after the act block
-  "*tests/**:WPS202,WPS441",
+  "*tests/**:WPS202,WPS210,WPS441",
 ]
 
 [tool.ruff]

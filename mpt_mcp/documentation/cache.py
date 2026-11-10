@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-class DocumentationCache:
+class DocumentationCache:  # noqa: WPS214
     """Manages cached documentation from GitBook with automatic TTL-based refresh."""
 
     def __init__(
@@ -88,7 +88,7 @@ class DocumentationCache:
             "is_refreshing": self._is_refreshing,
         }
 
-    async def get_documentation_index(self) -> dict[str, Any]:
+    async def get_documentation_index(self) -> dict[str, Any]:  # noqa: WPS210
         """
         Get the documentation structure/hierarchy (table of contents).
 
@@ -325,7 +325,7 @@ class DocumentationCache:
         logger.info("Fetched and cached content for: %s (length: %s)", uri, len(markdown or ""))
         return fetched_content
 
-    def _index_page(self, page: Any) -> None:
+    def _index_page(self, page: Any) -> None:  # noqa: WPS210
         if not isinstance(page, dict):
             return
 

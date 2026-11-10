@@ -68,7 +68,7 @@ class APIClient:
 
         self.timeout = timeout
 
-    async def get(
+    async def get(  # noqa: WPS210
         self,
         endpoint: str,
         query_params: dict[str, Any] | None = None,

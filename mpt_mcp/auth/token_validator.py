@@ -198,7 +198,7 @@ class TokenValidator:
         await self.cache.set(token, api_base_url, is_valid=True, token_info=token_info)
         return validation
 
-    async def _validate_jwt(self, token: str, api_base_url: str) -> TokenValidation:
+    async def _validate_jwt(self, token: str, api_base_url: str) -> TokenValidation:  # noqa: WPS210
         jwks_url = self.jwt_verifier.find_jwks_url(token)
         payload, verify_error = (
             await self.jwt_verifier.verify(token, jwks_url)

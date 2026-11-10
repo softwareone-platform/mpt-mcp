@@ -53,7 +53,7 @@ RESOURCES_TIPS = MappingProxyType({
 })
 
 
-def list_resources(
+def list_resources(  # noqa: WPS210
     spec: MarketplaceSpec,
     *,
     user_id: str | None,

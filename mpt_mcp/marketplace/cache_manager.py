@@ -42,7 +42,7 @@ def read_cached_at(cached_at: str) -> dt.datetime:
     return written_at
 
 
-class CacheManager:
+class CacheManager:  # noqa: WPS214
     """Manages caching of OpenAPI specs and endpoint metadata."""
 
     def __init__(self, cache_dir: str = ".cache", ttl_hours: int = 24):
@@ -82,7 +82,7 @@ class CacheManager:
         except OSError, json.JSONDecodeError:
             return None
 
-    def get_cache_info(self) -> dict[str, Any]:
+    def get_cache_info(self) -> dict[str, Any]:  # noqa: WPS210
         """
         Get information about the cache.
 

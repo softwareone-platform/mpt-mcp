@@ -17,7 +17,7 @@ PATH_PARAM_EXAMPLES = MappingProxyType({
 PATH_PARAM_PATTERN = re.compile(r"\{(\w+)\}")
 
 
-def fill_path_params(resource: str, endpoint_path: str, path_params: dict[str, str] | None) -> str:
+def fill_path_params(resource: str, endpoint_path: str, path_params: dict[str, str] | None) -> str:  # noqa: WPS210
     """
     Replace the path parameters of an API path template with their values.
 

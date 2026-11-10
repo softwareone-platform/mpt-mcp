@@ -13,6 +13,7 @@ from mpt_mcp.config import config
 
 CLAIMS_NAMESPACE = "https://claims.softwareone.com"
 HTTP_TIMEOUT = 30.0
+HTTP_TIMEOUT_CONFIG = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
 INVALID_JWT_ERROR = "JWT signature or claims invalid"
 JWKS_TTL = dt.timedelta(minutes=60)
 # Algorithms we accept for JWT signature verification (never trust token's alg header alone)
@@ -103,9 +104,10 @@ class JwtVerifier:
 
                 self._jwks.pop(jwks_url)
 
-        timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
         try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as client:
+            async with httpx.AsyncClient(
+                follow_redirects=True, timeout=HTTP_TIMEOUT_CONFIG
+            ) as client:
                 response = await client.get(jwks_url)
                 response.raise_for_status()
         except (httpx.HTTPError, httpx.InvalidURL) as error:
