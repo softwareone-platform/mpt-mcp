@@ -56,12 +56,17 @@ def http_responder(monkeypatch):
     return factory
 
 
-def test_set_then_get_returns_data(cache_manager):
-    cache_manager.set(SPEC_URL, {"openapi": "3.0.0"})
+@pytest.fixture
+def spec_document():
+    return {"openapi": "3.0.0"}
+
+
+def test_set_then_get_returns_data(cache_manager, spec_document):
+    cache_manager.set(SPEC_URL, spec_document)
 
     result = cache_manager.get(SPEC_URL)
 
-    assert result == {"openapi": "3.0.0"}
+    assert result == spec_document
 
 
 def test_get_missing_entry(cache_manager):
@@ -70,8 +75,8 @@ def test_get_missing_entry(cache_manager):
     assert result is None
 
 
-def test_get_expired_entry(cache_manager, expire_entry):
-    cache_manager.set(SPEC_URL, {"openapi": "3.0.0"})
+def test_get_expired_entry(cache_manager, expire_entry, spec_document):
+    cache_manager.set(SPEC_URL, spec_document)
     expire_entry(SPEC_URL)
 
     result = cache_manager.get(SPEC_URL)
@@ -80,8 +85,8 @@ def test_get_expired_entry(cache_manager, expire_entry):
 
 
 @pytest.mark.parametrize("meta_text", ["{}", '{"cached_at": "yesterday"}'])
-def test_get_entry_with_bad_metadata(cache_manager, meta_text):
-    cache_manager.set(SPEC_URL, {"openapi": "3.0.0"})
+def test_get_entry_with_bad_metadata(cache_manager, meta_text, spec_document):
+    cache_manager.set(SPEC_URL, spec_document)
     meta_path = cache_manager.get_cache_path(SPEC_URL).with_suffix(".meta.json")
     meta_path.write_text(meta_text, encoding="utf-8")
 
@@ -90,8 +95,8 @@ def test_get_entry_with_bad_metadata(cache_manager, meta_text):
     assert result is None
 
 
-def test_get_entry_with_bad_json(cache_manager):
-    cache_manager.set(SPEC_URL, {"openapi": "3.0.0"})
+def test_get_entry_with_bad_json(cache_manager, spec_document):
+    cache_manager.set(SPEC_URL, spec_document)
     cache_manager.get_cache_path(SPEC_URL).write_text("{not json", encoding="utf-8")
 
     result = cache_manager.get(SPEC_URL)
@@ -99,17 +104,17 @@ def test_get_entry_with_bad_json(cache_manager):
     assert result is None
 
 
-def test_invalidate_removes_entry(cache_manager):
-    cache_manager.set(SPEC_URL, {"openapi": "3.0.0"})
+def test_invalidate_removes_entry(cache_manager, spec_document):
+    cache_manager.set(SPEC_URL, spec_document)
 
     cache_manager.invalidate(SPEC_URL)  # act
 
     assert list(cache_manager.cache_dir.iterdir()) == []
 
 
-def test_get_cache_info_counts_entries(cache_manager, expire_entry):
-    cache_manager.set(SPEC_URL, {"openapi": "3.0.0"})
-    cache_manager.set(OTHER_SPEC_URL, {"openapi": "3.0.0"})
+def test_get_cache_info_counts_entries(cache_manager, expire_entry, spec_document):
+    cache_manager.set(SPEC_URL, spec_document)
+    cache_manager.set(OTHER_SPEC_URL, spec_document)
     expire_entry(OTHER_SPEC_URL)
 
     result = cache_manager.get_cache_info()

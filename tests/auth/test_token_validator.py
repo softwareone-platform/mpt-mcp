@@ -2,6 +2,7 @@ import base64
 import json
 import logging
 import time
+from functools import partial
 from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
 
@@ -35,28 +36,17 @@ WIDE_LEEWAY_SECONDS = 300
 
 
 @pytest.fixture
-def token_details():
-    return {
-        "id": "TKN-1234-5678",
-        "status": "Active",
-        "name": "Test Token",
-        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
-    }
+def auth_response_factory(jwks_state):
+    def factory(url, **kwargs):
+        response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
+        response.json.return_value = (
+            jwks_state["jwks"]
+            if url.endswith("/.well-known/jwks.json")
+            else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
+        )
+        return response
 
-
-@pytest.fixture
-def token_api(token_details):
-    response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
-    response.json.return_value = token_details
-    client = AsyncMock(spec=httpx.AsyncClient, get=AsyncMock(return_value=response))
-    with patch("httpx.AsyncClient") as mock_client_class:
-        mock_client_class.return_value.__aenter__.return_value = client
-        yield client
-
-
-@pytest.fixture
-def token_validator():
-    return TokenValidator()
+    return factory
 
 
 @pytest.fixture
@@ -77,15 +67,17 @@ def jwks_state(jwks):
 
 
 @pytest.fixture
-def auth_response_factory(jwks_state):
-    def factory(url, **kwargs):
-        response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
-        response.json.return_value = (
-            jwks_state["jwks"]
-            if url.endswith("/.well-known/jwks.json")
-            else {"id": JWT_USER_ID, "status": "Active", "account": {"id": "ACC-1", "name": "Test"}}
+def jwt_factory(rsa_private_key, issuer):
+    def factory(claims, *, kid="test-key", private_key=None, algorithm="RS256"):
+        headers = {"kid": kid} if kid else None
+        full_claims = {
+            "iss": issuer,
+            "https://claims.softwareone.com/userId": JWT_USER_ID,
+            **claims,
+        }
+        return jwt.encode(
+            full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers
         )
-        return response
 
     return factory
 
@@ -116,19 +108,28 @@ def rsa_private_key(rsa_key_factory):
 
 
 @pytest.fixture
-def jwt_factory(rsa_private_key, issuer):
-    def factory(claims, *, kid="test-key", private_key=None, algorithm="RS256"):
-        headers = {"kid": kid} if kid else None
-        full_claims = {
-            "iss": issuer,
-            "https://claims.softwareone.com/userId": JWT_USER_ID,
-            **claims,
-        }
-        return jwt.encode(
-            full_claims, private_key or rsa_private_key, algorithm=algorithm, headers=headers
-        )
+def token_api(token_details):
+    response = Mock(spec=httpx.Response, status_code=HTTPStatus.OK)
+    response.json.return_value = token_details
+    client = AsyncMock(spec=httpx.AsyncClient, get=AsyncMock(return_value=response))
+    with patch("httpx.AsyncClient") as mock_client_class:
+        mock_client_class.return_value.__aenter__.return_value = client
+        yield client
 
-    return factory
+
+@pytest.fixture
+def token_details():
+    return {
+        "id": "TKN-1234-5678",
+        "status": "Active",
+        "name": "Test Token",
+        "account": {"id": "ACC-123-456", "name": "Test Account", "type": "Vendor"},
+    }
+
+
+@pytest.fixture
+def token_validator():
+    return TokenValidator()
 
 
 @pytest.fixture
@@ -139,6 +140,11 @@ def validate_jwt(jwt_factory, mock_auth_http, token_validator):
         )
 
     return factory
+
+
+@pytest.fixture
+def validate_uncached(token_validator):
+    return partial(token_validator.validate, API_TOKEN, API_BASE_URL, use_cache=False)
 
 
 def test_cache_initialization():
@@ -269,15 +275,15 @@ def test_normalize_token(token, expected):
     assert result == expected
 
 
-async def test_validate_token_success(token_api, token_details, token_validator):
-    result = await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+async def test_validate_token_success(token_api, token_details, validate_uncached):
+    result = await validate_uncached()
 
     assert result == TokenValidation(is_valid=True, token_info=token_details)
 
 
-async def test_validate_token_logs_one_line(token_api, caplog, token_validator):
+async def test_validate_token_logs_one_line(caplog, token_api, validate_uncached):
     with caplog.at_level(logging.INFO, logger="mpt_mcp.auth.token_validator"):
-        await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)  # act
+        await validate_uncached()  # act
 
     expected = (
         "Token TKN-1234-5678 validated: account Test Account (ACC-123-456), type Vendor, "
@@ -287,10 +293,10 @@ async def test_validate_token_logs_one_line(token_api, caplog, token_validator):
     assert "Test Token" not in caplog.text
 
 
-async def test_validate_token_inactive(token_api, token_details, token_validator):
+async def test_validate_token_inactive(token_api, token_details, validate_uncached):
     token_details["status"] = "Inactive"
 
-    result = await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+    result = await validate_uncached()
 
     assert result == TokenValidation(
         is_valid=False,
@@ -352,30 +358,30 @@ async def test_validate_token_failure_is_not_cached(
     ],
 )
 async def test_validate_token_unexpected_response(
-    token_api, token_validator, status, response_body, expected_error
+    token_api, validate_uncached, status, response_body, expected_error
 ):
     token_api.get.return_value.status_code = status
     token_api.get.return_value.json.return_value = response_body
 
-    result = await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+    result = await validate_uncached()
 
     assert result == TokenValidation(is_valid=False, error=expected_error)
 
 
-async def test_validate_token_body_not_json(token_api, token_validator):
+async def test_validate_token_body_not_json(token_api, validate_uncached):
     token_api.get.return_value.json.side_effect = ValueError("Not JSON")
 
-    result = await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+    result = await validate_uncached()
 
     assert result == TokenValidation(
         is_valid=False, error="Token validation returned an unexpected response"
     )
 
 
-async def test_validate_token_with_null_account(token_api, token_details, token_validator):
+async def test_validate_token_with_null_account(token_api, token_details, validate_uncached):
     token_details["account"] = None
 
-    result = await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+    result = await validate_uncached()
 
     assert (result.is_valid, result.account) == (True, {})
 
@@ -390,18 +396,19 @@ async def test_validate_token_uses_cache(token_api, token_validator):
     assert token_api.get.call_count == 1
 
 
-async def test_validate_token_bypass_cache(token_api, token_validator):
-    await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+async def test_validate_token_bypass_cache(token_api, validate_uncached):
+    await validate_uncached()
 
-    await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)  # act
+    await validate_uncached()  # act
 
     assert token_api.get.call_count == 2
 
 
-async def test_validate_token_sends_bearer_prefix(token_api, token_validator):
-    await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)  # act
+async def test_validate_token_sends_bearer_prefix(token_api, validate_uncached):
+    await validate_uncached()  # act
 
-    assert token_api.get.call_args.kwargs["headers"]["Authorization"] == f"Bearer {API_TOKEN}"
+    headers = token_api.get.call_args.kwargs["headers"]
+    assert headers["Authorization"] == f"Bearer {API_TOKEN}"
 
 
 @pytest.mark.parametrize(

@@ -64,18 +64,14 @@ extend-ignore = [
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
   "WPS202",  # 2
-  "WPS204",  # 3
+  "WPS204",  # 1
   "WPS210",  # 18
   "WPS211",  # 2
   "WPS212",  # 2
   "WPS213",  # 4
   "WPS214",  # 3
-  "WPS219",  # 1
   "WPS231",  # 3
   "WPS232",  # 1
-  "WPS328",  # 1
-  "WPS420",  # 1
-  "WPS476",  # 1
   "WPS505",  # 1
 ]
 extend-exclude = [

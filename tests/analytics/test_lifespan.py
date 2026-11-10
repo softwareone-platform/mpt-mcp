@@ -21,7 +21,7 @@ async def test_lifespan_closes_logger_on_shutdown(monkeypatch):
     monkeypatch.setattr(config, "analytics_database_url", "")
 
     with patch.object(AnalyticsLogger, "close", autospec=True) as close:
-        async with analytics_lifespan(FastMCP("test")):
-            pass  # act
+        async with analytics_lifespan(FastMCP("test")) as lifespan_context:
+            analytics_logger = lifespan_context[ANALYTICS_KEY]
 
-    close.assert_awaited_once()
+    close.assert_awaited_once_with(analytics_logger)

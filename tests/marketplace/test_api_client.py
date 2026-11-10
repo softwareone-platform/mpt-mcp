@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from http import HTTPStatus
 from unittest.mock import AsyncMock, Mock, patch
@@ -223,10 +224,12 @@ async def test_get_paginates_with_offset(api_client, http_get):
     ]
     http_get.return_value.json.side_effect = pages
 
-    result = [
-        await api_client.get(PRODUCTS_ENDPOINT, query_params={"limit": PAGE_SIZE, "offset": offset})
-        for offset in (0, PAGE_SIZE)
-    ]
+    result = await asyncio.gather(
+        *(
+            api_client.get(PRODUCTS_ENDPOINT, query_params={"limit": PAGE_SIZE, "offset": offset})
+            for offset in (0, PAGE_SIZE)
+        )
+    )
 
     assert result == pages
 
