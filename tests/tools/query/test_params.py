@@ -167,6 +167,10 @@ def test_select_without_openapi_spec_adds_id(built_select):
         ("audit.created.at,status", ["id", "audit", "status"], "id,status,audit.created.at"),
         ("audit", ["id", "status", "name", "audit"], "id,status,name,audit"),
         ("id,audit", ["id", "status", "name", "audit"], "id,status,name,audit"),
+        ("-*,audit,orderNumber", ["id", "audit", "status"], "-*,+id,+status,+audit"),
+        ("-*,-audit,+status", ["id", "audit", "status"], "-*,+id,+status,-audit"),
+        ("-*", ["id", "audit", "status"], "-*,+id,+status"),
+        (" , ", ["id", "audit", "status"], " , "),
     ],
 )
 def test_sanitizes_select_against_schema(

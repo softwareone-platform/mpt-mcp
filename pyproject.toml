@@ -63,9 +63,8 @@ extend-ignore = [
   "WPS226",
   "WPS412",
   # TBD: existing violations (code: count), fixed rule by rule in follow-up commits
-  "WPS210",  # 15
+  "WPS210",  # 14
   "WPS214",  # 3
-  "WPS231",  # 1
 ]
 extend-exclude = [
   ".coverage",
@@ -164,7 +163,7 @@ ignore = [
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "complex-structure",  # 4
+    "complex-structure",  # 3
 ]
 external = [ "AAA", "WPS" ]
 
