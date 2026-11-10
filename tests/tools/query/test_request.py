@@ -188,6 +188,16 @@ async def test_records_invalid_response_in_analytics(analytics_logger, failed_se
                 ),
             },
         ),
+        (
+            HTTPStatus.BAD_REQUEST,
+            {"errors": {"audit.shipped": ["Invalid property path."]}},
+            {
+                "hint": (
+                    "The resource does not have this audit field: list its audit events with "
+                    "marketplace_audit_fields(resource)"
+                ),
+            },
+        ),
     ],
 )
 async def test_api_error_includes_details(
@@ -201,3 +211,15 @@ async def test_api_error_includes_details(
     _, error_details = str(error.value).split("\n", 1)
     details = json.loads(error_details)
     assert {key: details[key] for key in expected_details} == expected_details
+
+
+async def test_invalid_path_without_audit_has_no_hint(failed_send_factory, http_error_factory):
+    http_error = http_error_factory(
+        HTTPStatus.BAD_REQUEST, {"errors": {"notAField": ["Invalid property path."]}}
+    )
+
+    with pytest.raises(ToolError) as error:
+        await failed_send_factory(http_error)
+
+    _, error_details = str(error.value).split("\n", 1)
+    assert "hint" not in json.loads(error_details)

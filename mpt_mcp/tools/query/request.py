@@ -19,6 +19,8 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 API_ERROR_TEXT_MAX_LENGTH = 500
+# API validation messages for a field path the resource does not have
+UNKNOWN_FIELD_MESSAGES = ("Unknown expression group", "Invalid property path")
 # What APIClient.get raises: request failures and error statuses, or a body that is not JSON
 API_REQUEST_ERRORS = (httpx.HTTPError, ValueError)
 
@@ -177,7 +179,7 @@ def is_unknown_audit_error(field: str, messages: Any) -> bool:
         return False
 
     texts = [str(message) for message in messages]
-    if not any("Unknown expression group" in text for text in texts):
+    if not any(marker in text for text in texts for marker in UNKNOWN_FIELD_MESSAGES):
         return False
 
     mentions_audit = any("audit" in text.lower() for text in texts)
