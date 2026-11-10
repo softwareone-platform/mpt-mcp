@@ -152,32 +152,7 @@ class DocumentationCache:
         if cached_content is not None:
             return cached_content
 
-        # Fetch on-demand using page ID (more reliable than path)
-        page_id = resource["metadata"].get("id")
-
-        if not page_id:
-            logger.error("Resource has no ID: %s", uri)
-            return "Content not available - no page ID"
-
-        if self.gitbook_client is None:
-            return None
-
-        try:
-            page_data = await self.gitbook_client.fetch_page_by_id(page_id)
-        except GITBOOK_REQUEST_ERRORS as error:
-            logger.exception("Failed to fetch resource %s", uri)
-            return f"Error fetching content: {error!s}"
-
-        logger.debug("GitBook page fields: %s", list(page_data.keys()))
-        markdown = page_data.get("markdown", "")
-        if not markdown and "document" in page_data:
-            logger.debug("No markdown, extracting from document structure")
-            markdown = self._extract_text_from_document(page_data["document"])
-
-        fetched_content: str = markdown or "No content available"
-        resource["content"] = fetched_content
-        logger.info("Fetched and cached content for: %s (length: %s)", uri, len(markdown or ""))
-        return fetched_content
+        return await self._fetch_content(uri, resource)
 
     async def list_resources(
         self,
@@ -321,6 +296,34 @@ class DocumentationCache:
             text = text.replace("\n\n\n", "\n\n")
 
         return text.strip()
+
+    async def _fetch_content(self, uri: str, resource: dict[str, Any]) -> str | None:
+        # Fetch on-demand using page ID (more reliable than path)
+        page_id = resource["metadata"].get("id")
+
+        if not page_id:
+            logger.error("Resource has no ID: %s", uri)
+            return "Content not available - no page ID"
+
+        if self.gitbook_client is None:
+            return None
+
+        try:
+            page_data = await self.gitbook_client.fetch_page_by_id(page_id)
+        except GITBOOK_REQUEST_ERRORS as error:
+            logger.exception("Failed to fetch resource %s", uri)
+            return f"Error fetching content: {error!s}"
+
+        logger.debug("GitBook page fields: %s", list(page_data.keys()))
+        markdown = page_data.get("markdown", "")
+        if not markdown and "document" in page_data:
+            logger.debug("No markdown, extracting from document structure")
+            markdown = self._extract_text_from_document(page_data["document"])
+
+        fetched_content: str = markdown or "No content available"
+        resource["content"] = fetched_content
+        logger.info("Fetched and cached content for: %s (length: %s)", uri, len(markdown or ""))
+        return fetched_content
 
     def _index_page(self, page: Any) -> None:
         if not isinstance(page, dict):

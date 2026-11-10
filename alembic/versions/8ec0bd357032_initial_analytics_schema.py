@@ -19,7 +19,7 @@ branch_labels = None
 depends_on = None
 
 
-def upgrade() -> None:
+def upgrade() -> None:  # noqa: WPS213
     """Create simplified analytics schema with only mcp_events table."""
     # Create mcp_events table
     op.create_table(
@@ -84,7 +84,7 @@ def upgrade() -> None:
     )
 
 
-def downgrade() -> None:
+def downgrade() -> None:  # noqa: WPS213
     """Drop mcp_events table and all its indexes."""
     op.drop_index("idx_events_date_tool", table_name="mcp_events")
     op.drop_index("idx_events_date_token", table_name="mcp_events")

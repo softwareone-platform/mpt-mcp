@@ -51,7 +51,8 @@ class AnalyticsMiddleware(Middleware):
         """Record the tool call with its response time and outcome."""
         analytics = self._analytics(context)
         if analytics is None:
-            return await call_next(context)
+            # Every middleware hook passes the request on with call_next(context)
+            return await call_next(context)  # noqa: WPS204
 
         tool_name = context.message.name
         start_time = self._clock()

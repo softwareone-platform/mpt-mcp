@@ -17,6 +17,9 @@ if TYPE_CHECKING:
 
 ACTIVE_STATUS = "Active"
 HTTP_TIMEOUT = 30.0
+JWKS_URL_REQUIRED_ERROR = (
+    "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. Auth0)."
+)
 VALIDATOR_KEY = "token_validator"
 UNKNOWN = "Unknown"
 
@@ -197,13 +200,11 @@ class TokenValidator:
 
     async def _validate_jwt(self, token: str, api_base_url: str) -> TokenValidation:
         jwks_url = self.jwt_verifier.find_jwks_url(token)
-        if not jwks_url:
-            return reject(
-                "JWT verification required. Set JWT_JWKS_URL or use a token with iss claim (e.g. "
-                "Auth0)."
-            )
-
-        payload, verify_error = await self.jwt_verifier.verify(token, jwks_url)
+        payload, verify_error = (
+            await self.jwt_verifier.verify(token, jwks_url)
+            if jwks_url
+            else (None, JWKS_URL_REQUIRED_ERROR)
+        )
         if payload is None:
             return reject(verify_error or INVALID_JWT_ERROR)
 

@@ -39,7 +39,7 @@ def run_uvicorn(port: int) -> None:
     )
 
 
-def log_startup(port: int) -> None:
+def log_startup(port: int) -> None:  # noqa: WPS213
     """Log where the server listens and the headers clients must send."""
     logger.info("=" * 60)
     logger.info("SoftwareOne Marketplace MCP Server (HTTP Mode)")

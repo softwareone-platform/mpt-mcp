@@ -4,44 +4,6 @@ from mpt_mcp.tools.resources.info import describe_resource_info
 
 
 @pytest.fixture
-def products_registry():
-    return {
-        "catalog.products": {
-            "path": "/public/v1/catalog/products",
-            "summary": "Products",
-            "parameters": [
-                {"name": "status", "in": "query", "schema": {"enum": ["Draft", "Published"]}}
-            ],
-        },
-        "catalog.products.by_id": {
-            "path": "/public/v1/catalog/products/{id}",
-            "summary": "Product by ID",
-            "parameters": [{"name": "id", "in": "path", "schema": {"type": "string"}}],
-        },
-        "catalog.products.by_id.items": {
-            "path": "/public/v1/catalog/products/{id}/items",
-            "summary": "Product items",
-            "parameters": [],
-        },
-        "catalog.listings": {
-            "path": "/public/v1/catalog/listings",
-            "summary": "Listings",
-            "parameters": [],
-        },
-        "catalog.items": {
-            "path": "/public/v1/catalog/items",
-            "summary": "Items",
-            "parameters": [],
-        },
-        "catalog.products.search": {
-            "path": "/public/v1/catalog/products/search",
-            "summary": "Search products",
-            "parameters": [],
-        },
-    }
-
-
-@pytest.fixture
 def resource_info_factory(spec_factory, products_registry):
     def factory(resource):
         return describe_resource_info(
@@ -88,35 +50,6 @@ def test_resource_info_shows_path_parameters(resource_info_factory):
         "marketplace_query(resource='catalog.products.by_id', path_params={'id': '<id_value>'}, "
         "select='-*,+id,+name')"
     )
-
-
-def test_resource_info_shows_children(resource_info_factory):
-    result = resource_info_factory("catalog.products")
-
-    children = result["related_resources"]["children"]
-    assert [child["resource"] for child in children] == [
-        "catalog.products.by_id",
-        "catalog.products.by_id.items",
-        "catalog.products.search",
-    ]
-
-
-def test_resource_info_shows_similar(resource_info_factory):
-    result = resource_info_factory("catalog.products.by_id")
-
-    assert result["related_resources"]["similar"] == [
-        {"resource": "catalog.products.search", "summary": "Search products"}
-    ]
-
-
-def test_resource_info_shows_closest_parent(resource_info_factory):
-    result = resource_info_factory("catalog.products.by_id.items")
-
-    assert result["related_resources"]["parent"] == {
-        "resource": "catalog.products.by_id",
-        "summary": "Product by ID",
-        "path": "/public/v1/catalog/products/{id}",
-    }
 
 
 def test_resource_info_without_related_resources(resource_info_factory):

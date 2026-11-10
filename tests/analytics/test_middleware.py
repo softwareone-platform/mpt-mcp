@@ -200,24 +200,25 @@ async def test_on_get_prompt_reraises_exception(middleware, analytics, prompt_co
 
 
 @pytest.mark.parametrize(
-    ("headers", "client_info", "client_ip"),
+    ("headers", "expected_client"),
     [
         (
             {"User-Agent": "Cursor/1.0", "X-Forwarded-For": "203.0.113.7, 10.0.0.2"},
-            "Cursor",
-            "203.0.113.7",
+            {"client_info": "Cursor", "client_ip": "203.0.113.7"},
         ),
         (
             {"User-Agent": "Claude-User/2.0", "X-Real-IP": "198.51.100.4"},
-            "Claude Desktop",
-            "198.51.100.4",
+            {"client_info": "Claude Desktop", "client_ip": "198.51.100.4"},
         ),
-        ({"User-Agent": "python-httpx/0.28"}, "python-httpx", "10.0.0.1"),
-        ({}, None, "10.0.0.1"),
+        (
+            {"User-Agent": "python-httpx/0.28"},
+            {"client_info": "python-httpx", "client_ip": "10.0.0.1"},
+        ),
+        ({}, {"client_info": None, "client_ip": "10.0.0.1"}),
     ],
 )
 async def test_on_request_sets_analytics_context(
-    middleware, context_factory, request_factory, headers, client_info, client_ip
+    middleware, context_factory, request_factory, headers, expected_client
 ):
     request = request_factory(
         {
@@ -235,8 +236,7 @@ async def test_on_request_sets_analytics_context(
     assert result == AnalyticsContext(
         token_id="TKN-1234-5678",
         api_endpoint="https://api.s1.show",
-        client_info=client_info,
-        client_ip=client_ip,
+        **expected_client,
         session_id="abcdef123456",
     )
     assert current_analytics_context.get() == AnalyticsContext()

@@ -25,7 +25,7 @@ RQL_LOG_LENGTH = 80
 
 
 @query_tools.tool(title="Query a Marketplace resource", annotations=READ_ONLY_REMOTE)
-async def marketplace_query(
+async def marketplace_query(  # noqa: WPS211
     resource: str,
     rql: str = "",
     limit: Annotated[int, Field(ge=0, le=MAX_LIMIT)] = DEFAULT_LIMIT,

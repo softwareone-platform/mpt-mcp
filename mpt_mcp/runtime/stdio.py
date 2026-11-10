@@ -8,7 +8,7 @@ from mpt_mcp.server import create_mcp_server
 logger = logging.getLogger(__name__)
 
 
-def main() -> None:
+def main() -> None:  # noqa: WPS213
     """Run the stdio server: report configuration errors and serve MCP on stdin and stdout."""
     configure_logging(logging.DEBUG if config.debug else logging.INFO)
     mcp = create_mcp_server(transport="stdio")
