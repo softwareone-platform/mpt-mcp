@@ -160,8 +160,6 @@ ignore = [
     "no-self-use", # do not require classmethod / staticmethod when self not used
     "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
     "raise-vanilla-args",  # long exception messages from `tryceratops`
-    # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
-    "complex-structure",  # 3
 ]
 external = [ "AAA", "WPS" ]
 

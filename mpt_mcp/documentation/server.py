@@ -3,6 +3,7 @@ from fastmcp.exceptions import ResourceError
 from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.documentation.cache import DocumentationCache
+from mpt_mcp.documentation.listing import describe_docs_filters, get_docs_list_tip
 from mpt_mcp.documentation.store import get_documentation_cache
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
 from mpt_mcp.tools.responses import (
@@ -16,7 +17,6 @@ from mpt_mcp.tools.results import cut_text_to_budget, tool_error
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
     "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 )
-MANY_DOCS_RESULTS = 50
 documentation_provider = LocalProvider()
 
 
@@ -73,29 +73,16 @@ async def marketplace_docs_list(
         })
         for resource in resources
     ]
-    filters = []
-    if section:
-        filters.append(f"section={section}")
-    if subsection:
-        filters.append(f"subsection={subsection}")
-    if search:
-        filters.append(f"search='{search}'")
-    tip = None
-    if len(resources) >= limit:
-        tip = f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
-    elif len(resources) > MANY_DOCS_RESULTS:
-        tip = "Consider using 'section' or 'subsection' filters to narrow down results."
-
     return DocsListResponse(
         total=len(pages),
         resources=pages,
-        filters_applied=", ".join(filters) if filters else "none",
+        filters_applied=describe_docs_filters(section, subsection, search),
         usage=(
             "Use marketplace_docs_read(uri='docs://path') to read a page. "
             "Prefer showing users the browser_url (public link) when present; "
             "do not show internal uri or id to end users."
         ),
-        tip=tip,
+        tip=get_docs_list_tip(len(resources), limit),
     )
 
 

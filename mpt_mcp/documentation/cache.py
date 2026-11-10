@@ -12,6 +12,18 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Blocks that end with a line break in the text extracted from a GitBook document
+TEXT_BLOCK_TYPES = frozenset((
+    "heading-1",
+    "heading-2",
+    "heading-3",
+    "heading-4",
+    "heading-5",
+    "heading-6",
+    "list-item",
+    "paragraph",
+))
+
 
 class DocumentationCache:  # noqa: WPS214
     """Manages cached documentation from GitBook with automatic TTL-based refresh."""
@@ -254,6 +266,16 @@ class DocumentationCache:  # noqa: WPS214
 
         logger.info("Built resource index with %s entries", len(self._resources))
 
+    def _extract_from_children(self, node: dict[str, Any], text_parts: list[str]) -> None:
+        children = node.get("nodes")
+        if not isinstance(children, list):
+            return
+
+        for child in children:
+            self._extract_from_node(child, text_parts)
+        if node.get("type") in TEXT_BLOCK_TYPES:
+            text_parts.append("\n")
+
     def _extract_from_node(self, node: Any, text_parts: list[str]) -> None:
         if not isinstance(node, dict):
             return
@@ -267,22 +289,7 @@ class DocumentationCache:  # noqa: WPS214
         if text is not None:
             text_parts.append(text)
 
-        children = node.get("nodes")
-        if isinstance(children, list):
-            for child in children:
-                self._extract_from_node(child, text_parts)
-
-            if node.get("type") in {
-                "paragraph",
-                "heading-1",
-                "heading-2",
-                "heading-3",
-                "heading-4",
-                "heading-5",
-                "heading-6",
-                "list-item",
-            }:
-                text_parts.append("\n")
+        self._extract_from_children(node, text_parts)
 
     def _extract_text_from_document(self, document: dict[str, Any]) -> str:
         # GitBook nests the text: document -> nodes -> (blocks or text) -> leaves -> text

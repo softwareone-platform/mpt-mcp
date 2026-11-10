@@ -133,16 +133,6 @@ class APIClient:
             return response_data
 
     def _describe_response(self, response_data: Any) -> str:
-        """
-        Summarize a response for the log in one line.
-
-        Args:
-            response_data: Parsed JSON response
-
-        Returns:
-            Items returned, pagination and omitted fields, e.g. "items=10, offset=0, limit=10,
-            total=45"
-        """
         if isinstance(response_data, list):
             return f"items={len(response_data)}"
 
@@ -155,8 +145,13 @@ class APIClient:
             details.append(f"items={len(data)}")
         elif isinstance(data, dict) or "data" not in response_data:
             details.append("single item")
+        details.extend(self._describe_meta(response_data))
+        return ", ".join(details)
+
+    def _describe_meta(self, response_data: dict[str, Any]) -> list[str]:
         meta = response_data.get("$meta")
         meta = meta if isinstance(meta, dict) else {}
+        details = []
         pagination = meta.get("pagination") or response_data.get("pagination")
         if isinstance(pagination, dict):
             details.append(
@@ -166,21 +161,9 @@ class APIClient:
         if meta.get("omitted"):
             omitted_fields = ", ".join(meta["omitted"])
             details.append(f"omitted fields: {omitted_fields}")
-        return ", ".join(details)
+        return details
 
     def _extract_user_id(self, token: str) -> str | None:
-        """
-        Extract user identifier from token.
-
-        Token format: idt:TKN-XXXX-XXXX:actual_token
-        Returns: TKN-XXXX-XXXX (the user identifier)
-
-        Args:
-            token: The authentication token (with or without Bearer prefix)
-
-        Returns:
-            User identifier (TKN-XXXX-XXXX) or None if not found
-        """
         token_value = token.replace(BEARER_PREFIX, "").strip()
 
         if token_value.startswith("idt:") and token_value.count(":") >= 2:
@@ -191,7 +174,6 @@ class APIClient:
         return None
 
     def _get_headers(self) -> dict[str, str]:
-        """Get request headers with authentication."""
         return {
             "Authorization": self.token,
             "Content-Type": "application/json",
