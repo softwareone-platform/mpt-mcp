@@ -6,7 +6,6 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from mpt_mcp.analytics import AnalyticsLogger
-from mpt_mcp.config import config
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.tools.query.request import MarketplaceRequest
 
@@ -19,9 +18,8 @@ def api_client():
 
 
 @pytest.fixture
-def analytics_logger(monkeypatch):
-    monkeypatch.setattr(config, "analytics_enabled", True)
-    return Mock(spec=AnalyticsLogger, log_api_query=AsyncMock())
+def analytics_logger():
+    return Mock(spec=AnalyticsLogger, record=AsyncMock())
 
 
 @pytest.fixture
@@ -128,10 +126,10 @@ async def test_records_sent_query_in_analytics(
         query_params_factory(select=AUDIT_SELECT), None
     )
 
-    recorded = analytics_logger.log_api_query.call_args.kwargs
-    assert recorded["api_status_code"] == HTTPStatus.OK
-    assert recorded["result_count"] == 1
-    assert recorded["select_fields"] == AUDIT_SELECT
+    recorded = analytics_logger.record.call_args.args[0]
+    assert recorded.api_status_code == HTTPStatus.OK
+    assert recorded.result_count == 1
+    assert recorded.select_fields == AUDIT_SELECT
 
 
 async def test_records_api_error_in_analytics(
@@ -142,9 +140,9 @@ async def test_records_api_error_in_analytics(
     with pytest.raises(ToolError):
         await failed_send_factory(http_error, analytics_logger=analytics_logger)
 
-    recorded = analytics_logger.log_api_query.call_args.kwargs
-    assert recorded["api_status_code"] == HTTPStatus.NOT_FOUND
-    assert recorded["result_count"] is None
+    recorded = analytics_logger.record.call_args.args[0]
+    assert recorded.api_status_code == HTTPStatus.NOT_FOUND
+    assert recorded.result_count is None
 
 
 async def test_records_invalid_response_in_analytics(analytics_logger, failed_send_factory):
@@ -153,9 +151,9 @@ async def test_records_invalid_response_in_analytics(analytics_logger, failed_se
             ValueError("Response is not JSON"), analytics_logger=analytics_logger
         )
 
-    recorded = analytics_logger.log_api_query.call_args.kwargs
-    assert recorded["api_status_code"] == HTTPStatus.INTERNAL_SERVER_ERROR
-    assert recorded["result_count"] is None
+    recorded = analytics_logger.record.call_args.args[0]
+    assert recorded.api_status_code == HTTPStatus.INTERNAL_SERVER_ERROR
+    assert recorded.result_count is None
 
 
 @pytest.mark.parametrize(

@@ -33,7 +33,7 @@ The [`runtime/`](../mpt_mcp/runtime) package starts the transports:
 2. FastMCP's streamable HTTP app (`mcp.http_app(stateless_http=True)`) handles `/mcp`. The server is stateless: there are no server-side MCP sessions, so any instance behind a load balancer can serve any request.
 3. FastMCP middlewares run for every MCP request, in this order:
    - `RequestContextMiddleware` ([`runtime/middleware.py`](../mpt_mcp/runtime/middleware.py)) sets the caller's user ID and the `session_id` query parameter as the log prefix, and logs caller activity (at most every 30 seconds per caller).
-   - `AnalyticsMiddleware` ([`analytics/middleware.py`](../mpt_mcp/analytics/middleware.py)) sets the analytics context and records one event per tool call and per resource read.
+   - `AnalyticsMiddleware` ([`analytics/middleware.py`](../mpt_mcp/analytics/middleware.py)) sets the caller's analytics context (token ID, endpoint, client, IP and session) for the request and records one event per tool call, prompt get and resource read.
 4. Tools and the OpenAPI resource receive a `CallContext` with `Depends(get_call_context)` ([`auth/call_context.py`](../mpt_mcp/auth/call_context.py)), built from the `X-MPT-*` headers. `CallContext.create_api_client()` validates the token with the server's `TokenValidator`, which `token_lifespan` creates for both transports, and returns an `APIClient` for the caller's endpoint. The Marketplace tools receive that client and the endpoint's OpenAPI spec through the dependencies of [`tools/dependencies.py`](../mpt_mcp/tools/dependencies.py) (`get_api_client`, `get_marketplace_spec`), which FastMCP resolves once per call. `get_marketplace_spec` reads the spec from the `MarketplaceSpecStore` of the lifespan context, which loads each endpoint's spec on its first call, one load at a time. A spec that cannot be loaded raises `OpenAPISpecFetchError` in [`marketplace/endpoint_registry.py`](../mpt_mcp/marketplace/endpoint_registry.py), which the dependency turns into a tool error, and it is not kept, so the next call retries it.
 
 The stdio server has no HTTP request: `get_call_context()` builds the `CallContext` from `MARKETPLACE_API_BASE_URL` and `MARKETPLACE_API_TOKEN`, and the tools run the same way.
@@ -84,9 +84,9 @@ INFO [mpt_mcp.runtime.middleware] [sess:abcdef12|user:TKN-1111-2222] TKN-1111-22
 
 Analytics is optional and only runs in the HTTP server when `ANALYTICS_DATABASE_URL` is set:
 
-- `analytics_lifespan` ([`analytics/lifespan.py`](../mpt_mcp/analytics/lifespan.py)) creates the logger inside the server's event loop and closes it on shutdown, which flushes pending events.
-- `AnalyticsLogger` ([`analytics/logger.py`](../mpt_mcp/analytics/logger.py)) buffers events and inserts them in batches (every 5 seconds or 50 events) into `mcp_events`.
-- Tool calls and resource reads are recorded by `AnalyticsMiddleware`; Marketplace API queries are recorded by `MarketplaceRequest` ([`tools/query/request.py`](../mpt_mcp/tools/query/request.py)) with their RQL, pagination and status code.
+- `analytics_lifespan` ([`analytics/lifespan.py`](../mpt_mcp/analytics/lifespan.py)) creates the server's `AnalyticsLogger` inside its event loop, keeps it in the lifespan context and closes it on shutdown, which flushes pending events. `AnalyticsMiddleware` reads it from there, and `marketplace_query` receives it as `Depends(get_analytics_logger)`, which gives `None` on the stdio server.
+- `AnalyticsLogger` ([`analytics/logger.py`](../mpt_mcp/analytics/logger.py)) records typed events ([`analytics/events.py`](../mpt_mcp/analytics/events.py): `ToolCallEvent`, `PromptGetEvent`, `ResourceReadEvent`, `ApiQueryEvent`, whose fields are `mcp_events` columns) with the caller's context, logs each one to the console, and inserts them in batches (every 5 seconds or 50 events) into `mcp_events`.
+- Tool calls, prompt gets and resource reads are recorded by `AnalyticsMiddleware`; Marketplace API queries are recorded by `MarketplaceRequest` ([`tools/query/request.py`](../mpt_mcp/tools/query/request.py)) with their RQL, pagination and status code.
 
 The schema is managed with Alembic, see [migrations.md](migrations.md).
 

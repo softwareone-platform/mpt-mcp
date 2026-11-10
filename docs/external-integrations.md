@@ -25,7 +25,7 @@ Without GitBook credentials the documentation tools fail with an error explainin
 
 ## Analytics Database (PostgreSQL)
 
-When `ANALYTICS_DATABASE_URL` is set, the HTTP server stores usage events in the `mcp_events` table ([`analytics/models.py`](../mpt_mcp/analytics/models.py)): tool calls, resource reads and Marketplace API queries, with response times, errors, the caller's token ID (never the secret), client name and IP.
+When `ANALYTICS_DATABASE_URL` is set, the HTTP server stores usage events in the `mcp_events` table ([`analytics/models.py`](../mpt_mcp/analytics/models.py)): tool calls, prompt gets, resource reads and Marketplace API queries, with response times, errors, the caller's token ID (never the secret), client name and IP.
 
 - Locally, `make run-analytics` starts the `analytics-db` container, see [local-development.md](local-development.md).
 - In production the URL points to Cloud SQL, see [deployment.md](deployment.md).

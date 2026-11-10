@@ -54,7 +54,6 @@ class Config:
     # Analytics Database (Optional - for usage tracking)
     # Format: postgresql+asyncpg://user:password@host:port/database
     analytics_database_url: str = os.getenv("ANALYTICS_DATABASE_URL", "")
-    analytics_enabled: bool = bool(os.getenv("ANALYTICS_DATABASE_URL", ""))
 
     def validate(self) -> list[str]:
         """

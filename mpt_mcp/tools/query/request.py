@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, Any
 
 import httpx
 
-from mpt_mcp.config import config
+from mpt_mcp.analytics.events import ApiQueryEvent
 from mpt_mcp.tools.results import KEY_META, tool_error
 
 if TYPE_CHECKING:
@@ -111,22 +111,22 @@ class MarketplaceRequest:
             raise rejected_error from retry_error
 
     async def _record(self, query: QueryParams, status_code: int, result_count: int | None) -> None:
-        if not (self.analytics_logger and config.analytics_enabled):
+        if self.analytics_logger is None:
             return
 
-        await self.analytics_logger.log_api_query(
-            api_resource=self.resource,
-            api_path=self.api_path,
-            api_method="GET",
-            api_status_code=status_code,
-            api_response_time_ms=int((time.monotonic() - self.start_time) * 1000),
-            result_count=result_count,
-            rql_filter=query.rql,
-            limit_value=query.limit,
-            offset_value=query.offset,
-            order_by=query.order,
-            select_fields=query.select,
-            tool_name="marketplace_query",
+        await self.analytics_logger.record(
+            ApiQueryEvent(
+                api_resource=self.resource,
+                api_path=self.api_path,
+                api_status_code=status_code,
+                api_response_time_ms=int((time.monotonic() - self.start_time) * 1000),
+                result_count=result_count,
+                rql_filter=query.rql,
+                limit_value=query.limit,
+                offset_value=query.offset,
+                order_by=query.order,
+                select_fields=query.select,
+            )
         )
 
     def _tool_error(self, error: Exception) -> ToolError:

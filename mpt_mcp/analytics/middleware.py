@@ -1,4 +1,3 @@
-import json
 import time
 from typing import TYPE_CHECKING, Any, override
 
@@ -6,7 +5,13 @@ from fastmcp.exceptions import ToolError
 from fastmcp.server.dependencies import get_http_request
 from fastmcp.server.middleware import CallNext, Middleware, MiddlewareContext
 
-from mpt_mcp.analytics.logger import get_analytics_logger
+from mpt_mcp.analytics.events import (
+    AnalyticsContext,
+    PromptGetEvent,
+    ResourceReadEvent,
+    ToolCallEvent,
+)
+from mpt_mcp.analytics.logger import ANALYTICS_KEY, AnalyticsLogger, current_analytics_context
 from mpt_mcp.auth.call_context import read_call_context
 
 CLIENT_NAME_MAX_LENGTH = 50
@@ -44,30 +49,32 @@ class AnalyticsMiddleware(Middleware):
         call_next: CallNext[CallToolRequestParams, ToolResult],
     ) -> ToolResult:
         """Record the tool call with its response time and outcome."""
-        analytics = get_analytics_logger()
-        if not analytics or not analytics.enabled:
+        analytics = self._analytics(context)
+        if analytics is None:
             return await call_next(context)
 
+        tool_name = context.message.name
         start_time = self._clock()
         try:
             result = await call_next(context)
         except Exception as error:
-            await analytics.log_tool_call(
-                tool_name=context.message.name,
-                response_time_ms=self._elapsed_ms(start_time),
-                success=False,
-                error_type="tool_error" if isinstance(error, ToolError) else "exception",
-                error_message=str(error),
+            await analytics.record(
+                ToolCallEvent(
+                    tool_name=tool_name,
+                    response_time_ms=self._elapsed_ms(start_time),
+                    error_type="tool_error" if isinstance(error, ToolError) else "exception",
+                    error_message=str(error),
+                )
             )
             raise
 
-        await analytics.log_tool_call(
-            tool_name=context.message.name,
-            response_time_ms=self._elapsed_ms(start_time),
-            success=not result.is_error,
-            error_message="Tool returned an error result" if result.is_error else None,
+        await analytics.record(
+            ToolCallEvent(
+                tool_name=tool_name,
+                response_time_ms=self._elapsed_ms(start_time),
+                error_message="Tool returned an error result" if result.is_error else None,
+            )
         )
-
         return result
 
     @override
@@ -77,27 +84,28 @@ class AnalyticsMiddleware(Middleware):
         call_next: CallNext[GetPromptRequestParams, PromptResult],
     ) -> PromptResult:
         """Record the prompt get with its response time and outcome."""
-        analytics = get_analytics_logger()
-        if not analytics or not analytics.enabled:
+        analytics = self._analytics(context)
+        if analytics is None:
             return await call_next(context)
 
+        prompt_name = context.message.name
         start_time = self._clock()
         try:
             result = await call_next(context)
         except Exception as error:
-            await analytics.log_prompt_get(
-                prompt_name=context.message.name,
-                response_time_ms=self._elapsed_ms(start_time),
-                success=False,
-                error_message=str(error),
+            await analytics.record(
+                PromptGetEvent(
+                    tool_name=prompt_name,
+                    response_time_ms=self._elapsed_ms(start_time),
+                    error_type="prompt_error",
+                    error_message=str(error),
+                )
             )
             raise
 
-        await analytics.log_prompt_get(
-            prompt_name=context.message.name,
-            response_time_ms=self._elapsed_ms(start_time),
+        await analytics.record(
+            PromptGetEvent(tool_name=prompt_name, response_time_ms=self._elapsed_ms(start_time))
         )
-
         return result
 
     @override
@@ -107,30 +115,30 @@ class AnalyticsMiddleware(Middleware):
         call_next: CallNext[ReadResourceRequestParams, ResourceResult],
     ) -> ResourceResult:
         """Record the resource read with its response time and outcome."""
-        analytics = get_analytics_logger()
-        if not analytics or not analytics.enabled:
+        analytics = self._analytics(context)
+        if analytics is None:
             return await call_next(context)
 
+        resource_uri = str(context.message.uri)
         start_time = self._clock()
         try:
             result = await call_next(context)
         except Exception as error:
-            await analytics.log_resource_read(
-                resource_uri=str(context.message.uri),
-                response_time_ms=self._elapsed_ms(start_time),
-                success=False,
-                error_message=str(error),
+            await analytics.record(
+                ResourceReadEvent(
+                    resource_uri=resource_uri,
+                    response_time_ms=self._elapsed_ms(start_time),
+                    error_type="resource_not_found",
+                    error_message=str(error),
+                )
             )
             raise
 
-        error_message = self._resource_error(result)
-        await analytics.log_resource_read(
-            resource_uri=str(context.message.uri),
-            response_time_ms=self._elapsed_ms(start_time),
-            success=error_message is None,
-            error_message=error_message,
+        await analytics.record(
+            ResourceReadEvent(
+                resource_uri=resource_uri, response_time_ms=self._elapsed_ms(start_time)
+            )
         )
-
         return result
 
     @override
@@ -138,8 +146,7 @@ class AnalyticsMiddleware(Middleware):
         self, context: MiddlewareContext[Any], call_next: CallNext[Any, Any]
     ) -> Any:
         """Bind the caller's token, endpoint and client to the analytics events of the request."""
-        analytics = get_analytics_logger()
-        if not analytics or not analytics.enabled:
+        if self._analytics(context) is None:
             return await call_next(context)
 
         try:
@@ -148,15 +155,27 @@ class AnalyticsMiddleware(Middleware):
             return await call_next(context)
 
         call_context = read_call_context(request)
-        analytics.set_context(
-            token=call_context.token or "",
-            endpoint=call_context.endpoint,
+        analytics_context = AnalyticsContext(
+            token_id=call_context.user_id,
+            api_endpoint=call_context.endpoint,
             client_info=self._client_info(request),
             client_ip=self._client_ip(request),
             session_id=request.query_params.get("session_id"),
         )
+        context_token = current_analytics_context.set(analytics_context)
+        # Resetting in finally is how contextvars restores a value set for one request
+        try:  # noqa: WPS501
+            return await call_next(context)
+        finally:
+            current_analytics_context.reset(context_token)
 
-        return await call_next(context)
+    def _analytics(self, context: MiddlewareContext[Any]) -> AnalyticsLogger | None:
+        fastmcp_context = context.fastmcp_context
+        if fastmcp_context is None:
+            return None
+
+        analytics: AnalyticsLogger | None = fastmcp_context.lifespan_context.get(ANALYTICS_KEY)
+        return analytics if analytics is not None and analytics.enabled else None
 
     def _client_info(self, request: Request) -> str | None:
         user_agent = request.headers.get("user-agent", "")
@@ -184,16 +203,3 @@ class AnalyticsMiddleware(Middleware):
 
     def _elapsed_ms(self, start_time: float) -> int:
         return int((self._clock() - start_time) * 1000)
-
-    def _resource_error(self, result: ResourceResult) -> str | None:
-        # Resources report failures as a JSON object with an "error" key
-        first_content = result.contents[0].content if result.contents else None
-        if not isinstance(first_content, str) or not first_content.lstrip().startswith("{"):
-            return None
-
-        try:
-            payload = json.loads(first_content)
-        except json.JSONDecodeError:
-            return None
-
-        return payload.get("error") if isinstance(payload, dict) else None

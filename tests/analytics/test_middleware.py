@@ -1,4 +1,3 @@
-import json
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -8,7 +7,13 @@ from fastmcp.tools import ToolResult
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from mpt_mcp.analytics.logger import AnalyticsLogger
+from mpt_mcp.analytics.events import (
+    AnalyticsContext,
+    PromptGetEvent,
+    ResourceReadEvent,
+    ToolCallEvent,
+)
+from mpt_mcp.analytics.logger import ANALYTICS_KEY, AnalyticsLogger, current_analytics_context
 from mpt_mcp.analytics.middleware import AnalyticsMiddleware
 
 RESPONSE_TIME_MS = 250
@@ -16,10 +21,17 @@ RESPONSE_TIME_MS = 250
 
 @pytest.fixture
 def analytics():
-    with patch("mpt_mcp.analytics.middleware.get_analytics_logger") as get_analytics_logger:
-        analytics_logger = AsyncMock(spec=AnalyticsLogger, enabled=True, set_context=Mock())
-        get_analytics_logger.return_value = analytics_logger
-        yield analytics_logger
+    return AsyncMock(spec=AnalyticsLogger, enabled=True)
+
+
+@pytest.fixture
+def context_factory(analytics):
+    def factory(**message_fields):
+        context = Mock(message=Mock(**message_fields))
+        context.fastmcp_context.lifespan_context = {ANALYTICS_KEY: analytics}
+        return context
+
+    return factory
 
 
 @pytest.fixture
@@ -45,20 +57,20 @@ def middleware():
 
 
 @pytest.fixture
-def prompt_context():
-    context = Mock()
+def prompt_context(context_factory):
+    context = context_factory()
     context.message.name = "recent_orders"
     return context
 
 
 @pytest.fixture
-def resource_context():
-    return Mock(message=Mock(uri="api://openapi.json"))
+def resource_context(context_factory):
+    return context_factory(uri="api://openapi.json")
 
 
 @pytest.fixture
-def tool_context():
-    context = Mock(message=Mock(arguments={}))
+def tool_context(context_factory):
+    context = context_factory(arguments={})
     context.message.name = "marketplace_query"
     return context
 
@@ -68,11 +80,8 @@ async def test_on_call_tool_logs_success(middleware, analytics, tool_context):
 
     await middleware.on_call_tool(tool_context, call_next)  # act
 
-    analytics.log_tool_call.assert_awaited_once_with(
-        tool_name="marketplace_query",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=True,
-        error_message=None,
+    analytics.record.assert_awaited_once_with(
+        ToolCallEvent(tool_name="marketplace_query", response_time_ms=RESPONSE_TIME_MS)
     )
 
 
@@ -83,11 +92,8 @@ async def test_on_call_tool_ignores_error_field(middleware, analytics, tool_cont
 
     await middleware.on_call_tool(tool_context, call_next)  # act
 
-    analytics.log_tool_call.assert_awaited_once_with(
-        tool_name="marketplace_query",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=True,
-        error_message=None,
+    analytics.record.assert_awaited_once_with(
+        ToolCallEvent(tool_name="marketplace_query", response_time_ms=RESPONSE_TIME_MS)
     )
 
 
@@ -97,12 +103,13 @@ async def test_on_call_tool_logs_tool_error(middleware, analytics, tool_context)
     with pytest.raises(ToolError):
         await middleware.on_call_tool(tool_context, call_next)
 
-    analytics.log_tool_call.assert_awaited_once_with(
-        tool_name="marketplace_query",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=False,
-        error_type="tool_error",
-        error_message="Missing X-MPT-Authorization header",
+    analytics.record.assert_awaited_once_with(
+        ToolCallEvent(
+            tool_name="marketplace_query",
+            response_time_ms=RESPONSE_TIME_MS,
+            error_type="tool_error",
+            error_message="Missing X-MPT-Authorization header",
+        )
     )
 
 
@@ -112,12 +119,13 @@ async def test_on_call_tool_logs_and_reraises_exception(middleware, analytics, t
     with pytest.raises(RuntimeError, match="boom"):
         await middleware.on_call_tool(tool_context, call_next)
 
-    analytics.log_tool_call.assert_awaited_once_with(
-        tool_name="marketplace_query",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=False,
-        error_type="exception",
-        error_message="boom",
+    analytics.record.assert_awaited_once_with(
+        ToolCallEvent(
+            tool_name="marketplace_query",
+            response_time_ms=RESPONSE_TIME_MS,
+            error_type="exception",
+            error_message="boom",
+        )
     )
 
 
@@ -127,30 +135,25 @@ async def test_on_call_tool_skips_logging_when_disabled(middleware, analytics, t
 
     await middleware.on_call_tool(tool_context, call_next)  # act
 
-    analytics.log_tool_call.assert_not_awaited()
+    analytics.record.assert_not_awaited()
 
 
-@pytest.mark.parametrize(
-    ("resource_text", "success", "error_message"),
-    [
-        (json.dumps({"spec": {}}), True, None),
-        (json.dumps({"error": "Authentication required"}), False, "Authentication required"),
-        ("# Markdown page", True, None),
-        ("{not json", True, None),
-    ],
-)
-async def test_on_read_resource_logs_outcome(
-    middleware, analytics, resource_context, resource_text, success, error_message
-):
-    call_next = AsyncMock(return_value=ResourceResult([ResourceContent(content=resource_text)]))
+async def test_on_call_tool_without_analytics(middleware, tool_context):
+    tool_context.fastmcp_context.lifespan_context = {}
+    call_next = AsyncMock(return_value="result")
+
+    result = await middleware.on_call_tool(tool_context, call_next)
+
+    assert result == "result"
+
+
+async def test_on_read_resource_logs_success(middleware, analytics, resource_context):
+    call_next = AsyncMock(return_value=ResourceResult([ResourceContent(content="# Page")]))
 
     await middleware.on_read_resource(resource_context, call_next)  # act
 
-    analytics.log_resource_read.assert_awaited_once_with(
-        resource_uri="api://openapi.json",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=success,
-        error_message=error_message,
+    analytics.record.assert_awaited_once_with(
+        ResourceReadEvent(resource_uri="api://openapi.json", response_time_ms=RESPONSE_TIME_MS)
     )
 
 
@@ -160,11 +163,13 @@ async def test_on_read_resource_reraises_exception(middleware, analytics, resour
     with pytest.raises(RuntimeError, match="boom"):
         await middleware.on_read_resource(resource_context, call_next)
 
-    analytics.log_resource_read.assert_awaited_once_with(
-        resource_uri="api://openapi.json",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=False,
-        error_message="boom",
+    analytics.record.assert_awaited_once_with(
+        ResourceReadEvent(
+            resource_uri="api://openapi.json",
+            response_time_ms=RESPONSE_TIME_MS,
+            error_type="resource_not_found",
+            error_message="boom",
+        )
     )
 
 
@@ -173,8 +178,8 @@ async def test_on_get_prompt_logs_success(middleware, analytics, prompt_context)
 
     await middleware.on_get_prompt(prompt_context, call_next)  # act
 
-    analytics.log_prompt_get.assert_awaited_once_with(
-        prompt_name="recent_orders", response_time_ms=RESPONSE_TIME_MS
+    analytics.record.assert_awaited_once_with(
+        PromptGetEvent(tool_name="recent_orders", response_time_ms=RESPONSE_TIME_MS)
     )
 
 
@@ -184,11 +189,13 @@ async def test_on_get_prompt_reraises_exception(middleware, analytics, prompt_co
     with pytest.raises(RuntimeError, match="boom"):
         await middleware.on_get_prompt(prompt_context, call_next)
 
-    analytics.log_prompt_get.assert_awaited_once_with(
-        prompt_name="recent_orders",
-        response_time_ms=RESPONSE_TIME_MS,
-        success=False,
-        error_message="boom",
+    analytics.record.assert_awaited_once_with(
+        PromptGetEvent(
+            tool_name="recent_orders",
+            response_time_ms=RESPONSE_TIME_MS,
+            error_type="prompt_error",
+            error_message="boom",
+        )
     )
 
 
@@ -210,7 +217,7 @@ async def test_on_get_prompt_reraises_exception(middleware, analytics, prompt_co
     ],
 )
 async def test_on_request_sets_analytics_context(
-    middleware, analytics, request_factory, headers, client_info, client_ip
+    middleware, context_factory, request_factory, headers, client_info, client_ip
 ):
     request = request_factory(
         {
@@ -220,26 +227,28 @@ async def test_on_request_sets_analytics_context(
         },
         query_string=b"session_id=abcdef123456",
     )
+    call_next = AsyncMock(side_effect=lambda _: current_analytics_context.get())
 
     with patch("mpt_mcp.analytics.middleware.get_http_request", return_value=request):
-        await middleware.on_request(Mock(), AsyncMock())  # act
+        result = await middleware.on_request(context_factory(), call_next)
 
-    analytics.set_context.assert_called_once_with(
-        token="idt:TKN-1234-5678:SECRET",
-        endpoint="https://api.s1.show",
+    assert result == AnalyticsContext(
+        token_id="TKN-1234-5678",
+        api_endpoint="https://api.s1.show",
         client_info=client_info,
         client_ip=client_ip,
         session_id="abcdef123456",
     )
+    assert current_analytics_context.get() == AnalyticsContext()
 
 
-async def test_on_request_without_http_request(middleware, analytics):
+async def test_on_request_without_http_request(middleware, context_factory):
     call_next = AsyncMock(return_value="result")
 
     with patch(
         "mpt_mcp.analytics.middleware.get_http_request",
         side_effect=RuntimeError("No active HTTP request found."),
     ):
-        result = await middleware.on_request(Mock(), call_next)
+        result = await middleware.on_request(context_factory(), call_next)
 
     assert result == "result"

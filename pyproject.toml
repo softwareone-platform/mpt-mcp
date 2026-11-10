@@ -66,13 +66,13 @@ extend-ignore = [
   "WPS202",  # 3
   "WPS204",  # 3
   "WPS210",  # 20
-  "WPS211",  # 6
+  "WPS211",  # 2
   "WPS212",  # 2
-  "WPS213",  # 5
-  "WPS214",  # 4
+  "WPS213",  # 3
+  "WPS214",  # 3
   "WPS219",  # 1
   "WPS220",  # 14
-  "WPS229",  # 17
+  "WPS229",  # 15
   "WPS231",  # 9
   "WPS232",  # 1
   "WPS328",  # 1
@@ -185,7 +185,11 @@ external = [ "AAA", "WPS" ]
 # Plugin configs:
 [tool.ruff.lint.flake8-bugbear]
 # FastMCP dependency markers are meant to be used as argument defaults
-extend-immutable-calls = ["fastmcp.dependencies.CurrentContext", "fastmcp.dependencies.Depends"]
+extend-immutable-calls = [
+  "fastmcp.dependencies.CurrentContext",
+  "fastmcp.dependencies.Depends",
+  "mpt_mcp.analytics.events.AnalyticsContext",
+]
 
 [tool.ruff.lint.flake8-import-conventions]
 banned-from = ["ast", "datetime"]

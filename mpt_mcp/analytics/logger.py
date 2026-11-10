@@ -3,39 +3,34 @@ import contextlib
 import datetime as dt
 import logging
 from contextvars import ContextVar
-from http import HTTPStatus
-from typing import Any, ClassVar
+from dataclasses import asdict
+from typing import Any
 
+from fastmcp import Context
+from fastmcp.dependencies import CurrentContext
 from sqlalchemy import insert, text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
+from mpt_mcp.analytics.events import AnalyticsContext, McpEvent
 from mpt_mcp.analytics.models import mcp_events
-from mpt_mcp.auth.tokens import parse_token_id
+
+ANALYTICS_KEY = "analytics"
+# Errors of the database connection and of its driver, which reach us unwrapped
+DATABASE_ERRORS = (SQLAlchemyError, OSError)
+SERVER_TYPE = "http"
+SERVER_VERSION = "1.0.0"
 
 logger = logging.getLogger(__name__)
 
-# Context variables for tracking request context
-_current_session_id: ContextVar[str | None] = ContextVar("session_id", default=None)
-_current_token_id: ContextVar[str | None] = ContextVar("token_id", default=None)
-_current_api_endpoint: ContextVar[str | None] = ContextVar("api_endpoint", default=None)
-_current_client_info: ContextVar[str | None] = ContextVar("client_info", default=None)
-_current_client_ip: ContextVar[str | None] = ContextVar("client_ip", default=None)
+# Caller of the current MCP request, set by AnalyticsMiddleware
+current_analytics_context: ContextVar[AnalyticsContext] = ContextVar(
+    "analytics_context", default=AnalyticsContext()
+)
 
 
 class AnalyticsLogger:
-    """
-    Async analytics logger for MCP server.
-
-    Features:
-    - Non-blocking batch inserts
-    - Automatic session tracking
-    - Error pattern detection
-    - Popular query tracking
-    - Privacy-safe (no account data)
-    """
-
-    # The logger of the process, set by initialize_analytics and read by get_analytics_logger
-    current: ClassVar[AnalyticsLogger | None] = None
+    """Records MCP events in mcp_events, inserted in batches by a background task."""
 
     def __init__(
         self, database_url: str | None = None, batch_size: int = 50, flush_interval: float = 5.0
@@ -56,16 +51,14 @@ class AnalyticsLogger:
         self._event_queue: list[dict[str, Any]] = []
         self._flush_task: asyncio.Task[None] | None = None
         self._lock = asyncio.Lock()
-        self.server_version = "1.0.0"
 
     async def close(self) -> None:
-        """Close database connection and flush remaining events."""
+        """Stop the background flush, insert the pending events and close the connection."""
         if self._flush_task:
             self._flush_task.cancel()
             with contextlib.suppress(asyncio.CancelledError):
                 await self._flush_task
 
-        # Flush remaining events
         await self.flush()
 
         if self.engine:
@@ -73,7 +66,7 @@ class AnalyticsLogger:
             logger.info("Analytics logger closed")
 
     async def flush(self) -> None:
-        """Flush all pending events to database."""
+        """Insert the pending events; a failed insert drops them instead of retrying."""
         if not self.enabled or not self.engine:
             return
 
@@ -81,20 +74,20 @@ class AnalyticsLogger:
             if not self._event_queue:
                 return
 
-            events_to_insert = [self._normalize_event(error) for error in self._event_queue]
+            events_to_insert = list(self._event_queue)
             self._event_queue.clear()
 
         try:
             async with self.engine.begin() as conn:
                 await conn.execute(insert(mcp_events), events_to_insert)
-            logger.debug("Flushed %s events to database", len(events_to_insert))
-        except Exception:
-            logger.exception("Failed to flush events")
-            # Don't put events back in queue to avoid infinite retry loop
-            logger.debug("Sample event: %s", events_to_insert[0] if events_to_insert else "None")
+        except DATABASE_ERRORS:
+            logger.exception("Failed to flush %s events", len(events_to_insert))
+            return
+
+        logger.debug("Flushed %s events to database", len(events_to_insert))
 
     async def initialize(self) -> None:
-        """Initialize database connection and start background flush task."""
+        """Connect to the database and start the background flush, or disable analytics."""
         database_url = self.database_url
         if not self.enabled or not database_url:
             logger.info("Analytics disabled (no database URL configured)")
@@ -104,377 +97,77 @@ class AnalyticsLogger:
             self.engine = create_async_engine(
                 database_url, pool_size=5, max_overflow=10, echo=False
             )
-
-            # Test connection
             async with self.engine.begin() as conn:
                 await conn.execute(text("SELECT 1"))
-
-            logger.info("Analytics enabled - connected to database")
-
-            # Start background flush task
-            self._flush_task = asyncio.create_task(self._background_flush())
-
-        except Exception:
+        except DATABASE_ERRORS:
             logger.exception("Failed to initialize analytics")
             self.enabled = False
+            return
 
-    async def log_api_query(
-        self,
-        api_resource: str,
-        api_path: str,
-        api_method: str,
-        api_status_code: int,
-        api_response_time_ms: int,
-        result_count: int | None = None,
-        rql_filter: str | None = None,
-        limit_value: int | None = None,
-        offset_value: int | None = None,
-        order_by: str | None = None,
-        select_fields: str | None = None,
-        tool_name: str | None = None,
-        server_type: str = "http",
-    ) -> None:
+        logger.info("Analytics enabled - connected to database")
+        self._flush_task = asyncio.create_task(self._background_flush())
+
+    async def record(self, event: McpEvent) -> None:
         """
-        Log an API query event.
+        Queue an event with the caller of the current request, and log it to the console.
 
         Args:
-            api_resource: Resource name (e.g., catalog.products)
-            api_path: Full API path
-            api_method: HTTP method
-            api_status_code: HTTP status code
-            api_response_time_ms: API response time
-            result_count: Number of results returned
-            rql_filter: RQL filter used
-            limit_value: Limit parameter
-            offset_value: Offset parameter
-            order_by: Order by parameter
-            select_fields: Select fields parameter
-            tool_name: Tool that made the query
-            server_type: http or stdio
+            event: Event of the MCP call
         """
-        event = {
-            **self._get_context(),
-            "timestamp": dt.datetime.now(dt.UTC),
-            "event_type": "api_query",
-            "server_type": server_type,
-            "tool_name": tool_name,
-            "api_resource": api_resource,
-            "api_path": api_path,
-            "api_method": api_method,
-            "api_status_code": api_status_code,
-            "api_response_time_ms": api_response_time_ms,
-            "result_count": result_count,
-            "rql_filter": rql_filter,
-            "limit_value": limit_value,
-            "offset_value": offset_value,
-            "order_by": order_by,
-            "select_fields": select_fields,
-        }
-
-        await self._queue_event(event)
-
-        # Console logging for visibility
-        token_id = event.get("token_id", "unknown")
-        if HTTPStatus.OK <= api_status_code < HTTPStatus.MULTIPLE_CHOICES:
-            logger.info(
-                "API: %s | Token: %s | %s | %.0fms",
-                api_resource,
-                token_id,
-                api_status_code,
-                api_response_time_ms,
-            )
-        else:
-            logger.warning("API: %s | Token: %s | %s", api_resource, token_id, api_status_code)
-
-    async def log_prompt_get(
-        self,
-        prompt_name: str,
-        response_time_ms: int,
-        *,
-        success: bool = True,
-        error_message: str | None = None,
-        server_type: str = "http",
-    ) -> None:
-        """
-        Log a prompt get event.
-
-        Args:
-            prompt_name: Name of the MCP prompt, stored in tool_name
-            response_time_ms: Response time
-            success: Whether the prompt was rendered
-            error_message: Error message if failed
-            server_type: http or stdio
-        """
-        event = {
-            **self._get_context(),
-            "timestamp": dt.datetime.now(dt.UTC),
-            "event_type": "prompt_get" if success else "error",
-            "server_type": server_type,
-            "tool_name": prompt_name,
-            "response_time_ms": response_time_ms,
-            "error_message": error_message,
-            "error_type": None if success else "prompt_error",
-        }
-
-        await self._queue_event(event)
-
-        token_id = event.get("token_id", "unknown")
-        if success:
-            logger.info("Prompt: %s | Token: %s | %.0fms", prompt_name, token_id, response_time_ms)
-        else:
-            logger.warning(
-                "Prompt: %s | Token: %s | Error: %s", prompt_name, token_id, error_message
-            )
-
-    async def log_resource_read(
-        self,
-        resource_uri: str,
-        response_time_ms: int,
-        *,
-        cache_hit: bool = False,
-        success: bool = True,
-        error_message: str | None = None,
-        server_type: str = "http",
-    ) -> None:
-        """
-        Log a resource read event (e.g., documentation access).
-
-        Args:
-            resource_uri: URI of the resource (e.g., docs://path)
-            response_time_ms: Response time
-            cache_hit: Whether cache was used
-            success: Whether read succeeded
-            error_message: Error message if failed
-            server_type: http or stdio
-        """
-        # Determine cache type from resource URI
-        cache_type = None
-        if cache_hit:
-            if resource_uri.startswith("docs://"):
-                cache_type = "documentation"
-            elif resource_uri.startswith("api://"):
-                cache_type = "openapi"
-
-        event = {
-            **self._get_context(),
-            "timestamp": dt.datetime.now(dt.UTC),
-            "event_type": "resource_read" if success else "error",
-            "server_type": server_type,
-            "resource_uri": resource_uri,
-            "response_time_ms": response_time_ms,
-            "cache_hit": cache_hit,
-            "cache_type": cache_type,
-            "error_message": error_message,
-            "error_type": None if success else "resource_not_found",
-        }
-
-        await self._queue_event(event)
-
-        # Console logging for visibility
-        token_id = event.get("token_id", "unknown")
-        cache_str = " [cached]" if cache_hit else ""
-        if success:
-            logger.info(
-                "Resource: %s | Token: %s | %.0fms%s",
-                resource_uri,
-                token_id,
-                response_time_ms,
-                cache_str,
-            )
-        else:
-            logger.warning(
-                "Resource: %s | Token: %s | Error: %s", resource_uri, token_id, error_message
-            )
-
-    async def log_tool_call(
-        self,
-        tool_name: str,
-        response_time_ms: int,
-        *,
-        success: bool = True,
-        result_count: int | None = None,
-        cache_hit: bool = False,
-        cache_type: str | None = None,
-        error_type: str | None = None,
-        error_message: str | None = None,
-        server_type: str = "http",
-    ) -> None:
-        """
-        Log a tool call event.
-
-        Args:
-            tool_name: Name of the MCP tool called
-            response_time_ms: Total response time in milliseconds
-            success: Whether the call succeeded
-            result_count: Number of results returned
-            cache_hit: Whether cache was used
-            cache_type: Type of cache (documentation, token, openapi)
-            error_type: Type of error if failed
-            error_message: Error message if failed
-            server_type: http or stdio
-        """
-        event = {
-            **self._get_context(),
-            "timestamp": dt.datetime.now(dt.UTC),
-            "event_type": "tool_call" if success else "error",
-            "server_type": server_type,
-            "tool_name": tool_name,
-            "response_time_ms": response_time_ms,
-            "result_count": result_count,
-            "cache_hit": cache_hit,
-            "cache_type": cache_type,
-            "error_type": error_type,
-            "error_message": error_message,
-        }
-
-        await self._queue_event(event)
-
-        # Console logging for visibility
-        token_id = event.get("token_id", "unknown")
-        if success:
-            logger.info("Tool: %s | Token: %s | %.0fms", tool_name, token_id, response_time_ms)
-        else:
-            logger.warning("Tool: %s | Token: %s | Error: %s", tool_name, token_id, error_type)
-
-    def set_context(
-        self,
-        token: str | None = None,
-        endpoint: str | None = None,
-        client_info: str | None = None,
-        session_id: str | None = None,
-        client_ip: str | None = None,
-    ) -> None:
-        """
-        Set context variables for analytics tracking.
-
-        Args:
-            token: API token (will be hashed for storage)
-            endpoint: API endpoint
-            client_info: Client information (e.g., "Cursor", "Claude Desktop")
-            session_id: Session identifier
-            client_ip: Client IP address (IPv4 or IPv6)
-        """
-        if session_id:
-            _current_session_id.set(session_id)
-        if token:
-            # Extract token ID (e.g., TKN-XXXX-XXXX from idt:TKN-XXXX-XXXX:SECRET)
-            token_id = self._extract_token_id(token)
-            _current_token_id.set(token_id)
-        if endpoint:
-            _current_api_endpoint.set(endpoint)
-        if client_info:
-            _current_client_info.set(client_info)
-        if client_ip:
-            _current_client_ip.set(client_ip)
-
-    async def _background_flush(self) -> None:
-        """Background task that periodically flushes events to database."""
-        while True:
-            try:
-                await asyncio.sleep(self.flush_interval)
-                await self.flush()
-            except asyncio.CancelledError:
-                raise  # Re-raise so the task is properly cancelled
-            except Exception:
-                logger.exception("Error in background flush")
-
-    def _extract_token_id(self, token: str) -> str | None:
-        """
-        Extract token ID from token string.
-
-        Supports both formats:
-        1. API Token: idt:TKN-XXXX-XXXX:actual_token → Returns TKN-XXXX-XXXX
-        2. JWT Token: header.payload.signature → Returns USR-XXXX-XXXX (from JWT claims)
-
-        Args:
-            token: The authentication token (with or without Bearer prefix)
-
-        Returns:
-            Token identifier (TKN-XXXX-XXXX or USR-XXXX-XXXX) or None if not found
-        """
-        # Remove "Bearer " prefix if present for parsing
-        token_value = token.replace("Bearer ", "").strip()
-
-        return parse_token_id(token_value)
-
-    def _get_context(self) -> dict[str, Any]:
-        """Get current request context from context variables."""
-        return {
-            "session_id": _current_session_id.get(),
-            "token_id": _current_token_id.get(),
-            "api_endpoint": _current_api_endpoint.get(),
-            "client_info": _current_client_info.get(),
-            "client_ip": _current_client_ip.get(),
-            "server_version": self.server_version,
-        }
-
-    def _normalize_event(self, event: dict[str, Any]) -> dict[str, Any]:
-        """Ensure event has all required columns for database insertion."""
-        # Define all table columns with default None values
-        timestamp = event.get("timestamp")
-        return {
-            # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware
-            # datetimes)
-            "timestamp": timestamp.astimezone(dt.UTC).replace(tzinfo=None) if timestamp else None,
-            "response_time_ms": event.get("response_time_ms"),
-            "token_id": event.get("token_id"),
-            "api_endpoint": event.get("api_endpoint"),
-            "session_id": event.get("session_id"),
-            "event_type": event.get("event_type"),
-            "server_type": event.get("server_type"),
-            "tool_name": event.get("tool_name"),
-            "resource_uri": event.get("resource_uri"),
-            "api_resource": event.get("api_resource"),
-            "api_path": event.get("api_path"),
-            "api_method": event.get("api_method"),
-            "api_status_code": event.get("api_status_code"),
-            "api_response_time_ms": event.get("api_response_time_ms"),
-            "result_count": event.get("result_count"),
-            "rql_filter": event.get("rql_filter"),
-            "limit_value": event.get("limit_value"),
-            "offset_value": event.get("offset_value"),
-            "order_by": event.get("order_by"),
-            "select_fields": event.get("select_fields"),
-            "cache_hit": event.get("cache_hit"),
-            "cache_type": event.get("cache_type"),
-            "error_type": event.get("error_type"),
-            "error_message": event.get("error_message"),
-            "error_details": event.get("error_details"),
-            "server_version": event.get("server_version"),
-            "client_info": event.get("client_info"),
-            "client_ip": event.get("client_ip"),
-        }
-
-    async def _queue_event(self, event: dict[str, Any]) -> None:
-        """Add event to queue and flush if batch size reached."""
         if not self.enabled:
             return
 
+        context = current_analytics_context.get()
+        # The timestamp column has no time zone, so store naive UTC (asyncpg rejects aware
+        # datetimes)
+        timestamp = dt.datetime.now(dt.UTC).replace(tzinfo=None)
+        row = {
+            **event.to_row(),
+            **asdict(context),
+            "timestamp": timestamp,
+            "server_type": SERVER_TYPE,
+            "server_version": SERVER_VERSION,
+        }
         async with self._lock:
-            self._event_queue.append(event)
+            self._event_queue.append(row)
             should_flush = len(self._event_queue) >= self.batch_size
 
         if should_flush:
             await self.flush()
 
+        failure = event.failure
+        if failure is None:
+            logger.info(
+                "%s: %s | Token: %s | %sms",
+                event.log_label,
+                event.subject,
+                context.token_id,
+                event.elapsed_ms,
+            )
+        else:
+            logger.warning(
+                "%s: %s | Token: %s | Error: %s",
+                event.log_label,
+                event.subject,
+                context.token_id,
+                failure,
+            )
 
-def get_analytics_logger() -> AnalyticsLogger | None:
-    """Get the analytics logger of the process (None until initialize_analytics runs)."""
-    return AnalyticsLogger.current
+    async def _background_flush(self) -> None:
+        while True:
+            await asyncio.sleep(self.flush_interval)
+            await self.flush()
 
 
-async def initialize_analytics(database_url: str | None = None, **kwargs: Any) -> AnalyticsLogger:
+def get_analytics_logger(context: Context = CurrentContext()) -> AnalyticsLogger | None:  # noqa: WPS404
     """
-    Initialize global analytics logger.
+    Return the analytics logger of the server, created by analytics_lifespan.
 
     Args:
-        database_url: PostgreSQL connection string
-        **kwargs: Additional arguments for AnalyticsLogger
+        context: Context of the MCP request, injected by FastMCP
 
     Returns:
-        Initialized AnalyticsLogger instance
+        Analytics logger, or None on servers without analytics (stdio)
     """
-    analytics_logger = AnalyticsLogger(database_url=database_url, **kwargs)
-    AnalyticsLogger.current = analytics_logger
-    await analytics_logger.initialize()
+    analytics_logger: AnalyticsLogger | None = context.lifespan_context.get(ANALYTICS_KEY)
     return analytics_logger
