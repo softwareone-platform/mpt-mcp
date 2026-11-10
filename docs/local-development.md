@@ -10,7 +10,7 @@ This document covers running the servers locally and connecting MCP clients to t
 
 ## Configuration
 
-Configuration is read from environment variables; [`compose.yaml`](../compose.yaml) also loads an optional `.env` file. Copy [`config/env.example`](../config/env.example) to `.env` when you need any of these values:
+Configuration is read from environment variables; [`compose.yaml`](../compose.yaml) also loads an optional `.env` file. Copy [`.env.example`](../.env.example) to `.env` when you need any of these values:
 
 | Variable | Used by | Purpose |
 |---|---|---|
