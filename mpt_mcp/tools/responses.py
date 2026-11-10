@@ -196,7 +196,9 @@ class ResourceSchemaResponse(ToolResponse):
         "Top-level fields of one item, usable in select and RQL filters"
     )
     filtering_hints: FilteringHints | None = optional_field("RQL filters built from the fields")
-    common_queries: dict[str, str] = Field(description="Query string patterns for the resource")
+    common_queries: dict[str, str] = Field(
+        description="marketplace_query calls for the resource, built from the fields of its items"
+    )
 
 
 class AuditFieldsResponse(ToolResponse):

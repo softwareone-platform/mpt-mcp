@@ -1,14 +1,21 @@
+from dataclasses import dataclass
 from typing import Any
 
 from mpt_mcp.marketplace.schemas import OpenAPISpec
+from mpt_mcp.tools.query.paths import PATH_PARAM_PATTERN
 from mpt_mcp.tools.responses import FilteringHints, ResourceSchemaResponse, SchemaField
 from mpt_mcp.tools.results import tool_error
 from mpt_mcp.tools.spec import MarketplaceSpec
 
+EXAMPLE_LIMIT = 10
+EXAMPLE_ORDER = "-audit.created.at"
 MAX_ENUM_FILTERS = 3
 MAX_NESTED_FIELDS = 5
 MAX_SEARCH_FILTERS = 3
+MAX_SELECT_FIELDS = 3
 MAX_SIMPLE_FILTERS = 5
+# Fields the select example lists first, when the resource has them
+PREFERRED_SELECT_FIELDS = ("id", "name", "status")
 # RQL compares these fields directly; objects and arrays get no filter hints
 UNFILTERABLE_TYPES = frozenset(("array", "object", "unknown"))
 
@@ -47,20 +54,90 @@ def describe_resource_schema(resource: str, spec: MarketplaceSpec) -> ResourceSc
         response_schema=response_schema,
         fields=fields,
         filtering_hints=None if fields is None else build_filtering_hints(fields),
-        common_queries=build_common_queries(resource),
+        common_queries=QueryExamples(resource, endpoint_path, fields or {}).build(),
     )
 
 
-def build_common_queries(resource: str) -> dict[str, str]:
-    """Return query string patterns for a resource."""
-    return {
-        "basic": f"{resource}?limit=10",
-        "with_filters": f"{resource}?eq(status,Active)&limit=20",
-        "with_sorting": f"{resource}?order=-id&limit=10",
-        "full_example": (
-            f"{resource}?eq(status,Active)&order=-id&select=-*,+id,+name,+status&limit=50"
-        ),
-    }
+@dataclass(frozen=True)
+class QueryExamples:
+    """marketplace_query calls for a resource, built from the fields of its items."""
+
+    resource: str
+    endpoint_path: str
+    fields: dict[str, SchemaField]
+
+    def build(self) -> dict[str, str]:
+        """
+        Build a plain call, and calls that filter, sort, select or do all of them.
+
+        Returns:
+            Calls by example name: basic, with_filters, with_sorting, with_select and
+            full_example, each only when the fields allow it; resources that return a single
+            item get no limit, filter or sort
+        """
+        all_options = {
+            "with_filters": self._filter_option(),
+            "with_sorting": self._sorting_option(),
+            "with_select": self._select_option(),
+        }
+        options = {name: option for name, option in all_options.items() if option is not None}
+        examples = {"basic": self._call()}
+        examples |= {name: self._call(option) for name, option in options.items()}
+        if len(options) > 1:
+            examples["full_example"] = self._call(*options.values())
+        return examples
+
+    @property
+    def _single_item(self) -> bool:
+        return self.endpoint_path.endswith("}")
+
+    def _call(self, *options: str) -> str:
+        arguments = [f"resource='{self.resource}'"]
+        path_params = {
+            param_name: f"<{param_name}_value>"
+            for param_name in PATH_PARAM_PATTERN.findall(self.endpoint_path)
+        }
+        if path_params:
+            arguments.append(f"path_params={path_params}")
+        arguments.extend(options)
+        if not self._single_item:
+            arguments.append(f"limit={EXAMPLE_LIMIT}")
+        joined_arguments = ", ".join(arguments)
+        return f"marketplace_query({joined_arguments})"
+
+    def _filter_option(self) -> str | None:
+        if self._single_item:
+            return None
+
+        enum_filters = [
+            f"eq({field_name},{schema_field.enum[0]})"
+            for field_name, schema_field in self.fields.items()
+            if schema_field.enum
+        ]
+        return f"rql='{enum_filters[0]}'" if enum_filters else None
+
+    def _select_option(self) -> str | None:
+        scalar_fields = [
+            field_name
+            for field_name, schema_field in self.fields.items()
+            if schema_field.type not in UNFILTERABLE_TYPES
+        ]
+        ordered = [
+            field_name for field_name in PREFERRED_SELECT_FIELDS if field_name in scalar_fields
+        ] + [
+            field_name for field_name in scalar_fields if field_name not in PREFERRED_SELECT_FIELDS
+        ]
+        if not ordered:
+            return None
+
+        select = ",".join(f"+{field_name}" for field_name in ordered[:MAX_SELECT_FIELDS])
+        return f"select='-*,{select}'"
+
+    def _sorting_option(self) -> str | None:
+        if self._single_item or "audit" not in self.fields:
+            return None
+
+        return f"order='{EXAMPLE_ORDER}'"
 
 
 def build_filtering_hints(fields: dict[str, SchemaField]) -> FilteringHints:

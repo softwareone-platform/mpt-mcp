@@ -1,7 +1,8 @@
 import pytest
 from fastmcp.exceptions import ToolError
 
-from mpt_mcp.tools.resources.schema import describe_resource_schema
+from mpt_mcp.tools.resources.schema import QueryExamples, describe_resource_schema
+from mpt_mcp.tools.responses import SchemaField
 
 ORDERS_PATH = "/public/v1/commerce/orders"
 
@@ -73,7 +74,37 @@ def test_resource_schema_without_response_schema(resource_schema_factory):
     assert "response_schema" not in result
     assert "fields" not in result
     assert "filtering_hints" not in result
-    assert result["common_queries"]["basic"] == "commerce.orders?limit=10"
+    assert result["common_queries"] == {
+        "basic": "marketplace_query(resource='commerce.orders', limit=10)"
+    }
+
+
+def test_resource_schema_builds_common_queries(resource_schema_factory):
+    result = resource_schema_factory()
+
+    call = "marketplace_query(resource='commerce.orders', {}limit=10)"
+    rql = "rql='eq(status,Draft)', "
+    order = "order='-audit.created.at', "
+    select = "select='-*,+id,+status', "
+    assert result["common_queries"] == {
+        "basic": call.format(""),
+        "with_filters": call.format(rql),
+        "with_sorting": call.format(order),
+        "with_select": call.format(select),
+        "full_example": call.format(rql + order + select),
+    }
+
+
+def test_common_queries_of_single_item():
+    fields = {
+        "status": SchemaField(type="string", description="", enum=["Draft"]),
+        "audit": SchemaField(type="object", description=""),
+    }
+
+    result = QueryExamples("commerce.orders.by_id", f"{ORDERS_PATH}/{{id}}", fields).build()
+
+    call = "marketplace_query(resource='commerce.orders.by_id', path_params={'id': '<id_value>'}"
+    assert result == {"basic": f"{call})", "with_select": f"{call}, select='-*,+status')"}
 
 
 @pytest.mark.parametrize(
