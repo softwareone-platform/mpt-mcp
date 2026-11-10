@@ -62,6 +62,11 @@ def test_tool_error_keeps_message_on_one_line():
             40,
             {"returned": 40, "has_more": True, "next_offset": 40},
         ),
+        (
+            {"offset": 0, "limit": 0, "total": 500},
+            0,
+            {"returned": 0, "has_more": True, "next_offset": None},
+        ),
         ({"offset": 0, "limit": 10}, 3, {"returned": 3}),
     ],
 )

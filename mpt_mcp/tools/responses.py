@@ -38,7 +38,9 @@ class Pagination(ToolResponse):
     total: int | None = optional_field("Items that match the query across all pages")
     returned: int | None = optional_field("Items in this page")
     has_more: bool | None = optional_field("More items match the query after this page")
-    next_offset: int | None = optional_field("Offset of the next page, when has_more is true")
+    next_offset: int | None = optional_field(
+        "Offset of the next page, when has_more is true and the page has items"
+    )
 
 
 class QueryTruncation(ToolResponse):

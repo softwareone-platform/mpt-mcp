@@ -135,7 +135,7 @@ def add_page_position(result: Any) -> Any:
 
     Returns:
         The response, with $meta.pagination.returned, and has_more and next_offset when the API
-        gives the total
+        gives the total; next_offset is None when no items follow or the page returned none
     """
     if not isinstance(result, dict):
         return result
@@ -151,6 +151,11 @@ def add_page_position(result: Any) -> Any:
     if total is not None:
         next_offset = (pagination.get("offset") or 0) + len(page_items)
         has_more = next_offset < total
-        page_position |= {"has_more": has_more, "next_offset": next_offset if has_more else None}
+        # A page without items, such as limit=0, does not move the offset: it has no next page
+        has_next_page = has_more and bool(page_items)
+        page_position |= {
+            "has_more": has_more,
+            "next_offset": next_offset if has_next_page else None,
+        }
 
     return {**result, KEY_META: {**result[KEY_META], "pagination": {**pagination, **page_position}}}
