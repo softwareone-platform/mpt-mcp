@@ -116,6 +116,37 @@ def test_get_audit_data_from_spec(audit_spec):
     }
 
 
+def test_collect_skips_audit_props_without_schema():
+    properties = {"audit": "not a schema", "lineAudit": {"properties": {"created": "x"}}}
+
+    result = collect_audit_events_and_paths_from_props(OpenAPISpec({}), properties)
+
+    assert result == (set(), [])
+
+
+@pytest.mark.parametrize("path_item", [{"post": {}}, {"get": {"responses": {}}}])
+def test_audit_data_skips_paths_without_response(path_item):
+    spec = OpenAPISpec({"paths": {"/public/v1/commerce/orders": path_item}})
+
+    result = get_audit_data_from_spec(spec, path_to_resource_id)
+
+    assert result == {"events": set(), "by_resource": {}}
+
+
+@pytest.mark.parametrize(
+    "item_properties",
+    [{}, {"id": {"type": "string"}}, {"audit": {"properties": {"created": {}}}}],
+)
+def test_audit_data_skips_items_without_events(item_properties):
+    item_schema = {"type": "object", "properties": item_properties}
+    response = {"200": {"content": {"application/json": {"schema": item_schema}}}}
+    spec = OpenAPISpec({"paths": {"/public/v1/commerce/orders": {"get": {"responses": response}}}})
+
+    result = get_audit_data_from_spec(spec, path_to_resource_id)
+
+    assert result == {"events": set(), "by_resource": {}}
+
+
 def test_build_audit_regex_matches_spec_events():
     result = build_audit_regex({"failed", "created"})
 
