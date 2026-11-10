@@ -101,19 +101,13 @@ class TokenValidator:
 
     async def _fetch(self, check: TokenCheck) -> dict[str, Any] | TokenValidation:
         logger.info("Validating %s against %s (API call)...", check.subject, check.api_base_url)
+        timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
+        headers = {"Authorization": f"Bearer {check.token}", "Accept": "application/json"}
         try:
-            timeout_config = httpx.Timeout(HTTP_TIMEOUT, connect=HTTP_TIMEOUT)
             async with httpx.AsyncClient(
                 follow_redirects=True, http2=True, timeout=timeout_config
             ) as client:
-                response = await client.get(
-                    check.url,
-                    headers={
-                        "Authorization": f"Bearer {check.token}",
-                        "Accept": "application/json",
-                    },
-                )
-            response_body = response.json() if response.status_code == HTTPStatus.OK else None
+                response = await client.get(check.url, headers=headers)
         except httpx.TimeoutException:
             logger.exception("%s validation timed out", check.label)
             return TokenValidation(is_valid=False, error=f"{check.label} validation timed out")
@@ -123,22 +117,26 @@ class TokenValidator:
                 is_valid=False, error=f"{check.label} validation failed: {error!s}"
             )
         except ValueError as error:
-            # A body that is not JSON, or a token httpx cannot send in a header
+            # A token httpx cannot send in a header
             label = check.label.lower()
             logger.exception("Unexpected error during %s validation", label)
             return TokenValidation(
                 is_valid=False, error=f"Unexpected error during {label} validation: {error!s}"
             )
 
-        return await self._read_response(check, response.status_code, response_body)
+        return await self._read_response(check, response)
 
     async def _read_response(
-        self, check: TokenCheck, status_code: int, response_body: Any
+        self, check: TokenCheck, response: httpx.Response
     ) -> dict[str, Any] | TokenValidation:
-        if status_code == HTTPStatus.OK and isinstance(response_body, dict):
-            return response_body
-
+        status_code = response.status_code
         if status_code == HTTPStatus.OK:
+            try:
+                response_body = response.json()
+            except ValueError:
+                response_body = None
+            if isinstance(response_body, dict):
+                return response_body
             return reject(f"{check.label} validation returned an unexpected response")
 
         if status_code in {HTTPStatus.UNAUTHORIZED, HTTPStatus.NOT_FOUND}:

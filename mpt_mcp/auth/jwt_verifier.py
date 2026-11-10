@@ -107,7 +107,7 @@ class JwtVerifier:
         try:
             async with httpx.AsyncClient(follow_redirects=True, timeout=timeout_config) as client:
                 response = await client.get(jwks_url)
-            response.raise_for_status()
+                response.raise_for_status()
         except (httpx.HTTPError, httpx.InvalidURL) as error:
             logger.warning("Failed to fetch JWKS from %s: %s", jwks_url, error)
             return None

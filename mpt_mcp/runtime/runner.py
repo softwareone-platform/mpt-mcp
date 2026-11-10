@@ -65,7 +65,7 @@ def main() -> None:
     """Run the HTTP server: log the startup banner, apply migrations and start uvicorn."""
     configure_logging(logging.DEBUG if config.debug else logging.INFO)
     port = int(os.getenv("PORT", DEFAULT_PORT))
-    try:
+    try:  # noqa: WPS229
         log_startup(port)
         run_migrations()
         run_uvicorn(port)

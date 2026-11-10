@@ -102,23 +102,13 @@ class CacheManager:
         expired_count = 0
 
         for data_file in data_files:
-            key_hash = data_file.stem
-            meta_file = self.cache_dir / f"{key_hash}.meta.json"
-
-            if meta_file.exists():
-                try:
-                    with Path(meta_file).open(encoding="utf-8") as meta_handle:
-                        metadata = json.load(meta_handle)
-
-                    cached_at = read_cached_at(metadata["cached_at"])
-                    expires_at = cached_at + self.ttl
-
-                    if dt.datetime.now(dt.UTC) < expires_at:
-                        valid_count += 1
-                    else:
-                        expired_count += 1
-                except KeyError, ValueError:
-                    expired_count += 1
+            meta_file = self.cache_dir / f"{data_file.stem}.meta.json"
+            if not meta_file.exists():
+                continue
+            if self._is_metadata_valid(meta_file):
+                valid_count += 1
+            else:
+                expired_count += 1
 
         return {
             "cache_directory": str(self.cache_dir.absolute()),
@@ -172,27 +162,23 @@ class CacheManager:
             json.dump(metadata, meta_handle, indent=2)
 
     def _get_metadata_path(self, key: str) -> Path:
-        """Get metadata file path for a given key."""
         key_hash = hashlib.md5(key.encode(), usedforsecurity=False).hexdigest()
         return self.cache_dir / f"{key_hash}.meta.json"
 
     def _is_cache_valid(self, key: str) -> bool:
-        """Check if cached data is still valid (not expired)."""
         meta_path = self._get_metadata_path(key)
 
         if not meta_path.exists():
             return False
 
+        return self._is_metadata_valid(meta_path)
+
+    def _is_metadata_valid(self, meta_path: Path) -> bool:
         try:
-            with Path(meta_path).open(encoding="utf-8") as meta_handle:
-                metadata = json.load(meta_handle)
-
-            cached_at = read_cached_at(metadata["cached_at"])
-            expires_at = cached_at + self.ttl
-
-            return dt.datetime.now(dt.UTC) < expires_at
+            cached_at = read_cached_at(read_json_path(meta_path)["cached_at"])
         except KeyError, ValueError:
             return False
+        return dt.datetime.now(dt.UTC) < cached_at + self.ttl
 
 
 async def fetch_with_cache(
@@ -223,26 +209,7 @@ async def fetch_with_cache(
 
     logger.info("Fetching from: %s", url)
     try:
-        timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=DEFAULT_CONNECT_TIMEOUT)
-        async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
-            async with httpx.AsyncClient(
-                follow_redirects=True, http2=True, timeout=timeout_config
-            ) as client:
-                response = await client.get(url)
-
-            if len(response.history) > 0:
-                logger.info("Followed %s redirect(s)", len(response.history))
-                for position, redirect in enumerate(response.history, 1):
-                    logger.info(
-                        "%s. %s → %s",
-                        position,
-                        redirect.status_code,
-                        redirect.headers.get("Location", "unknown"),
-                    )
-                logger.info("Final: %s", response.url)
-
-            response.raise_for_status()
-            data: dict[str, Any] = response.json()
+        data = await fetch_json(url)
     except (TimeoutError, httpx.HTTPError) as error:
         # If fetch fails (timeout or HTTP error), try to use expired cache as fallback
         logger.warning("Network fetch failed: %s", error)
@@ -258,3 +225,50 @@ async def fetch_with_cache(
     logger.info("Cached data from: %s", url)
 
     return data
+
+
+async def fetch_json(url: str) -> dict[str, Any]:
+    """
+    Fetch a JSON document, logging the redirects followed to reach it.
+
+    Args:
+        url: URL to fetch
+
+    Returns:
+        Parsed JSON document
+
+    Raises:
+        TimeoutError: If the whole fetch takes longer than DEFAULT_FETCH_TIMEOUT
+        httpx.HTTPError: If the request fails or the response status is an error
+    """
+    timeout_config = httpx.Timeout(DEFAULT_FETCH_TIMEOUT, connect=DEFAULT_CONNECT_TIMEOUT)
+    async with asyncio.timeout(DEFAULT_FETCH_TIMEOUT):
+        async with httpx.AsyncClient(
+            follow_redirects=True, http2=True, timeout=timeout_config
+        ) as client:
+            response = await client.get(url)
+        log_redirects(response)
+        response.raise_for_status()
+        data: dict[str, Any] = response.json()
+        return data
+
+
+def log_redirects(response: httpx.Response) -> None:
+    """
+    Log the redirects followed to reach a response.
+
+    Args:
+        response: Response at the end of the redirects
+    """
+    if not response.history:
+        return
+
+    logger.info("Followed %s redirect(s)", len(response.history))
+    for position, redirect in enumerate(response.history, 1):
+        logger.info(
+            "%s. %s → %s",
+            position,
+            redirect.status_code,
+            redirect.headers.get("Location", "unknown"),
+        )
+    logger.info("Final: %s", response.url)

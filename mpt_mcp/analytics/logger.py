@@ -94,11 +94,7 @@ class AnalyticsLogger:
             return
 
         try:
-            self.engine = create_async_engine(
-                database_url, pool_size=5, max_overflow=10, echo=False
-            )
-            async with self.engine.begin() as conn:
-                await conn.execute(text("SELECT 1"))
+            await self._connect(database_url)
         except DATABASE_ERRORS:
             logger.exception("Failed to initialize analytics")
             self.enabled = False
@@ -157,6 +153,11 @@ class AnalyticsLogger:
         while True:
             await asyncio.sleep(self.flush_interval)
             await self.flush()
+
+    async def _connect(self, database_url: str) -> None:
+        self.engine = create_async_engine(database_url, pool_size=5, max_overflow=10, echo=False)
+        async with self.engine.begin() as conn:
+            await conn.execute(text("SELECT 1"))
 
 
 def get_analytics_logger(context: Context = CurrentContext()) -> AnalyticsLogger | None:  # noqa: WPS404

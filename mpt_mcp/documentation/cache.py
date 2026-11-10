@@ -164,19 +164,15 @@ class DocumentationCache:
 
         try:
             page_data = await self.gitbook_client.fetch_page_by_id(page_id)
-
-            markdown = page_data.get("markdown", "")
-
-            available_fields = list(page_data.keys())
-            logger.debug("GitBook page fields: %s", available_fields)
-
-            if not markdown and "document" in page_data:
-                logger.debug("No markdown, extracting from document structure")
-                markdown = self._extract_text_from_document(page_data["document"])
-
         except GITBOOK_REQUEST_ERRORS as error:
             logger.exception("Failed to fetch resource %s", uri)
             return f"Error fetching content: {error!s}"
+
+        logger.debug("GitBook page fields: %s", list(page_data.keys()))
+        markdown = page_data.get("markdown", "")
+        if not markdown and "document" in page_data:
+            logger.debug("No markdown, extracting from document structure")
+            markdown = self._extract_text_from_document(page_data["document"])
 
         fetched_content: str = markdown or "No content available"
         resource["content"] = fetched_content
@@ -252,20 +248,17 @@ class DocumentationCache:
             logger.info("Cache is still valid, skipping refresh")
             return True
 
+        self._is_refreshing = True
+        logger.info("Refreshing documentation cache...")
         try:
-            self._is_refreshing = True
-            logger.info("Refreshing documentation cache...")
-
             space_content = await self.gitbook_client.fetch_space_content()
-
-            self._space_content = space_content
-            self._last_refresh = dt.datetime.now(dt.UTC)
-
-            self._build_resource_index()
         except GITBOOK_REQUEST_ERRORS:
             logger.exception("Failed to refresh documentation cache")
             return False
         else:
+            self._space_content = space_content
+            self._last_refresh = dt.datetime.now(dt.UTC)
+            self._build_resource_index()
             logger.info(
                 "Documentation cache refreshed successfully (%s resources)", len(self._resources)
             )
@@ -274,7 +267,6 @@ class DocumentationCache:
             self._is_refreshing = False
 
     def _build_resource_index(self) -> None:
-        """Build an index of resources from the content for fast lookups."""
         self._resources.clear()
 
         if not self._space_content:
@@ -288,7 +280,6 @@ class DocumentationCache:
         logger.info("Built resource index with %s entries", len(self._resources))
 
     def _extract_from_node(self, node: Any, text_parts: list[str]) -> None:
-        """Recursively extract text from a node."""
         if not isinstance(node, dict):
             return
 
@@ -319,17 +310,7 @@ class DocumentationCache:
                 text_parts.append("\n")
 
     def _extract_text_from_document(self, document: dict[str, Any]) -> str:
-        """
-        Extract text from GitBook document structure.
-
-        GitBook uses a nested structure: document -> nodes -> (blocks or text) -> leaves -> text
-
-        Args:
-            document: GitBook document structure
-
-        Returns:
-            Extracted text content
-        """
+        # GitBook nests the text: document -> nodes -> (blocks or text) -> leaves -> text
         text_parts: list[str] = []
 
         for node in document.get("nodes", ()):
@@ -342,7 +323,6 @@ class DocumentationCache:
         return text.strip()
 
     def _index_page(self, page: Any) -> None:
-        """Recursively index a page and its children."""
         if not isinstance(page, dict):
             return
 

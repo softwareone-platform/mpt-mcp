@@ -362,6 +362,16 @@ async def test_validate_token_unexpected_response(
     assert result == TokenValidation(is_valid=False, error=expected_error)
 
 
+async def test_validate_token_body_not_json(token_api, token_validator):
+    token_api.get.return_value.json.side_effect = ValueError("Not JSON")
+
+    result = await token_validator.validate(API_TOKEN, API_BASE_URL, use_cache=False)
+
+    assert result == TokenValidation(
+        is_valid=False, error="Token validation returned an unexpected response"
+    )
+
+
 async def test_validate_token_with_null_account(token_api, token_details, token_validator):
     token_details["account"] = None
 
