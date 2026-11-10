@@ -3,6 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from fastmcp.exceptions import ToolError
 
+from mpt_mcp.auth.token_validator import TokenValidator
 from mpt_mcp.documentation.store import DocumentationStore
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
@@ -25,7 +26,9 @@ async def test_resources_info_reflects_docs_cache(docs_cache_factory, doc_page_f
     documentation_store = DocumentationStore()
     await documentation_store.get()
 
-    result = marketplace_resources_info(documentation_store=documentation_store).model_dump()
+    result = marketplace_resources_info(
+        documentation_store=documentation_store, token_validator=TokenValidator()
+    ).model_dump()
 
     documentation = result["documentation"]
     assert (documentation["enabled"], documentation["total_pages"]) == (True, 1)

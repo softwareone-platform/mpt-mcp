@@ -3,6 +3,7 @@ from typing import Literal
 from fastmcp import FastMCP
 
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
+from mpt_mcp.auth.token_validator import token_lifespan
 from mpt_mcp.config import config
 from mpt_mcp.documentation.lifespan import documentation_lifespan, documentation_store_lifespan
 from mpt_mcp.documentation.server import documentation_provider
@@ -58,14 +59,14 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
         mcp = FastMCP(
             SERVER_NAME,
             instructions=SERVER_INSTRUCTIONS,
-            lifespan=documentation_lifespan | analytics_lifespan | spec_lifespan,
+            lifespan=documentation_lifespan | analytics_lifespan | spec_lifespan | token_lifespan,
             middleware=[RequestContextMiddleware(), AnalyticsMiddleware()],
         )
     else:
         mcp = FastMCP(
             SERVER_NAME,
             instructions=SERVER_INSTRUCTIONS,
-            lifespan=documentation_store_lifespan | spec_lifespan,
+            lifespan=documentation_store_lifespan | spec_lifespan | token_lifespan,
             middleware=[RequestContextMiddleware()],
         )
     for provider in (

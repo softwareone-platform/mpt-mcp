@@ -10,7 +10,7 @@ from sqlalchemy import insert, text
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine
 
 from mpt_mcp.analytics.models import mcp_events
-from mpt_mcp.auth.token_validator import parse_token_id
+from mpt_mcp.auth.tokens import parse_token_id
 
 logger = logging.getLogger(__name__)
 
@@ -395,7 +395,6 @@ class AnalyticsLogger:
         # Remove "Bearer " prefix if present for parsing
         token_value = token.replace("Bearer ", "").strip()
 
-        # Use parse_token_id from token_validator which handles both JWT and API tokens
         return parse_token_id(token_value)
 
     def _get_context(self) -> dict[str, Any]:

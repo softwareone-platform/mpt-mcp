@@ -5,7 +5,7 @@ from fastmcp.exceptions import ResourceError
 from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
-from mpt_mcp.auth.token_validator import validate_token
+from mpt_mcp.auth.token_validator import TokenValidator, get_token_validator
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
 from mpt_mcp.tools.dependencies import get_spec_store
 from mpt_mcp.tools.spec_store import MarketplaceSpecStore
@@ -22,6 +22,7 @@ openapi_resources = LocalProvider()
 async def read_openapi_spec(
     call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
     spec_store: MarketplaceSpecStore = Depends(get_spec_store),  # noqa: WPS404
+    token_validator: TokenValidator = Depends(get_token_validator),  # noqa: WPS404
 ) -> str:
     """
     Return the OpenAPI spec of the caller's endpoint.
@@ -29,6 +30,7 @@ async def read_openapi_spec(
     Args:
         call_context: Caller's credentials, injected by FastMCP
         spec_store: Specs of the callers' endpoints, injected by FastMCP
+        token_validator: Token validator of the server, injected by FastMCP
 
     Returns:
         The spec as JSON, with the endpoint and the caller's account
@@ -43,10 +45,10 @@ async def read_openapi_spec(
             "OpenAPI spec of your endpoint"
         )
 
-    is_valid, token_info, error = await validate_token(token, endpoint)
-    if not is_valid:
+    validation = await token_validator.validate(token, endpoint)
+    if not validation.is_valid:
         raise ResourceError(
-            f"Token validation failed: {error}. Check your X-MPT-Authorization header"
+            f"Token validation failed: {validation.error}. Check your X-MPT-Authorization header"
         )
 
     try:
@@ -56,12 +58,8 @@ async def read_openapi_spec(
 
     spec_with_metadata = {
         "api_endpoint": endpoint,
-        "authenticated_as": token_info.get("account", {}).get("name", "Unknown")
-        if token_info
-        else "Unknown",
-        "account_id": token_info.get("account", {}).get("id", "Unknown")
-        if token_info
-        else "Unknown",
+        "authenticated_as": validation.account.get("name", "Unknown"),
+        "account_id": validation.account.get("id", "Unknown"),
         "openapi_version": spec.openapi.version,
         "info": spec.openapi.api_info,
         "spec": spec.openapi.document,

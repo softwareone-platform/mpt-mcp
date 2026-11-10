@@ -9,7 +9,7 @@ The server talks to three external systems. All of them are mocked in tests, see
 - **Token validation** ([`auth/token_validator.py`](../mpt_mcp/auth/token_validator.py)):
   - API tokens (`idt:TKN-XXXX-XXXX:secret`) are checked with `GET /public/v1/accounts/api-tokens/{token_id}` and must be `Active`.
   - JWTs are verified with the issuer's JWKS (`JWT_JWKS_URL`, or `{iss}/.well-known/jwks.json`) using RS/ES algorithms only, then checked with `GET /public/v1/accounts/users/{user_id}`.
-  - Results are cached for 10 minutes by a hash of token and endpoint; `X-MPT-Validate-Fresh: true` bypasses the cache.
+  - Valid and rejected tokens (inactive, 401 or 404) are cached for 10 minutes by a hash of token and endpoint; timeouts, network errors and unexpected statuses or responses are not, so the next call retries them. `X-MPT-Validate-Fresh: true` bypasses the cache.
 
 The HTTP server is multi-tenant: the endpoint comes from `X-MPT-Endpoint` (default `HTTP_DEFAULT_BASE_URL`), so a single deployment serves any Marketplace environment.
 

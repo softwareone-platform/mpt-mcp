@@ -4,6 +4,7 @@ from fastmcp import Context
 from fastmcp.dependencies import CurrentContext, Depends
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
+from mpt_mcp.auth.token_validator import TokenValidator, get_token_validator
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
 from mpt_mcp.tools.results import AUTH_HEADER_HINT, OPENAPI_SPEC_LOAD_ERROR, tool_error
@@ -15,12 +16,14 @@ logger = logging.getLogger(__name__)
 
 async def get_api_client(
     call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    token_validator: TokenValidator = Depends(get_token_validator),  # noqa: WPS404
 ) -> APIClient:
     """
     Create the API client of the caller, for the tools that call the Marketplace API.
 
     Args:
         call_context: Caller's credentials, injected by FastMCP
+        token_validator: Token validator of the server, injected by FastMCP
 
     Returns:
         API client authenticated with the caller's token
@@ -29,7 +32,7 @@ async def get_api_client(
         ToolError: The token is missing or fails validation
     """
     try:
-        api_client = await call_context.create_api_client()
+        api_client = await call_context.create_api_client(token_validator)
     except ValueError as error:
         raise tool_error(str(error), hint=AUTH_HEADER_HINT) from error
 

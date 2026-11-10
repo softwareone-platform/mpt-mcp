@@ -3,7 +3,7 @@ import logging
 from fastmcp.dependencies import Depends
 from fastmcp.server.providers import LocalProvider
 
-from mpt_mcp.auth.token_validator import get_token_cache
+from mpt_mcp.auth.token_validator import TokenValidator, get_token_validator
 from mpt_mcp.documentation.store import DocumentationStore, get_documentation_store
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
@@ -95,6 +95,7 @@ async def marketplace_refresh_cache(
 )
 def marketplace_resources_info(
     documentation_store: DocumentationStore = Depends(get_documentation_store),  # noqa: WPS404
+    token_validator: TokenValidator = Depends(get_token_validator),  # noqa: WPS404
 ) -> ResourcesInfoResponse:
     """
     Get the state of the documentation and token validation caches.
@@ -104,6 +105,7 @@ def marketplace_resources_info(
     Args:
         documentation_store: Documentation store of the server, injected by FastMCP (not a tool
             argument)
+        token_validator: Token validator of the server, injected by FastMCP (not a tool argument)
 
     Returns:
         Whether each cache is enabled, with its statistics
@@ -119,7 +121,7 @@ def marketplace_resources_info(
         documentation=documentation_state,
         token_validation=TokenCacheState(
             enabled=True,
-            cache_stats=get_token_cache().get_stats(),
+            cache_stats=token_validator.cache.get_stats(),
             description="Token validation cache prevents repeated API calls for authentication",
         ),
     )

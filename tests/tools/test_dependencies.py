@@ -5,6 +5,7 @@ import pytest
 from fastmcp.exceptions import ToolError
 
 from mpt_mcp.auth.call_context import CallContext
+from mpt_mcp.auth.token_validator import TokenValidator
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
 from mpt_mcp.tools.dependencies import get_api_client, get_marketplace_spec, get_spec_store
@@ -23,7 +24,7 @@ def spec_store():
 
 
 async def test_get_api_client(call_context, patched_api_client):
-    result = await get_api_client(call_context)
+    result = await get_api_client(call_context, TokenValidator())
 
     assert result is patched_api_client
 
@@ -38,7 +39,7 @@ async def test_get_api_client_without_credentials_fails(call_context):
         ),
         pytest.raises(ToolError, match="Missing X-MPT-Authorization header") as error,
     ):
-        await get_api_client(call_context)
+        await get_api_client(call_context, TokenValidator())
 
     _, error_details = str(error.value).split("\n", 1)
     assert json.loads(error_details) == {"hint": AUTH_HEADER_HINT}

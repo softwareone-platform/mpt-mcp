@@ -28,7 +28,7 @@ Then inspect the code paths relevant to the task:
 - [`mpt_mcp/tools/`](mpt_mcp/tools): the Marketplace tools with their logic, each module with its `LocalProvider` (the `query/` and `resources/` packages, `debug.py`), the caller's endpoint spec they receive (`spec.py`, kept by the `spec_store.py` lifespan store and injected by `dependencies.py`), result size limits and errors (`results.py`), response models (`responses.py`) and annotations
 - [`mpt_mcp/resources.py`](mpt_mcp/resources.py) and [`mpt_mcp/prompts.py`](mpt_mcp/prompts.py): the OpenAPI resource and the prompts of both transports
 - [`mpt_mcp/server.py`](mpt_mcp/server.py): the MCP server both transports serve, with its middlewares and debug tool visibility
-- [`mpt_mcp/auth/`](mpt_mcp/auth): per-request credentials injected with FastMCP dependencies (`call_context.py`) and token validation (`token_validator.py`)
+- [`mpt_mcp/auth/`](mpt_mcp/auth): per-request credentials injected with FastMCP dependencies (`call_context.py`) and token validation (`token_validator.py`, with `tokens.py`, `token_cache.py` and `jwt_verifier.py`)
 - [`mpt_mcp/analytics/`](mpt_mcp/analytics): analytics middleware, lifespan, logger and table model
 - [`mpt_mcp/marketplace/`](mpt_mcp/marketplace): Marketplace API client, OpenAPI-based endpoint discovery and its disk cache, OpenAPI parsing, the `OpenAPISpec` lookups of paths and schemas (`schemas.py`) and audit field detection
 - [`mpt_mcp/documentation/`](mpt_mcp/documentation): documentation tools and the `docs://` resource (`server.py`, on their `LocalProvider`), GitBook client, cache, the per-server documentation store and its lifespans

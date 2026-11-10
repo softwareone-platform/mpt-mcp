@@ -1,11 +1,12 @@
 import json
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastmcp import Client
 from fastmcp.exceptions import ResourceError
 
 from mpt_mcp.auth.call_context import CallContext
+from mpt_mcp.auth.token_validator import TokenValidation, TokenValidator
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
 from mpt_mcp.marketplace.schemas import OpenAPISpec
 from mpt_mcp.resources import read_openapi_spec
@@ -19,11 +20,16 @@ def mcp_server():
 
 
 @pytest.fixture
+def token_validator():
+    return Mock(spec=TokenValidator, validate=AsyncMock())
+
+
+@pytest.fixture
 def spec_store():
     return Mock(spec=MarketplaceSpecStore, get=AsyncMock())
 
 
-async def test_get_openapi_spec_resource_success(spec_store):
+async def test_get_openapi_spec_resource_success(spec_store, token_validator):
     mock_spec = {
         "openapi": "3.0.0",
         "info": {"title": "Test API", "version": "1.0.0"},
@@ -31,48 +37,53 @@ async def test_get_openapi_spec_resource_success(spec_store):
             "/public/v1/catalog/products": {"get": {"summary": "List products"}},
         },
     }
-
     mock_token_info = {"id": "TKN-123-456", "account": {"id": "ACC-123", "name": "Test Account"}}
-
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
-    with patch("mpt_mcp.resources.validate_token", new_callable=AsyncMock) as mock_validate:
-        mock_validate.return_value = (True, mock_token_info, None)
-        spec_store.get.return_value = Mock(openapi=OpenAPISpec(mock_spec))
+    token_validator.validate.return_value = TokenValidation(
+        is_valid=True, token_info=mock_token_info
+    )
+    spec_store.get.return_value = Mock(openapi=OpenAPISpec(mock_spec))
 
-        result = await read_openapi_spec(call_context=call_context, spec_store=spec_store)
+    result = await read_openapi_spec(
+        call_context=call_context, spec_store=spec_store, token_validator=token_validator
+    )
 
-        result_dict = json.loads(result)
-        assert result_dict["spec"] == mock_spec
-        assert result_dict["api_endpoint"] == "https://api.test.com"
-        assert result_dict["authenticated_as"] == "Test Account"
-        assert result_dict["account_id"] == "ACC-123"
-        spec_store.get.assert_awaited_once_with("https://api.test.com")
+    result_dict = json.loads(result)
+    assert result_dict["spec"] == mock_spec
+    assert result_dict["api_endpoint"] == "https://api.test.com"
+    assert result_dict["authenticated_as"] == "Test Account"
+    assert result_dict["account_id"] == "ACC-123"
+    spec_store.get.assert_awaited_once_with("https://api.test.com")
 
 
-async def test_get_openapi_spec_resource_no_token(spec_store):
+async def test_get_openapi_spec_resource_no_token(spec_store, token_validator):
     call_context = CallContext(endpoint="https://api.test.com", token=None)
 
     with pytest.raises(ResourceError, match="Authentication required"):
-        await read_openapi_spec(call_context=call_context, spec_store=spec_store)
+        await read_openapi_spec(
+            call_context=call_context, spec_store=spec_store, token_validator=token_validator
+        )
 
 
-async def test_get_openapi_spec_resource_invalid_token(spec_store):
+async def test_get_openapi_spec_resource_invalid_token(spec_store, token_validator):
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
-    with patch("mpt_mcp.resources.validate_token", new_callable=AsyncMock) as mock_validate:
-        mock_validate.return_value = (False, None, "Token expired")
+    token_validator.validate.return_value = TokenValidation(is_valid=False, error="Token expired")
 
-        with pytest.raises(ResourceError, match="Token validation failed: Token expired"):
-            await read_openapi_spec(call_context=call_context, spec_store=spec_store)
+    with pytest.raises(ResourceError, match="Token validation failed: Token expired"):
+        await read_openapi_spec(
+            call_context=call_context, spec_store=spec_store, token_validator=token_validator
+        )
 
 
-async def test_get_openapi_spec_resource_fetch_error(spec_store):
+async def test_get_openapi_spec_resource_fetch_error(spec_store, token_validator):
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-123-456-SECRET")
-    with patch("mpt_mcp.resources.validate_token", new_callable=AsyncMock) as mock_validate:
-        mock_validate.return_value = (True, {"id": "TKN-123-456"}, None)
-        spec_store.get.side_effect = OpenAPISpecFetchError("Connection refused")
+    token_validator.validate.return_value = TokenValidation(is_valid=True)
+    spec_store.get.side_effect = OpenAPISpecFetchError("Connection refused")
 
-        with pytest.raises(ResourceError, match="Connection refused"):
-            await read_openapi_spec(call_context=call_context, spec_store=spec_store)
+    with pytest.raises(ResourceError, match="Connection refused"):
+        await read_openapi_spec(
+            call_context=call_context, spec_store=spec_store, token_validator=token_validator
+        )
 
 
 async def test_openapi_resource_error_reaches_client(mcp_server):

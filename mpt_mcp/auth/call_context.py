@@ -6,12 +6,14 @@ from typing import TYPE_CHECKING
 
 from fastmcp.server.dependencies import get_http_request
 
-from mpt_mcp.auth.token_validator import normalize_token, parse_token_id, validate_token
+from mpt_mcp.auth.tokens import normalize_token, parse_token_id
 from mpt_mcp.config import config
 from mpt_mcp.marketplace.api_client import APIClient, normalize_endpoint_url
 
 if TYPE_CHECKING:
     from starlette.requests import Request
+
+    from mpt_mcp.auth.token_validator import TokenValidator
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +37,12 @@ class CallContext:
         """Token ID (TKN-XXXX-XXXX) of an API token, or None for a missing token or a JWT."""
         return parse_token_id(self.token) if self.token else None
 
-    async def create_api_client(self) -> APIClient:
+    async def create_api_client(self, token_validator: TokenValidator) -> APIClient:
         """
         Create an API client for the caller's endpoint after validating the caller's token.
+
+        Args:
+            token_validator: Validator of the server, with its validation cache
 
         Returns:
             API client authenticated with the caller's token
@@ -48,28 +53,23 @@ class CallContext:
         if not self.token:
             raise ValueError(NO_CREDENTIALS_ERROR)
 
-        await self._validate_token()
-
-        return APIClient(base_url=self.endpoint, token=self.token)
-
-    async def _validate_token(self) -> None:
-        is_valid, token_info, error = await validate_token(
-            self.token or "", self.endpoint, use_cache=not self.validate_fresh
+        validation = await token_validator.validate(
+            self.token, self.endpoint, use_cache=not self.validate_fresh
         )
-        if not is_valid:
-            logger.warning("Token validation failed: %s", error)
+        if not validation.is_valid:
+            logger.warning("Token validation failed: %s", validation.error)
             raise ValueError(
-                f"Token validation failed: {error}. Please ensure your API token is valid and "
-                "active."
+                f"Token validation failed: {validation.error}. Please ensure your API token is "
+                "valid and active."
             )
 
-        account = (token_info or {}).get("account", {})
         logger.info(
             "Token validated for %s - Account: %s (%s)",
             self.endpoint,
-            account.get("name", "Unknown"),
-            account.get("id", "Unknown"),
+            validation.account.get("name", "Unknown"),
+            validation.account.get("id", "Unknown"),
         )
+        return APIClient(base_url=self.endpoint, token=self.token)
 
 
 def get_call_context() -> CallContext:

@@ -1,5 +1,5 @@
 import re
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from starlette.datastructures import Headers
@@ -11,8 +11,15 @@ from mpt_mcp.auth.call_context import (
     get_call_context,
     read_call_context,
 )
+from mpt_mcp.auth.token_validator import TokenValidation, TokenValidator
 from mpt_mcp.config import config
 from mpt_mcp.marketplace.api_client import APIClient
+
+
+@pytest.fixture
+def token_validator():
+    validation = TokenValidation(is_valid=True, token_info={"account": {"id": "ACC-1"}})
+    return Mock(spec=TokenValidator, validate=AsyncMock(return_value=validation))
 
 
 @pytest.fixture
@@ -102,59 +109,43 @@ def test_user_id_from_token(token, expected):
     assert result == expected
 
 
-async def test_create_api_client_without_token_raises():
+async def test_create_api_client_without_token_raises(token_validator):
     call_context = CallContext(endpoint="https://api.test.com", token=None)
 
     with pytest.raises(ValueError, match=re.escape(NO_CREDENTIALS_ERROR)):
-        await call_context.create_api_client()
+        await call_context.create_api_client(token_validator)
 
 
-async def test_create_api_client_invalid_token():
+async def test_create_api_client_invalid_token(token_validator):
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
+    token_validator.validate.return_value = TokenValidation(is_valid=False, error="Token expired")
 
-    with (
-        patch(
-            "mpt_mcp.auth.call_context.validate_token",
-            new_callable=AsyncMock,
-            return_value=(False, None, "Token expired"),
-        ),
-        pytest.raises(ValueError, match="Token validation failed: Token expired"),
-    ):
-        await call_context.create_api_client()
+    with pytest.raises(ValueError, match="Token validation failed: Token expired"):
+        await call_context.create_api_client(token_validator)
 
 
 @pytest.mark.parametrize(
     ("validate_fresh", "use_cache"),
     [(False, True), (True, False)],
 )
-async def test_create_api_client_validates_token(validate_fresh, use_cache):
+async def test_create_api_client_validates_token(token_validator, validate_fresh, use_cache):
     call_context = CallContext(
         endpoint="https://api.test.com",
         token="idt:TKN-1234-5678:SECRET",
         validate_fresh=validate_fresh,
     )
 
-    with patch(
-        "mpt_mcp.auth.call_context.validate_token",
-        new_callable=AsyncMock,
-        return_value=(True, {"account": {"name": "Test", "id": "ACC-1"}}, None),
-    ) as mock_validate:
-        await call_context.create_api_client()  # act
+    await call_context.create_api_client(token_validator)  # act
 
-    mock_validate.assert_awaited_once_with(
+    token_validator.validate.assert_awaited_once_with(
         "idt:TKN-1234-5678:SECRET", "https://api.test.com", use_cache=use_cache
     )
 
 
-async def test_create_api_client_for_caller_endpoint():
+async def test_create_api_client_for_caller_endpoint(token_validator):
     call_context = CallContext(endpoint="https://api.test.com", token="idt:TKN-1234-5678:SECRET")
 
-    with patch(
-        "mpt_mcp.auth.call_context.validate_token",
-        new_callable=AsyncMock,
-        return_value=(True, None, None),
-    ):
-        result = await call_context.create_api_client()
+    result = await call_context.create_api_client(token_validator)
 
     assert isinstance(result, APIClient)
     assert (result.base_url, result.token) == (
@@ -163,17 +154,11 @@ async def test_create_api_client_for_caller_endpoint():
     )
 
 
-async def test_missing_authorization_header():
+async def test_missing_auth_error_message_is_clear(token_validator):
     with pytest.raises(ValueError) as exc_info:
-        await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
-
-    error_message = str(exc_info.value)
-    assert "Missing X-MPT-Authorization header" in error_message or "Missing" in error_message
-
-
-async def test_missing_auth_error_message_is_clear():
-    with pytest.raises(ValueError) as exc_info:
-        await CallContext(endpoint="https://api.test.com", token=None).create_api_client()
+        await CallContext(endpoint="https://api.test.com", token=None).create_api_client(
+            token_validator
+        )
 
     error_message = str(exc_info.value)
     assert "Missing" in error_message
