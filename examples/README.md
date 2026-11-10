@@ -44,9 +44,31 @@ Claude Desktop only runs stdio servers: add the entry to `mcpServers` in Setting
 
 Replace `/absolute/path/to/mpt-mcp` with the path of your checkout, and set `MARKETPLACE_API_TOKEN` and `MARKETPLACE_API_BASE_URL`. The Docker examples pass both variables to the container with `-e`; other variables, such as `GITBOOK_API_KEY` or `DEBUG`, are read from the repository `.env` file.
 
-## Testing the HTTP Server
+## Checking the Server
 
-[`curl_example.sh`](curl_example.sh) calls `marketplace_query` and `marketplace_resources` on a running HTTP server; set `YOUR_API_TOKEN` and `YOUR_API_ENDPOINT` in the script first. It needs `jq`.
+[`smoke_test.py`](smoke_test.py) runs the use cases of the server against a real Marketplace API, prints `OK`, `FAIL` or `SKIP` for each one and exits with 1 when one fails. It needs `uv sync`, the token in `MPT_API_TOKEN` and, when the token is not a production one, its endpoint in `MPT_API_ENDPOINT`: the server validates the token against that endpoint, so a token of another environment is reported as invalid.
+
+To test the HTTP server, start it first in another terminal and wait for it to answer on `http://localhost:8080/health`:
+
+```bash
+make run
+```
+
+Then run the script from the repository root. `--url` tests another HTTP server:
+
+```bash
+MPT_API_TOKEN=your_api_token_here MPT_API_ENDPOINT=https://api.s1.show uv run python examples/smoke_test.py
+```
+
+With `--stdio` the script starts the stdio server itself, so no server has to be running:
+
+```bash
+MPT_API_TOKEN=your_api_token_here MPT_API_ENDPOINT=https://api.s1.show uv run python examples/smoke_test.py --stdio
+```
+
+[`chat_check_prompt.md`](chat_check_prompt.md) is a prompt to paste in a chat of an MCP client connected to the server: the model runs the same use cases with the tools and ends with a table of the results, which also shows whether the tool descriptions lead it to the right calls.
+
+[`curl_example.sh`](curl_example.sh) calls `marketplace_query` and `marketplace_resources` on a running HTTP server with curl; set `YOUR_API_TOKEN` and `YOUR_API_ENDPOINT` in the script first. It needs `jq`.
 
 ```bash
 ./curl_example.sh

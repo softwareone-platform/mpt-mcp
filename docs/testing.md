@@ -11,7 +11,7 @@ This file documents repository-specific testing behaviour.
 
 ## Test Scope
 
-All tests are unit tests: external systems (Marketplace API, GitBook, PostgreSQL, JWKS endpoints) are mocked and no test makes network calls. There are no integration or end-to-end tests yet.
+All tests are unit tests: external systems (Marketplace API, GitBook, PostgreSQL, JWKS endpoints) are mocked and no test makes network calls. There are no integration or end-to-end tests in the suite. To check a running server against the real Marketplace API, run [`examples/smoke_test.py`](../examples/smoke_test.py) by hand or paste [`examples/chat_check_prompt.md`](../examples/chat_check_prompt.md) in an MCP client, as described in [examples/README.md](../examples/README.md#checking-the-server).
 
 The layout mirrors the package:
 
