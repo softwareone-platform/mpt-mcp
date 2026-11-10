@@ -1,6 +1,7 @@
 import datetime as dt
 from unittest.mock import AsyncMock, Mock
 
+import httpx
 import pytest
 
 from mpt_mcp.documentation.cache import DocumentationCache
@@ -127,6 +128,14 @@ async def test_refresh_indexes_nested_pages(cache_factory):
         "docs://api-reference",
         "docs://api-reference/orders",
     }
+
+
+async def test_refresh_request_failure(cache, mock_gitbook_client):
+    mock_gitbook_client.fetch_space_content.side_effect = httpx.ConnectError("Connection refused")
+
+    result = await cache.refresh()
+
+    assert (result, cache.get_cache_info()["has_content"]) == (False, False)
 
 
 async def test_refresh_disabled_cache():
@@ -328,6 +337,15 @@ async def test_get_resource_not_found(cache):
     result = await cache.get_resource("docs://non-existent")
 
     assert result is None
+
+
+async def test_get_resource_request_failure(cache, mock_gitbook_client):
+    await cache.refresh()
+    mock_gitbook_client.fetch_page_by_id.side_effect = httpx.ConnectError("Connection refused")
+
+    result = await cache.get_resource("docs://getting-started")
+
+    assert result == "Error fetching content: Connection refused"
 
 
 async def test_ensure_cached_refreshes_if_needed(cache, mock_gitbook_client):

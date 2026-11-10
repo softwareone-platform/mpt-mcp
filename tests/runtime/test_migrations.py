@@ -2,6 +2,7 @@ import logging
 from unittest.mock import Mock
 
 import pytest
+from alembic.util import CommandError
 
 from mpt_mcp.runtime import migrations
 
@@ -36,7 +37,7 @@ def test_run_migrations_upgrades_with_sync_url(monkeypatch, upgrade):
 
 def test_run_migrations_logs_failure(monkeypatch, upgrade, caplog):
     monkeypatch.setattr(migrations.config, "analytics_database_url", "postgresql://db/analytics")
-    upgrade.side_effect = RuntimeError("database down")
+    upgrade.side_effect = CommandError("database down")
 
     with caplog.at_level(logging.WARNING, logger="mpt_mcp.runtime.migrations"):
         migrations.run_migrations()  # act

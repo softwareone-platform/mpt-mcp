@@ -2,6 +2,8 @@ import logging
 import pathlib
 
 from alembic.config import Config as AlembicConfig
+from alembic.util import CommandError
+from sqlalchemy.exc import SQLAlchemyError
 
 from alembic import command
 from mpt_mcp.config import config
@@ -27,6 +29,6 @@ def run_migrations() -> None:
         alembic_cfg.set_main_option("sqlalchemy.url", sync_url)
         command.upgrade(alembic_cfg, "head")
         logger.info("Database migrations completed successfully")
-    except Exception as error:
+    except (CommandError, SQLAlchemyError, OSError) as error:
         logger.warning("Migration warning: %s", error)
         logger.info("Server will continue, but analytics may not work correctly")

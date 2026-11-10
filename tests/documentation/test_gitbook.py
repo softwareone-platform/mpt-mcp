@@ -83,8 +83,15 @@ async def test_validate_credentials_success(client, http_get):
 
 
 async def test_validate_credentials_failure(client, http_get):
-    http_get.side_effect = RuntimeError("Unauthorized")
+    http_get.side_effect = httpx.ConnectError("Connection refused")
 
     result = await client.validate_credentials()
 
     assert result is False
+
+
+async def test_validate_credentials_unexpected_error(client, http_get):
+    http_get.side_effect = RuntimeError("Unexpected")
+
+    with pytest.raises(RuntimeError, match="Unexpected"):
+        await client.validate_credentials()

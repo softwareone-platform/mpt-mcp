@@ -74,7 +74,7 @@ async def documentation_lifespan(server: Any) -> AsyncIterator[dict[str, Any]]:
     cache = await documentation_store.get()
     try:
         await register_documentation_pages(server, cache)
-    except Exception as error:
+    except ValueError as error:  # pydantic ValidationError: a page path that is not a valid URI
         logger.warning("Could not register doc resources for discovery: %s", error)
     yield {DOCUMENTATION_STORE_KEY: documentation_store}
 

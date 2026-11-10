@@ -86,28 +86,26 @@ async def load_documentation_cache() -> DocumentationCache:
         )
         return DocumentationCache(gitbook_client=None)
 
-    try:
-        gitbook_client = GitBookClient(
-            api_key=config.gitbook_api_key,
-            space_id=config.gitbook_space_id,
-            base_url=config.gitbook_api_base_url,
-            max_concurrent_requests=config.gitbook_max_concurrent_requests,
-        )
-        if not await gitbook_client.validate_credentials():
-            logger.warning("GitBook credentials invalid, documentation cache disabled")
-            return DocumentationCache(gitbook_client=None)
-
-        cache = DocumentationCache(
-            gitbook_client=gitbook_client,
-            refresh_interval_hours=config.gitbook_cache_refresh_hours,
-            public_url=config.gitbook_public_url,
-        )
-        await cache.refresh()
-        doc_resources = await cache.list_resources()
-    except Exception as error:
-        logger.warning("Failed to initialize documentation cache: %s", error)
+    gitbook_client = GitBookClient(
+        api_key=config.gitbook_api_key,
+        space_id=config.gitbook_space_id,
+        base_url=config.gitbook_api_base_url,
+        max_concurrent_requests=config.gitbook_max_concurrent_requests,
+    )
+    if not await gitbook_client.validate_credentials():
+        logger.warning("GitBook credentials invalid, documentation cache disabled")
         return DocumentationCache(gitbook_client=None)
 
+    cache = DocumentationCache(
+        gitbook_client=gitbook_client,
+        refresh_interval_hours=config.gitbook_cache_refresh_hours,
+        public_url=config.gitbook_public_url,
+    )
+    if not await cache.refresh():
+        logger.warning("Documentation index not loaded; the next documentation request retries it")
+        return cache
+
+    doc_resources = await cache.list_resources()
     logger.info(
         "Documentation cache loaded (%s pages); served via docs://{path*} template",
         len(doc_resources),

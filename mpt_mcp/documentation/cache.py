@@ -5,6 +5,8 @@ import logging
 from collections import defaultdict
 from typing import TYPE_CHECKING, Any
 
+from mpt_mcp.documentation.gitbook import GITBOOK_REQUEST_ERRORS
+
 if TYPE_CHECKING:
     from mpt_mcp.documentation.gitbook import GitBookClient
 
@@ -172,7 +174,7 @@ class DocumentationCache:
                 logger.debug("No markdown, extracting from document structure")
                 markdown = self._extract_text_from_document(page_data["document"])
 
-        except Exception as error:
+        except GITBOOK_REQUEST_ERRORS as error:
             logger.exception("Failed to fetch resource %s", uri)
             return f"Error fetching content: {error!s}"
 
@@ -260,7 +262,7 @@ class DocumentationCache:
             self._last_refresh = dt.datetime.now(dt.UTC)
 
             self._build_resource_index()
-        except Exception:
+        except GITBOOK_REQUEST_ERRORS:
             logger.exception("Failed to refresh documentation cache")
             return False
         else:

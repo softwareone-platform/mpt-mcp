@@ -13,6 +13,9 @@ DEFAULT_REQUEST_TIMEOUT = 30.0
 MAX_RETRIES = 3
 # Base delay in seconds for exponential backoff when Retry-After is not present
 RETRY_BACKOFF_BASE_SEC = 1.0
+# Errors of a GitBook request: HTTP and network errors, the timeout of its last retry and a
+# response body that is not JSON
+GITBOOK_REQUEST_ERRORS = (httpx.HTTPError, TimeoutError, ValueError)
 
 
 class GitBookClient:
@@ -116,7 +119,7 @@ class GitBookClient:
         try:
             url = f"{self.base_url}/spaces/{self.space_id}"
             await self._get_with_retry(url)
-        except Exception:
+        except GITBOOK_REQUEST_ERRORS:
             logger.exception("GitBook credential validation failed")
             return False
 

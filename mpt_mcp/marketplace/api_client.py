@@ -132,20 +132,6 @@ class APIClient:
 
             return response_data
 
-    async def validate_token(self) -> bool:
-        """
-        Validate that the authentication token is valid.
-
-        Returns:
-            True if token is valid, False otherwise
-        """
-        try:
-            await self.get("/health")
-        except Exception:
-            return False
-
-        return True
-
     def _describe_response(self, response_data: Any) -> str:
         """
         Summarize a response for the log in one line.
