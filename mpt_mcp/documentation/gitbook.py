@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from dataclasses import dataclass
+from http import HTTPStatus
 from typing import Any
 
 import httpx
@@ -10,12 +12,41 @@ logger = logging.getLogger(__name__)
 DEFAULT_CONNECT_TIMEOUT = 30.0
 DEFAULT_MAX_CONCURRENT_REQUESTS = 2
 DEFAULT_REQUEST_TIMEOUT = 30.0
-MAX_RETRIES = 3
-# Base delay in seconds for exponential backoff when Retry-After is not present
-RETRY_BACKOFF_BASE_SEC = 1.0
 # Errors of a GitBook request: HTTP and network errors, the timeout of its last retry and a
 # response body that is not JSON
 GITBOOK_REQUEST_ERRORS = (httpx.HTTPError, TimeoutError, ValueError)
+
+
+@dataclass(frozen=True)
+class RetryPolicy:
+    """When to retry a GitBook request and how long to wait before each retry."""
+
+    backoff_base: float = 1.0
+    backoff_factor: float = 2.0
+    max_attempts: int = 3
+    status_codes: frozenset[int] = frozenset((
+        HTTPStatus.TOO_MANY_REQUESTS,
+        HTTPStatus.SERVICE_UNAVAILABLE,
+    ))
+
+    def delay(self, attempt: int, retry_after: str | None = None) -> float:
+        """
+        Get the seconds to wait before retrying a request.
+
+        Args:
+            attempt: Number of the attempt that failed, from 1
+            retry_after: Retry-After header of the response, if any
+
+        Returns:
+            The Retry-After seconds when they are a number, otherwise an exponential backoff
+        """
+        if retry_after and retry_after.isdigit():
+            return float(retry_after)
+
+        return self.backoff_base * self.backoff_factor ** (attempt - 1)
+
+
+DEFAULT_RETRY_POLICY = RetryPolicy()
 
 
 class GitBookClient:
@@ -27,7 +58,7 @@ class GitBookClient:
         space_id: str,
         base_url: str = "https://api.gitbook.com/v1",
         max_concurrent_requests: int = DEFAULT_MAX_CONCURRENT_REQUESTS,
-        timeout: float = DEFAULT_REQUEST_TIMEOUT,
+        retry_policy: RetryPolicy = DEFAULT_RETRY_POLICY,
     ):
         """
         Initialize GitBook API client.
@@ -37,13 +68,17 @@ class GitBookClient:
             space_id: The GitBook space ID to fetch content from
             base_url: Base URL for GitBook API (default: https://api.gitbook.com/v1)
             max_concurrent_requests: Max concurrent API requests (default 2, helps avoid 429)
-            timeout: Request timeout in seconds (default 30)
+            retry_policy: When to retry a request and how long to wait (default 3 attempts)
         """
         self.api_key = api_key
         self.space_id = space_id
         self.base_url = base_url.rstrip("/")
+        self._headers = {
+            "Authorization": f"Bearer {api_key}",
+            "Accept": "application/json",
+        }
+        self._retry_policy = retry_policy
         self._semaphore = asyncio.Semaphore(max_concurrent_requests)
-        self.timeout = timeout
 
         logger.info(
             "GitBook client initialized for space: %s (max concurrent: %s)",
@@ -116,8 +151,8 @@ class GitBookClient:
         Returns:
             True if credentials are valid, False otherwise
         """
+        url = f"{self.base_url}/spaces/{self.space_id}"
         try:
-            url = f"{self.base_url}/spaces/{self.space_id}"
             await self._get_with_retry(url)
         except GITBOOK_REQUEST_ERRORS:
             logger.exception("GitBook credential validation failed")
@@ -126,61 +161,46 @@ class GitBookClient:
         logger.info("GitBook credentials validated successfully")
         return True
 
-    def _get_headers(self) -> dict[str, str]:
-        """Get request headers with authentication."""
-        return {
-            "Authorization": f"Bearer {self.api_key}",
-            "Accept": "application/json",
-        }
+    async def _get_attempt(self, url: str, attempt: int) -> dict[str, Any]:
+        try:
+            async with (
+                asyncio.timeout(DEFAULT_REQUEST_TIMEOUT),
+                httpx.AsyncClient(
+                    follow_redirects=True,
+                    http2=True,
+                    timeout=httpx.Timeout(DEFAULT_REQUEST_TIMEOUT, connect=DEFAULT_CONNECT_TIMEOUT),
+                ) as client,
+            ):
+                response = await client.get(url, headers=self._headers)
+        except TimeoutError:
+            if attempt == self._retry_policy.max_attempts:
+                raise
 
-    async def _get_with_retry(self, url: str) -> dict[str, Any]:
-        """
-        Perform a GET request with concurrency limit and retry on 429/503.
-
-        Acquires the semaphore so we never exceed max_concurrent_requests.
-        On 429 (rate limit) or 503 (unavailable), retries with backoff.
-        """
-        async with self._semaphore:
-            for attempt in range(MAX_RETRIES):
-                try:
-                    timeout_config = httpx.Timeout(self.timeout, connect=DEFAULT_CONNECT_TIMEOUT)
-                    async with asyncio.timeout(self.timeout):
-                        async with httpx.AsyncClient(
-                            follow_redirects=True, http2=True, timeout=timeout_config
-                        ) as client:
-                            response = await client.get(url, headers=self._get_headers())
-                except TimeoutError:
-                    if attempt < MAX_RETRIES - 1:
-                        wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
-                        logger.warning(
-                            "GitBook request timed out, retry in %.1fs (attempt %s/%s)",
-                            wait_sec,
-                            attempt + 1,
-                            MAX_RETRIES,
-                        )
-                        await asyncio.sleep(wait_sec)
-                        continue
-                    raise
-
-                if response.status_code in {429, 503}:
-                    if attempt < MAX_RETRIES - 1:
-                        retry_after = response.headers.get("Retry-After")
-                        if retry_after and retry_after.isdigit():
-                            wait_sec = float(retry_after)
-                        else:
-                            wait_sec = RETRY_BACKOFF_BASE_SEC * (2**attempt)
-                        logger.warning(
-                            "GitBook rate limit/unavailable (%s), retry in %.1fs (attempt %s/%s)",
-                            response.status_code,
-                            wait_sec,
-                            attempt + 1,
-                            MAX_RETRIES,
-                        )
-                        await asyncio.sleep(wait_sec)
-                        continue
-                    response.raise_for_status()
+            reason, delay = "timeout", self._retry_policy.delay(attempt)
+        else:
+            if (
+                response.status_code not in self._retry_policy.status_codes
+                or attempt == self._retry_policy.max_attempts
+            ):
                 response.raise_for_status()
                 page: dict[str, Any] = response.json()
                 return page
 
-            raise RuntimeError("Unexpected retry loop exit")
+            reason, delay = (
+                str(response.status_code),
+                self._retry_policy.delay(attempt, response.headers.get("Retry-After")),
+            )
+        logger.warning(
+            "GitBook request failed (%s), retry in %.1fs (attempt %s/%s)",
+            reason,
+            delay,
+            attempt,
+            self._retry_policy.max_attempts,
+        )
+        await asyncio.sleep(delay)
+        return await self._get_attempt(url, attempt + 1)
+
+    async def _get_with_retry(self, url: str) -> dict[str, Any]:
+        # Held while waiting to retry too, so retries never exceed max_concurrent_requests
+        async with self._semaphore:
+            return await self._get_attempt(url, attempt=1)
