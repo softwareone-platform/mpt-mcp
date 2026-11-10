@@ -4,7 +4,7 @@ from fastmcp import FastMCP
 
 from mpt_mcp.analytics import AnalyticsMiddleware, analytics_lifespan
 from mpt_mcp.config import config
-from mpt_mcp.documentation.lifespan import documentation_lifespan
+from mpt_mcp.documentation.lifespan import documentation_lifespan, documentation_store_lifespan
 from mpt_mcp.documentation.server import documentation_provider
 from mpt_mcp.prompts import marketplace_prompts
 from mpt_mcp.resources import openapi_resources
@@ -65,7 +65,7 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
         mcp = FastMCP(
             SERVER_NAME,
             instructions=SERVER_INSTRUCTIONS,
-            lifespan=spec_lifespan,
+            lifespan=documentation_store_lifespan | spec_lifespan,
             middleware=[RequestContextMiddleware()],
         )
     for provider in (

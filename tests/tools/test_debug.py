@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, Mock
 import pytest
 from fastmcp.exceptions import ToolError
 
-from mpt_mcp.documentation import lifespan
+from mpt_mcp.documentation.store import DocumentationStore
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
 from mpt_mcp.tools.debug import marketplace_refresh_cache, marketplace_resources_info
@@ -20,11 +20,12 @@ def spec_store():
     return Mock(spec=MarketplaceSpecStore, get=AsyncMock())
 
 
-def test_resources_info_reflects_docs_cache(docs_cache_factory, doc_page_factory, monkeypatch):
-    cache = docs_cache_factory(resources=[doc_page_factory("docs://readme")])
-    monkeypatch.setattr(lifespan.documentation_state, "cache", cache)
+async def test_resources_info_reflects_docs_cache(docs_cache_factory, doc_page_factory):
+    docs_cache_factory(resources=[doc_page_factory("docs://readme")])
+    documentation_store = DocumentationStore()
+    await documentation_store.get()
 
-    result = (marketplace_resources_info()).model_dump()
+    result = marketplace_resources_info(documentation_store=documentation_store).model_dump()
 
     documentation = result["documentation"]
     assert (documentation["enabled"], documentation["total_pages"]) == (True, 1)

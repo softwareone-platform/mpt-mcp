@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING, Any
 
 from fastmcp.server.lifespan import lifespan
 
+from mpt_mcp.marketplace.cache_manager import CacheManager
 from mpt_mcp.marketplace.endpoint_registry import fetch_openapi_spec
 from mpt_mcp.tools.spec import MarketplaceSpec
 
@@ -19,7 +20,9 @@ SPEC_STORE_KEY = "marketplace_specs"
 class MarketplaceSpecStore:
     """Specs of the Marketplace endpoints of the callers, loaded on each endpoint's first call."""
 
-    def __init__(self) -> None:
+    def __init__(self, cache_manager: CacheManager | None = None) -> None:
+        # Fetched specs are also kept on disk, so a restart or another process reuses them
+        self.cache_manager = cache_manager or CacheManager(cache_dir=".cache", ttl_hours=24)
         self._specs: dict[str, MarketplaceSpec] = {}
         # One load per endpoint at a time, so concurrent first calls fetch the spec once
         self._locks: defaultdict[str, asyncio.Lock] = defaultdict(asyncio.Lock)
@@ -45,7 +48,9 @@ class MarketplaceSpecStore:
             if spec is not None and not force_refresh:
                 return spec
 
-            document = await fetch_openapi_spec(api_base_url, force_refresh=force_refresh)
+            document = await fetch_openapi_spec(
+                api_base_url, self.cache_manager, force_refresh=force_refresh
+            )
             spec = await asyncio.to_thread(MarketplaceSpec.from_document, api_base_url, document)
             self._specs[api_base_url] = spec
             return spec

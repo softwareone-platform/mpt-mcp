@@ -31,7 +31,7 @@ Then inspect the code paths relevant to the task:
 - [`mpt_mcp/auth/`](mpt_mcp/auth): per-request credentials injected with FastMCP dependencies (`call_context.py`) and token validation (`token_validator.py`)
 - [`mpt_mcp/analytics/`](mpt_mcp/analytics): analytics middleware, lifespan, logger and table model
 - [`mpt_mcp/marketplace/`](mpt_mcp/marketplace): Marketplace API client, OpenAPI-based endpoint discovery and its disk cache, OpenAPI parsing, the `OpenAPISpec` lookups of paths and schemas (`schemas.py`) and audit field detection
-- [`mpt_mcp/documentation/`](mpt_mcp/documentation): documentation tools and the `docs://` resource (`server.py`, on their `LocalProvider`), GitBook client, cache and startup loading
+- [`mpt_mcp/documentation/`](mpt_mcp/documentation): documentation tools and the `docs://` resource (`server.py`, on their `LocalProvider`), GitBook client, cache, the per-server documentation store and its lifespans
 - [`mpt_mcp/config.py`](mpt_mcp/config.py): configuration read from environment variables
 - [`tests/`](tests): pytest suite, one `test_<module>.py` per module
 - [`make/`](make): canonical local commands

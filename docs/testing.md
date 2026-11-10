@@ -53,7 +53,7 @@ Repository-specific guidance:
 
 - call tools as the module functions of `tools/` or `documentation/server.py` and pass their dependencies explicitly (`call_context`, `api_client`, or `spec` from the `spec_factory` fixture of [`tests/tools/conftest.py`](../tests/tools/conftest.py)) instead of building HTTP requests; check argument validation and the input schema with an in-memory `fastmcp.Client`
 - patch names where they are used, for example `mpt_mcp.resources.validate_token`
-- the `docs_cache_factory` and `doc_page_factory` fixtures in [`tests/conftest.py`](../tests/conftest.py) install a fake documentation cache for any test
+- the `docs_cache_factory` and `doc_page_factory` fixtures in [`tests/conftest.py`](../tests/conftest.py) build a fake documentation cache: pass it as `docs_cache` to the documentation tools, and servers created in the test load it from their documentation store
 - pass a `MarketplaceSpecStore`, or a mock of it, to the functions that take `spec_store`; servers created with `create_mcp_server()` get a new store from `spec_lifespan`
 - module-level caches (JWKS keys) live for the whole test process: give each test its own issuer, as the `issuer` fixture does, instead of clearing private state
 - test JWT validation with real RSA keys and mocked HTTP responses, as in `tests/auth/test_token_validator.py`

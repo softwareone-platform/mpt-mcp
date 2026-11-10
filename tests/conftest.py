@@ -1,9 +1,7 @@
-from functools import partial
 from unittest.mock import AsyncMock, Mock
 
 import pytest
 
-from mpt_mcp.documentation import lifespan
 from mpt_mcp.documentation.cache import DocumentationCache
 
 
@@ -42,11 +40,9 @@ def docs_cache_factory(monkeypatch):
             "enabled": True,
         }
 
-        monkeypatch.setattr(lifespan.documentation_state, "cache", None)
+        # Servers in tests load this cache from their documentation store
         monkeypatch.setattr(
-            lifespan,
-            "initialize_documentation_cache",
-            AsyncMock(side_effect=partial(setattr, lifespan.documentation_state, "cache", cache)),
+            "mpt_mcp.documentation.store.load_documentation_cache", AsyncMock(return_value=cache)
         )
         return cache
 

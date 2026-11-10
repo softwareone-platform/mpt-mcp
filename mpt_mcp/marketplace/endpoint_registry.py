@@ -1,4 +1,3 @@
-import functools
 import logging
 from typing import Any
 
@@ -16,13 +15,6 @@ class OpenAPISpecFetchError(Exception):
 
 # Endpoint info by resource ID
 type EndpointRegistry = dict[str, dict[str, Any]]
-
-
-@functools.cache
-def get_cache_manager() -> CacheManager:
-    """Get the OpenAPI spec disk cache of the process, created on the first call."""
-    logger.info("Cache manager initialized")
-    return CacheManager(cache_dir=".cache", ttl_hours=24)
 
 
 def get_openapi_spec_url(api_base_url: str) -> str:
@@ -47,7 +39,12 @@ def get_openapi_spec_url(api_base_url: str) -> str:
     return f"{api_base_url}/public/v1/openapi.json"
 
 
-async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) -> dict[str, Any]:
+async def fetch_openapi_spec(
+    api_base_url: str,
+    cache_manager: CacheManager,
+    *,
+    force_refresh: bool = False,
+) -> dict[str, Any]:
     """
     Fetch OpenAPI spec for a given API base URL with fallback.
 
@@ -56,6 +53,7 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
 
     Args:
         api_base_url: The base URL of the API
+        cache_manager: Disk cache of the fetched specs
         force_refresh: Force refresh cache even if valid cache exists
 
     Returns:
@@ -65,15 +63,13 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
         OpenAPISpecFetchError: The spec request failed (also from the fallback URL), timed out,
             or its cache file or JSON could not be read
     """
-    cache_mgr = get_cache_manager()
-
     openapi_url = get_openapi_spec_url(api_base_url)
 
     logger.info("Loading OpenAPI spec from: %s", openapi_url)
 
     try:
         spec = await fetch_with_cache(
-            url=openapi_url, cache_manager=cache_mgr, force_refresh=force_refresh
+            url=openapi_url, cache_manager=cache_manager, force_refresh=force_refresh
         )
     except httpx.HTTPError as error:
         logger.warning("Failed to fetch from %s: %s", openapi_url, error)
@@ -85,7 +81,7 @@ async def fetch_openapi_spec(api_base_url: str, *, force_refresh: bool = False) 
 
             try:
                 spec = await fetch_with_cache(
-                    url=fallback_url, cache_manager=cache_mgr, force_refresh=force_refresh
+                    url=fallback_url, cache_manager=cache_manager, force_refresh=force_refresh
                 )
             except (httpx.HTTPError, OSError, ValueError) as fallback_error:
                 logger.exception("Fallback also failed")

@@ -1,11 +1,12 @@
-from unittest.mock import AsyncMock, Mock, patch
+from unittest.mock import AsyncMock, Mock
 
 import pytest
 from fastmcp import Client, FastMCP
 from fastmcp.exceptions import ResourceError, ToolError
 
-from mpt_mcp.documentation import lifespan, server
+from mpt_mcp.documentation import server
 from mpt_mcp.documentation.cache import DocumentationCache
+from mpt_mcp.documentation.lifespan import documentation_store_lifespan
 from mpt_mcp.tools.results import CHARACTER_LIMIT
 
 LINE_COUNT = 1000
@@ -14,7 +15,7 @@ LINE_LENGTH = 95
 
 @pytest.fixture
 def docs_server():
-    mcp = FastMCP("test")
+    mcp = FastMCP("test", lifespan=documentation_store_lifespan)
     mcp.add_provider(server.documentation_provider)
     return mcp
 
@@ -40,11 +41,9 @@ async def test_docs_list_exposes_browser_url_and_note():
         list_resources=AsyncMock(return_value=mock_resources),
     )
 
-    with (
-        patch.object(lifespan.documentation_state, "cache", mock_cache),
-        patch("mpt_mcp.documentation.lifespan.initialize_documentation_cache", AsyncMock()),
-    ):
-        result = (await server.marketplace_docs_list(search="contact support")).model_dump()
+    result = (
+        await server.marketplace_docs_list(search="contact support", docs_cache=mock_cache)
+    ).model_dump()
 
     assert result["total"] == 1
     assert len(result["resources"]) == 1
@@ -72,23 +71,18 @@ async def test_docs_list_without_browser_url_metadata():
         list_resources=AsyncMock(return_value=mock_resources),
     )
 
-    with (
-        patch.object(lifespan.documentation_state, "cache", mock_cache),
-        patch("mpt_mcp.documentation.lifespan.initialize_documentation_cache", AsyncMock()),
-    ):
-        result = (await server.marketplace_docs_list(search="some")).model_dump()
+    result = (await server.marketplace_docs_list(search="some", docs_cache=mock_cache)).model_dump()
 
     assert result["total"] == 1
     assert "browser_url" not in result["resources"][0]
     assert "Prefer showing users the browser_url" in result["usage"]
 
 
-async def test_docs_index_without_cache_fails(monkeypatch):
-    monkeypatch.setattr(lifespan, "initialize_documentation_cache", AsyncMock())
-    monkeypatch.setattr(lifespan.documentation_state, "cache", None)
+async def test_docs_index_without_cache_fails():
+    disabled_cache = Mock(spec=DocumentationCache, is_enabled=False)
 
     with pytest.raises(ToolError, match="Documentation cache is not available"):
-        await server.marketplace_docs_index()
+        await server.marketplace_docs_index(docs_cache=disabled_cache)
 
 
 async def test_docs_index_returns_cache_index(docs_cache_factory):
@@ -96,15 +90,15 @@ async def test_docs_index_returns_cache_index(docs_cache_factory):
         "total_pages": 1,
         "sections": [{"name": "readme", "total_pages": 1, "subsections": []}],
     }
-    docs_cache_factory(resources=[{"uri": "docs://readme", "metadata": {}}], index=index)
+    cache = docs_cache_factory(resources=[{"uri": "docs://readme", "metadata": {}}], index=index)
 
-    result = (await server.marketplace_docs_index()).model_dump()
+    result = (await server.marketplace_docs_index(docs_cache=cache)).model_dump()
 
     assert result == index
 
 
 async def test_docs_list_includes_browser_url_and_usage(docs_cache_factory, doc_page_factory):
-    docs_cache_factory(
+    cache = docs_cache_factory(
         resources=[
             doc_page_factory(
                 "docs://help-and-support/contact-support",
@@ -113,7 +107,9 @@ async def test_docs_list_includes_browser_url_and_usage(docs_cache_factory, doc_
         ]
     )
 
-    result = (await server.marketplace_docs_list(search="contact", limit=100)).model_dump()
+    result = (
+        await server.marketplace_docs_list(search="contact", limit=100, docs_cache=cache)
+    ).model_dump()
 
     assert (result["total"], result["resources"][0]["browser_url"]) == (
         1,
@@ -124,29 +120,31 @@ async def test_docs_list_includes_browser_url_and_usage(docs_cache_factory, doc_
 
 async def test_marketplace_docs_list_tip_when_limited(docs_cache_factory, doc_page_factory):
     resources = [doc_page_factory(f"docs://p/{index}") for index in range(10)]
-    docs_cache_factory(resources=resources)
+    cache = docs_cache_factory(resources=resources)
 
-    result = (await server.marketplace_docs_list(limit=5)).model_dump()
+    result = (await server.marketplace_docs_list(limit=5, docs_cache=cache)).model_dump()
 
     assert "tip" in result
 
 
 async def test_docs_list_uses_live_docs_cache(docs_cache_factory, doc_page_factory):
-    docs_cache_factory(resources=[doc_page_factory("docs://readme")])
+    cache = docs_cache_factory(resources=[doc_page_factory("docs://readme")])
 
-    result = (await server.marketplace_docs_list(limit=5)).model_dump()
+    result = (await server.marketplace_docs_list(limit=5, docs_cache=cache)).model_dump()
 
     first_uri = result["resources"][0]["uri"]
     assert (result["total"], first_uri) == (1, "docs://readme")
 
 
 async def test_docs_read_returns_text_and_count(docs_cache_factory):
-    docs_cache_factory(
+    cache = docs_cache_factory(
         content_by_uri={"docs://help-and-support/contact-support": "# Contact\n\nHello from docs."}
     )
 
     result = (
-        await server.marketplace_docs_read(uri="docs://help-and-support/contact-support")
+        await server.marketplace_docs_read(
+            uri="docs://help-and-support/contact-support", docs_cache=cache
+        )
     ).model_dump()
 
     assert result == {"text": "# Contact\n\nHello from docs.", "count": 1}
@@ -155,12 +153,12 @@ async def test_docs_read_returns_text_and_count(docs_cache_factory):
 async def test_docs_read_splits_long_page(docs_cache_factory):
     line = "x" * LINE_LENGTH
     page = "\n".join(f"{index} {line}" for index in range(LINE_COUNT))
-    docs_cache_factory(content_by_uri={"docs://billing/charges": page})
+    cache = docs_cache_factory(content_by_uri={"docs://billing/charges": page})
 
-    first = await server.marketplace_docs_read(uri="docs://billing/charges")
+    first = await server.marketplace_docs_read(uri="docs://billing/charges", docs_cache=cache)
 
     result = await server.marketplace_docs_read(
-        uri="docs://billing/charges", offset=first.next_offset
+        uri="docs://billing/charges", offset=first.next_offset, docs_cache=cache
     )
 
     assert len(first.text) <= CHARACTER_LIMIT
@@ -171,10 +169,12 @@ async def test_docs_read_splits_long_page(docs_cache_factory):
 
 async def test_docs_read_last_part_has_no_next_offset(docs_cache_factory):
     page = "x" * (CHARACTER_LIMIT + 10)
-    docs_cache_factory(content_by_uri={"docs://billing/charges": page})
+    cache = docs_cache_factory(content_by_uri={"docs://billing/charges": page})
 
     result = (
-        await server.marketplace_docs_read(uri="docs://billing/charges", offset=CHARACTER_LIMIT)
+        await server.marketplace_docs_read(
+            uri="docs://billing/charges", offset=CHARACTER_LIMIT, docs_cache=cache
+        )
     ).model_dump()
 
     assert result == {"text": "x" * 10, "count": 1}
@@ -182,32 +182,32 @@ async def test_docs_read_last_part_has_no_next_offset(docs_cache_factory):
 
 @pytest.mark.parametrize("offset", [-1, 100])
 async def test_docs_read_offset_outside_page_fails(docs_cache_factory, offset):
-    docs_cache_factory(content_by_uri={"docs://readme": "# Readme"})
+    cache = docs_cache_factory(content_by_uri={"docs://readme": "# Readme"})
 
     with pytest.raises(ToolError, match="is outside the page"):
-        await server.marketplace_docs_read(uri="docs://readme", offset=offset)
+        await server.marketplace_docs_read(uri="docs://readme", offset=offset, docs_cache=cache)
 
 
 async def test_docs_read_not_found_fails(docs_cache_factory):
-    docs_cache_factory()
+    cache = docs_cache_factory()
 
     with pytest.raises(ToolError, match="Documentation page not found: docs://missing/page"):
-        await server.marketplace_docs_read(uri="docs://missing/page")
+        await server.marketplace_docs_read(uri="docs://missing/page", docs_cache=cache)
 
 
 async def test_docs_resource_reads_from_live_docs_cache(docs_cache_factory):
-    docs_cache_factory(content_by_uri={"docs://readme": "# Home\n\nHello"})
+    cache = docs_cache_factory(content_by_uri={"docs://readme": "# Home\n\nHello"})
 
-    result = await server.get_documentation_page("readme")
+    result = await server.get_documentation_page("readme", docs_cache=cache)
 
     assert result == "# Home\n\nHello"
 
 
 async def test_docs_resource_not_found_when_missing(docs_cache_factory):
-    docs_cache_factory()
+    cache = docs_cache_factory()
 
     with pytest.raises(ResourceError, match="Documentation page not found: docs://readme"):
-        await server.get_documentation_page("readme")
+        await server.get_documentation_page("readme", docs_cache=cache)
 
 
 async def test_docs_resource_reads_nested_paths(docs_cache_factory, docs_server):

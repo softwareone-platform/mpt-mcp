@@ -70,7 +70,9 @@ async def test_get_force_refresh_reloads(spec_fetcher):
     result = await spec_store.get("https://api.test.com", force_refresh=True)
 
     assert result is not first_spec
-    spec_fetcher.assert_awaited_with("https://api.test.com", force_refresh=True)
+    spec_fetcher.assert_awaited_with(
+        "https://api.test.com", spec_store.cache_manager, force_refresh=True
+    )
 
 
 async def test_spec_lifespan_gives_empty_store():

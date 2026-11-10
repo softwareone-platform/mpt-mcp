@@ -1,7 +1,9 @@
+from fastmcp.dependencies import Depends
 from fastmcp.exceptions import ResourceError
 from fastmcp.server.providers import LocalProvider
 
-from mpt_mcp.documentation import lifespan
+from mpt_mcp.documentation.cache import DocumentationCache
+from mpt_mcp.documentation.store import get_documentation_cache
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
 from mpt_mcp.tools.responses import (
     DocsIndexResponse,
@@ -15,25 +17,26 @@ DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
     "Documentation cache is not available. Please configure GITBOOK_API_KEY and GITBOOK_SPACE_ID."
 )
 MANY_DOCS_RESULTS = 50
-# No lifespan here: the HTTP server loads the documentation at startup with documentation_lifespan,
-# and stdio loads it on the first documentation call
 documentation_provider = LocalProvider()
 
 
 @documentation_provider.tool(title="Documentation index", annotations=READ_ONLY_REMOTE)
-async def marketplace_docs_index() -> DocsIndexResponse:
+async def marketplace_docs_index(
+    docs_cache: DocumentationCache = Depends(get_documentation_cache),  # noqa: WPS404
+) -> DocsIndexResponse:
     """
     Get the documentation table of contents.
+
+    Args:
+        docs_cache: Documentation cache, injected by FastMCP (not a tool argument)
 
     Returns:
         Total page count and the documentation sections with their subsections and page counts
     """
-    await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_state.cache
-    if not dc or not dc.is_enabled:
+    if not docs_cache.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
-    return DocsIndexResponse.model_validate(await dc.get_documentation_index())
+    return DocsIndexResponse.model_validate(await docs_cache.get_documentation_index())
 
 
 @documentation_provider.tool(title="List documentation pages", annotations=READ_ONLY_REMOTE)
@@ -42,6 +45,7 @@ async def marketplace_docs_list(
     subsection: str | None = None,
     search: str | None = None,
     limit: int = 100,
+    docs_cache: DocumentationCache = Depends(get_documentation_cache),  # noqa: WPS404
 ) -> DocsListResponse:
     """
     List documentation pages, optionally filtered.
@@ -51,16 +55,15 @@ async def marketplace_docs_list(
         subsection: Only pages of this subsection
         search: Only pages whose title or path contains this text
         limit: Max pages to return (default 100)
+        docs_cache: Documentation cache, injected by FastMCP (not a tool argument)
 
     Returns:
         Matching pages with their docs:// uri, title and public browser_url when available
     """
-    await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_state.cache
-    if not dc or not dc.is_enabled:
+    if not docs_cache.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
-    resources = await dc.list_resources(
+    resources = await docs_cache.list_resources(
         section=section, subsection=subsection, search=search, limit=limit
     )
     pages = [
@@ -97,7 +100,11 @@ async def marketplace_docs_list(
 
 
 @documentation_provider.tool(title="Read a documentation page", annotations=READ_ONLY_REMOTE)
-async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
+async def marketplace_docs_read(
+    uri: str,
+    offset: int = 0,
+    docs_cache: DocumentationCache = Depends(get_documentation_cache),  # noqa: WPS404
+) -> DocsReadResponse:
     """
     Read a documentation page.
 
@@ -106,16 +113,15 @@ async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
     Args:
         uri: Page uri from marketplace_docs_list (e.g. docs://help-and-support/contact-support)
         offset: Character to start reading from, the next_offset of the previous part
+        docs_cache: Documentation cache, injected by FastMCP (not a tool argument)
 
     Returns:
         Page content in markdown, or one part of it
     """
-    await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_state.cache
-    if not dc or not dc.is_enabled:
+    if not docs_cache.is_enabled:
         raise tool_error(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
-    page_content = await dc.get_resource(uri)
+    page_content = await docs_cache.get_resource(uri)
     if page_content is None:
         raise tool_error(
             f"Documentation page not found: {uri}",
@@ -144,12 +150,16 @@ async def marketplace_docs_read(uri: str, offset: int = 0) -> DocsReadResponse:
     description="Documentation pages. Use marketplace_docs_list() for available URIs.",
     mime_type="text/markdown",
 )
-async def get_documentation_page(path: str) -> str:
+async def get_documentation_page(
+    path: str,
+    docs_cache: DocumentationCache = Depends(get_documentation_cache),  # noqa: WPS404
+) -> str:
     """
     Return the markdown of the documentation page at docs://{path}.
 
     Args:
         path: Page path, the uri without docs://
+        docs_cache: Documentation cache, injected by FastMCP
 
     Returns:
         Page content in markdown
@@ -158,12 +168,10 @@ async def get_documentation_page(path: str) -> str:
         ResourceError: The documentation is not configured or the page does not exist
     """
     uri = f"docs://{path}"
-    await lifespan.initialize_documentation_cache()
-    dc = lifespan.documentation_state.cache
-    if not dc or not dc.is_enabled:
+    if not docs_cache.is_enabled:
         raise ResourceError(DOCUMENTATION_CACHE_UNAVAILABLE_MSG)
 
-    page_content = await dc.get_resource(uri)
+    page_content = await docs_cache.get_resource(uri)
     if page_content is None:
         raise ResourceError(
             f"Documentation page not found: {uri}. Use marketplace_docs_list() to see "

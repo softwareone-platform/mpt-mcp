@@ -1,8 +1,9 @@
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, Mock, patch
 
 import httpx
 import pytest
 
+from mpt_mcp.marketplace.cache_manager import CacheManager
 from mpt_mcp.marketplace.endpoint_registry import (
     OpenAPISpecFetchError,
     build_endpoints_registry,
@@ -37,7 +38,7 @@ def test_build_endpoints_registry():
 async def test_fetch_openapi_spec_uses_fallback(cached_fetch):
     cached_fetch.side_effect = [httpx.ConnectError("Connection refused"), {"openapi": "3.0.0"}]
 
-    result = await fetch_openapi_spec("https://api.test.com")
+    result = await fetch_openapi_spec("https://api.test.com", Mock(spec=CacheManager))
 
     assert result == {"openapi": "3.0.0"}
     assert cached_fetch.call_args.kwargs["url"] == FALLBACK_SPEC_URL
@@ -59,6 +60,6 @@ async def test_fetch_openapi_spec_wraps_errors(cached_fetch, api_base_url, fetch
     cached_fetch.side_effect = fetch_errors
 
     with pytest.raises(OpenAPISpecFetchError) as error:
-        await fetch_openapi_spec(api_base_url)
+        await fetch_openapi_spec(api_base_url, Mock(spec=CacheManager))
 
     assert error.value.__cause__ is fetch_errors[-1]
