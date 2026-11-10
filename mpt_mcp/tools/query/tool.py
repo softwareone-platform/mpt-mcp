@@ -123,14 +123,14 @@ def log_query_result(result: Any) -> None:
         return
 
     data = result.get("data")
-    data_list = data if isinstance(data, list) else []
+    returned = f"data len={len(data)}" if isinstance(data, list) else "single item"
     result_meta = result.get(KEY_META)
     meta = result_meta if isinstance(result_meta, dict) else {}
     meta_omitted = meta.get("omitted")
     omitted = meta_omitted if isinstance(meta_omitted, list) else []
     logger.info(
-        "Returning: data len=%s, %s=%s, omitted=%s",
-        len(data_list),
+        "Returning: %s, %s=%s, omitted=%s",
+        returned,
         KEY_META,
         "yes" if meta else "no",
         omitted or "none",

@@ -1,3 +1,4 @@
+import logging
 from unittest.mock import AsyncMock, Mock, patch
 
 import pytest
@@ -7,7 +8,7 @@ from fastmcp.exceptions import ToolError
 from mpt_mcp.auth.call_context import CallContext
 from mpt_mcp.marketplace.api_client import APIClient
 from mpt_mcp.tools.query.params import DEFAULT_LIMIT
-from mpt_mcp.tools.query.tool import marketplace_query, query_tools
+from mpt_mcp.tools.query.tool import log_query_result, marketplace_query, query_tools
 
 
 @pytest.fixture
@@ -128,3 +129,19 @@ async def test_query_next_offset_continues_cut_page(api_client, spec_factory):
     assert pagination["next_offset"] == len(result["data"])
     assert pagination["returned"] == pagination["next_offset"]
     assert result["$meta"]["truncated"]["suggested_limit"] == len(result["data"])
+
+
+@pytest.mark.parametrize(
+    ("result", "expected_log"),
+    [
+        ({"data": [{"id": "ORD-1"}], "$meta": {}}, "Returning: data len=1, $meta=no"),
+        ({"id": "ORD-1", "$meta": {"omitted": ["lines"]}}, "Returning: single item, $meta=yes"),
+        (3, "Returning: int value"),
+    ],
+)
+def test_log_query_result(caplog, result, expected_log):
+    caplog.set_level(logging.INFO)
+
+    log_query_result(result)  # act
+
+    assert expected_log in caplog.text

@@ -76,8 +76,9 @@ class MarketplaceRequest:
         logger.info("Path: %s", self.api_path)
         logger.info("Params: %s", query_params)
         result = await self.api_client.get(self.api_path, query_params=query_params)
-        if isinstance(result, dict) and KEY_META in result:
-            logger.info("Result: %s total items", get_result_total(result) or "?")
+        total = get_result_total(result)
+        if total is not None:
+            logger.info("Result: %s total items", total)
 
         # SECURITY: hide the token values of every API token endpoint, matched by path
         if "/accounts/api-tokens" in self.api_path.lower():
