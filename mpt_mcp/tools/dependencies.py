@@ -1,18 +1,14 @@
 import logging
 
-from fastmcp.dependencies import Depends
+from fastmcp import Context
+from fastmcp.dependencies import CurrentContext, Depends
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
-from mpt_mcp.marketplace import audit_fields
 from mpt_mcp.marketplace.api_client import APIClient
-from mpt_mcp.marketplace.endpoint_registry import (
-    OpenAPISpecFetchError,
-    get_endpoints_registry,
-    get_openapi_spec,
-)
-from mpt_mcp.marketplace.schemas import OpenAPISpec
+from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
 from mpt_mcp.tools.results import AUTH_HEADER_HINT, OPENAPI_SPEC_LOAD_ERROR, tool_error
 from mpt_mcp.tools.spec import MarketplaceSpec
+from mpt_mcp.tools.spec_store import SPEC_STORE_KEY, MarketplaceSpecStore
 
 logger = logging.getLogger(__name__)
 
@@ -41,25 +37,40 @@ async def get_api_client(
     return api_client
 
 
+def get_spec_store(context: Context = CurrentContext()) -> MarketplaceSpecStore:  # noqa: WPS404
+    """
+    Return the spec store of the server, created by spec_lifespan.
+
+    Args:
+        context: Context of the MCP request, injected by FastMCP
+
+    Returns:
+        Specs of the callers' endpoints
+    """
+    spec_store: MarketplaceSpecStore = context.lifespan_context[SPEC_STORE_KEY]
+    return spec_store
+
+
 async def get_marketplace_spec(
     api_client: APIClient = Depends(get_api_client),  # noqa: WPS404
+    spec_store: MarketplaceSpecStore = Depends(get_spec_store),  # noqa: WPS404
 ) -> MarketplaceSpec:
     """
     Load the OpenAPI spec of the caller's endpoint.
 
     Args:
         api_client: Caller's API client, injected by FastMCP
+        spec_store: Specs of the callers' endpoints, injected by FastMCP
 
     Returns:
-        Spec, endpoints registry and audit fields of the endpoint
+        Spec, endpoints registry and audit events of the endpoint
 
     Raises:
         ToolError: The spec cannot be loaded
     """
     api_base_url = api_client.base_url
     try:
-        endpoints_registry = await get_endpoints_registry(api_base_url)
-        openapi_spec = await get_openapi_spec(api_base_url)
+        return await spec_store.get(api_base_url)
     except OpenAPISpecFetchError as error:
         raise tool_error(
             f"{OPENAPI_SPEC_LOAD_ERROR} for your endpoint",
@@ -67,10 +78,3 @@ async def get_marketplace_spec(
             details=str(error),
             hint=f"Ensure {api_base_url}/public/v1/openapi.json is accessible",
         ) from error
-
-    return MarketplaceSpec(
-        api_base_url=api_base_url,
-        audit_regex=audit_fields.get_audit_regex(api_base_url),
-        endpoints_registry=endpoints_registry,
-        openapi=OpenAPISpec(openapi_spec),
-    )

@@ -6,12 +6,10 @@ from fastmcp.exceptions import ToolError
 
 from mpt_mcp.auth.call_context import CallContext
 from mpt_mcp.marketplace.api_client import APIClient
-from mpt_mcp.marketplace.audit_fields import FALLBACK_STATIC_REGEX
 from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
-from mpt_mcp.marketplace.schemas import OpenAPISpec
-from mpt_mcp.tools.dependencies import get_api_client, get_marketplace_spec
+from mpt_mcp.tools.dependencies import get_api_client, get_marketplace_spec, get_spec_store
 from mpt_mcp.tools.results import AUTH_HEADER_HINT
-from mpt_mcp.tools.spec import MarketplaceSpec
+from mpt_mcp.tools.spec_store import SPEC_STORE_KEY, MarketplaceSpecStore
 
 
 @pytest.fixture
@@ -20,19 +18,8 @@ def api_client():
 
 
 @pytest.fixture
-def registry_loader():
-    with patch(
-        "mpt_mcp.tools.dependencies.get_endpoints_registry", new_callable=AsyncMock
-    ) as get_endpoints_registry:
-        yield get_endpoints_registry
-
-
-@pytest.fixture
-def spec_loader():
-    with patch(
-        "mpt_mcp.tools.dependencies.get_openapi_spec", new_callable=AsyncMock
-    ) as get_openapi_spec:
-        yield get_openapi_spec
+def spec_store():
+    return Mock(spec=MarketplaceSpecStore, get=AsyncMock())
 
 
 async def test_get_api_client(call_context, patched_api_client):
@@ -57,25 +44,29 @@ async def test_get_api_client_without_credentials_fails(call_context):
     assert json.loads(error_details) == {"hint": AUTH_HEADER_HINT}
 
 
-async def test_get_marketplace_spec(api_client, registry_loader, spec_loader, endpoints_registry):
-    registry_loader.return_value = endpoints_registry
-    spec_loader.return_value = {"paths": {}}
+def test_get_spec_store():
+    spec_store = MarketplaceSpecStore()
+    context = Mock(lifespan_context={SPEC_STORE_KEY: spec_store})
 
-    result = await get_marketplace_spec(api_client)
+    result = get_spec_store(context)
 
-    assert result == MarketplaceSpec(
-        api_base_url="https://api.test.com",
-        audit_regex=FALLBACK_STATIC_REGEX,
-        endpoints_registry=endpoints_registry,
-        openapi=OpenAPISpec({"paths": {}}),
-    )
+    assert result is spec_store
 
 
-async def test_get_marketplace_spec_load_fails(api_client, registry_loader):
-    registry_loader.side_effect = OpenAPISpecFetchError("Connection refused")
+async def test_get_marketplace_spec(api_client, spec_store, spec_factory):
+    spec_store.get.return_value = spec_factory()
+
+    result = await get_marketplace_spec(api_client, spec_store)
+
+    assert result is spec_store.get.return_value
+    spec_store.get.assert_awaited_once_with("https://api.test.com")
+
+
+async def test_get_marketplace_spec_load_fails(api_client, spec_store):
+    spec_store.get.side_effect = OpenAPISpecFetchError("Connection refused")
 
     with pytest.raises(ToolError, match="Failed to load OpenAPI spec for your endpoint") as error:
-        await get_marketplace_spec(api_client)
+        await get_marketplace_spec(api_client, spec_store)
 
     _, error_details = str(error.value).split("\n", 1)
     details = json.loads(error_details)

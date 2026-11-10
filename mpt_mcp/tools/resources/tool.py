@@ -2,7 +2,6 @@ from fastmcp.dependencies import Depends
 from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
-from mpt_mcp.marketplace.audit_fields import get_audit_fields
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
 from mpt_mcp.tools.dependencies import get_marketplace_spec
 from mpt_mcp.tools.resources.info import describe_resource_info
@@ -14,7 +13,6 @@ from mpt_mcp.tools.responses import (
     ResourceSchemaResponse,
     ResourcesResponse,
 )
-from mpt_mcp.tools.results import tool_error
 from mpt_mcp.tools.spec import MarketplaceSpec
 
 resource_tools = LocalProvider()
@@ -111,8 +109,13 @@ def marketplace_audit_fields(
     Returns:
         Audit events of the resource, or of every resource
     """
-    result = get_audit_fields(spec.api_base_url, resource)
-    if "error" in result:
-        raise tool_error(result.pop("error"), **result)
+    if resource is None:
+        return AuditFieldsResponse(by_resource=spec.audit_events)
 
-    return AuditFieldsResponse.model_validate(result)
+    events = spec.audit_events.get(resource)
+    if events is None:
+        return AuditFieldsResponse(
+            resource=resource, events=[], hint="No audit fields found for this resource"
+        )
+
+    return AuditFieldsResponse(resource=resource, events=events)

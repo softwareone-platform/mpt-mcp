@@ -1,11 +1,9 @@
-import asyncio
 import functools
 import logging
 from typing import Any
 
 import httpx
 
-from mpt_mcp.marketplace import audit_fields
 from mpt_mcp.marketplace.cache_manager import CacheManager, fetch_with_cache
 from mpt_mcp.marketplace.openapi_parser import OpenAPIParser
 
@@ -16,10 +14,8 @@ class OpenAPISpecFetchError(Exception):
     """Raised when the OpenAPI spec cannot be fetched or read, from the endpoint or the fallback."""
 
 
-# Keyed by API base URL, then by resource ID, holding each endpoint's info
+# Endpoint info by resource ID
 type EndpointRegistry = dict[str, dict[str, Any]]
-_endpoint_registries: dict[str, EndpointRegistry] = {}
-_openapi_specs: dict[str, dict[str, Any]] = {}
 
 
 @functools.cache
@@ -126,77 +122,17 @@ def path_to_resource_id(path: str) -> str:
     return path.replace("/", ".")
 
 
-async def get_endpoints_registry(
-    api_base_url: str, *, force_refresh: bool = False
-) -> dict[str, dict[str, Any]]:
+def build_endpoints_registry(spec: dict[str, Any]) -> EndpointRegistry:
     """
-    Get or initialize the endpoints registry for a given API base URL.
-
-    Each API base URL has its own registry of endpoints parsed from its OpenAPI spec.
-    Registries are cached in memory after first load.
+    Build the registry of the GET endpoints of an OpenAPI spec.
 
     Args:
-        api_base_url: The base URL of the API
-        force_refresh: Force refresh the registry even if cached
+        spec: OpenAPI spec of a Marketplace endpoint
 
     Returns:
-        Dictionary mapping resource IDs to endpoint information
-
-    Raises:
-        OpenAPISpecFetchError: The OpenAPI spec could not be fetched or read
+        Endpoint info by resource ID: its API path, summary, description and parameters
     """
-    if api_base_url in _endpoint_registries and not force_refresh:
-        logger.info("Using cached endpoints registry for %s", api_base_url)
-        return _endpoint_registries[api_base_url]
-
-    logger.info("Initializing endpoints registry for %s", api_base_url)
-
-    try:
-        spec = await fetch_openapi_spec(api_base_url, force_refresh=force_refresh)
-
-        _openapi_specs[api_base_url] = spec
-
-        parser = OpenAPIParser()
-        registry: dict[str, dict[str, Any]] = {
-            path_to_resource_id(endpoint["path"]): endpoint
-            for endpoint in parser.extract_get_endpoints(spec)
-        }
-
-        _endpoint_registries[api_base_url] = registry
-
-        try:
-            await asyncio.to_thread(
-                audit_fields.update_cache, api_base_url, spec, path_to_resource_id
-            )
-            logger.info("Audit fields cache updated for %s", api_base_url)
-        except Exception as audit_err:
-            logger.warning("Audit fields cache skipped: %s", audit_err)
-
-    except OpenAPISpecFetchError:
-        # Nothing is cached, so the next call retries the spec instead of serving no resources
-        logger.exception("Failed to initialize endpoints registry for %s", api_base_url)
-        raise
-
-    logger.info("Discovered %s GET endpoints for %s", len(registry), api_base_url)
-    logger.info("Stored in registry with %s resource IDs", len(registry))
-
-    return registry
-
-
-async def get_openapi_spec(api_base_url: str, *, force_refresh: bool = False) -> dict[str, Any]:
-    """
-    Get the OpenAPI specification for a given API base URL.
-
-    Args:
-        api_base_url: The base URL of the API
-        force_refresh: Force refresh the spec even if cached
-
-    Returns:
-        OpenAPI specification dictionary
-
-    Raises:
-        OpenAPISpecFetchError: The OpenAPI spec could not be fetched or read
-    """
-    await get_endpoints_registry(api_base_url, force_refresh=force_refresh)
-
-    return _openapi_specs.get(api_base_url, {})
+    return {
+        path_to_resource_id(endpoint["path"]): endpoint
+        for endpoint in OpenAPIParser().extract_get_endpoints(spec)
+    }

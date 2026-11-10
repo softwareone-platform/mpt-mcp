@@ -5,31 +5,11 @@ import pytest
 
 from mpt_mcp.marketplace.endpoint_registry import (
     OpenAPISpecFetchError,
+    build_endpoints_registry,
     fetch_openapi_spec,
-    get_openapi_spec,
 )
 
 FALLBACK_SPEC_URL = "https://api.platform.softwareone.com/public/v1/openapi.json"
-
-SLUG_TRANSLATION = str.maketrans({"_": "-", "[": "-", "]": None})
-
-
-@pytest.fixture
-def unique_endpoint(request):
-    slug = request.node.name.translate(SLUG_TRANSLATION)
-    return f"https://{slug}.test.com"
-
-
-@pytest.fixture
-def spec_fetcher():
-    with patch(
-        "mpt_mcp.marketplace.endpoint_registry.fetch_openapi_spec", new_callable=AsyncMock
-    ) as mock_fetch:
-        mock_fetch.side_effect = lambda endpoint, force_refresh=False: {
-            "openapi": "3.0.0",
-            "info": {"title": endpoint},
-        }
-        yield mock_fetch
 
 
 @pytest.fixture
@@ -40,29 +20,18 @@ def cached_fetch():
         yield mock_fetch
 
 
-async def test_get_openapi_spec_fetches_spec(spec_fetcher, unique_endpoint):
-    result = await get_openapi_spec(unique_endpoint)
+def test_build_endpoints_registry():
+    spec = {
+        "paths": {
+            "/public/v1/commerce/orders": {"get": {"summary": "List orders"}},
+            "/public/v1/commerce/orders/{id}": {"get": {"summary": "Get an order"}},
+        }
+    }
 
-    assert result == {"openapi": "3.0.0", "info": {"title": unique_endpoint}}
+    result = build_endpoints_registry(spec)
 
-
-async def test_get_openapi_spec_retries_after_failure(spec_fetcher, unique_endpoint):
-    spec_fetcher.side_effect = [OpenAPISpecFetchError("Connection refused"), {"openapi": "3.0.0"}]
-
-    with pytest.raises(OpenAPISpecFetchError):
-        await get_openapi_spec(unique_endpoint)
-
-    result = await get_openapi_spec(unique_endpoint)
-    assert result == {"openapi": "3.0.0"}
-
-
-async def test_get_openapi_spec_caches_per_endpoint(spec_fetcher, unique_endpoint):
-    await get_openapi_spec(unique_endpoint)
-    await get_openapi_spec(f"{unique_endpoint}.other")
-
-    await get_openapi_spec(unique_endpoint)  # act
-
-    assert spec_fetcher.await_count == 2
+    assert list(result) == ["commerce.orders", "commerce.orders.by_id"]
+    assert result["commerce.orders"]["path"] == "/public/v1/commerce/orders"
 
 
 async def test_fetch_openapi_spec_uses_fallback(cached_fetch):

@@ -73,13 +73,13 @@ extend-ignore = [
   "WPS217",  # 1
   "WPS219",  # 1
   "WPS220",  # 27
-  "WPS229",  # 24
-  "WPS231",  # 14
+  "WPS229",  # 21
+  "WPS231",  # 13
   "WPS232",  # 2
   "WPS328",  # 1
   "WPS420",  # 1
   "WPS476",  # 4
-  "WPS505",  # 3
+  "WPS505",  # 2
 ]
 extend-exclude = [
   ".coverage",
@@ -179,14 +179,14 @@ ignore = [
     "raise-vanilla-args",  # long exception messages from `tryceratops`
     # TBD: existing violations (rule: count), fixed rule by rule in follow-up commits
     "complex-structure",  # 10
-    "too-many-statements-in-try-clause",  # 12
+    "too-many-statements-in-try-clause",  # 11
 ]
 external = [ "AAA", "WPS" ]
 
 # Plugin configs:
 [tool.ruff.lint.flake8-bugbear]
 # FastMCP dependency markers are meant to be used as argument defaults
-extend-immutable-calls = ["fastmcp.dependencies.Depends"]
+extend-immutable-calls = ["fastmcp.dependencies.CurrentContext", "fastmcp.dependencies.Depends"]
 
 [tool.ruff.lint.flake8-import-conventions]
 banned-from = ["ast", "datetime"]

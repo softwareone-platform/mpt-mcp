@@ -3,6 +3,9 @@ import json
 import pytest
 from fastmcp.exceptions import ToolError
 
+from mpt_mcp.marketplace.audit_fields import FALLBACK_STATIC_REGEX
+from mpt_mcp.tools.spec import MarketplaceSpec
+
 
 @pytest.fixture
 def resources_spec(spec_factory, openapi_spec):
@@ -112,3 +115,27 @@ def test_suggestions_closest_first(suggestions_factory):
     result = suggestions_factory(resource_names, "catalog.product")
 
     assert result[0] == "catalog.products"
+
+
+def test_from_document_builds_registry_and_audit():
+    event_fields = {"at": {"type": "string"}, "by": {"type": "object"}}
+    event = {"type": "object", "properties": event_fields}
+    order = {
+        "type": "object",
+        "properties": {"id": {}, "audit": {"type": "object", "properties": {"created": event}}},
+    }
+    response = {"200": {"content": {"application/json": {"schema": order}}}}
+    document = {"paths": {"/public/v1/commerce/orders/{id}": {"get": {"responses": response}}}}
+
+    result = MarketplaceSpec.from_document("https://api.test.com", document)
+
+    assert list(result.endpoints_registry) == ["commerce.orders.by_id"]
+    assert result.audit_events == {"commerce.orders.by_id": ["created"]}
+    assert result.audit_regex.pattern == r"audit\.(created)\.(at|by)"
+    assert result.openapi.document is document
+
+
+def test_from_document_without_audit():
+    result = MarketplaceSpec.from_document("https://api.test.com", {"paths": {}})
+
+    assert (result.audit_events, result.audit_regex) == ({}, FALLBACK_STATIC_REGEX)

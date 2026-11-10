@@ -109,12 +109,13 @@ def query_params_factory():
 
 @pytest.fixture
 def spec_factory(endpoints_registry):
-    def factory(registry=None, openapi_spec=None):
+    def factory(registry=None, openapi_spec=None, audit_events=None):
         return MarketplaceSpec(
             api_base_url="https://api.test.com",
             audit_regex=FALLBACK_STATIC_REGEX,
             endpoints_registry=endpoints_registry if registry is None else registry,
             openapi=OpenAPISpec(openapi_spec or {}),
+            audit_events=audit_events or {},
         )
 
     return factory

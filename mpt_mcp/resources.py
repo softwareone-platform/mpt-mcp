@@ -6,7 +6,9 @@ from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.auth.call_context import CallContext, get_call_context
 from mpt_mcp.auth.token_validator import validate_token
-from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError, get_openapi_spec
+from mpt_mcp.marketplace.endpoint_registry import OpenAPISpecFetchError
+from mpt_mcp.tools.dependencies import get_spec_store
+from mpt_mcp.tools.spec_store import MarketplaceSpecStore
 
 openapi_resources = LocalProvider()
 
@@ -19,12 +21,14 @@ openapi_resources = LocalProvider()
 )
 async def read_openapi_spec(
     call_context: CallContext = Depends(get_call_context),  # noqa: WPS404
+    spec_store: MarketplaceSpecStore = Depends(get_spec_store),  # noqa: WPS404
 ) -> str:
     """
     Return the OpenAPI spec of the caller's endpoint.
 
     Args:
         call_context: Caller's credentials, injected by FastMCP
+        spec_store: Specs of the callers' endpoints, injected by FastMCP
 
     Returns:
         The spec as JSON, with the endpoint and the caller's account
@@ -46,10 +50,11 @@ async def read_openapi_spec(
         )
 
     try:
-        openapi_spec = await get_openapi_spec(endpoint, force_refresh=False)
+        spec = await spec_store.get(endpoint)
     except OpenAPISpecFetchError as error:
         raise ResourceError(f"Failed to fetch the OpenAPI spec of {endpoint}: {error}") from error
 
+    openapi_spec = spec.openapi.document
     spec_with_metadata = {
         "api_endpoint": endpoint,
         "authenticated_as": token_info.get("account", {}).get("name", "Unknown")

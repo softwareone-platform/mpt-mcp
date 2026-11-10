@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -14,8 +13,6 @@ logger = logging.getLogger(__name__)
 
 type AuditPaths = list[dict[str, str]]
 
-# In-memory cache: key (api_base_url or spec URL) -> { "events", "regex", "by_resource" }
-_audit_cache: dict[str, dict[str, Any]] = {}
 # Fallback when spec not available: include "failed" so audit.failed.at triggers auto-add
 FALLBACK_STATIC_REGEX = re.compile(
     r"audit\.(created|updated|completed|processing|quoted|failed)\.(at|by)"
@@ -125,65 +122,3 @@ def build_audit_regex(events: set[str]) -> re.Pattern[str]:
 
     part = "|".join(re.escape(error) for error in sorted(events))
     return re.compile(rf"audit\.({part})\.(at|by)")
-
-
-def update_cache(
-    cache_key: str,
-    spec: dict[str, Any],
-    path_to_resource_id: Callable[[str], str],
-) -> None:
-    """
-    Compute audit data from spec and store in cache under cache_key.
-
-    Call this when the spec is loaded (by endpoint_registry).
-    """
-    if os.getenv("DEBUG", "").lower() == "true":
-        logger.setLevel(logging.DEBUG)
-    data = get_audit_data_from_spec(OpenAPISpec(spec), path_to_resource_id)
-    _audit_cache[cache_key] = {
-        "events": data["events"],
-        "regex": build_audit_regex(data["events"]),
-        "by_resource": data["by_resource"],
-    }
-
-
-def get_audit_regex(cache_key: str | None) -> re.Pattern[str]:
-    """
-    Return cached regex for the given cache key (api_base_url or spec URL).
-
-    If not in cache, return fallback static regex (includes failed).
-    """
-    if cache_key and cache_key in _audit_cache:
-        regex: re.Pattern[str] = _audit_cache[cache_key]["regex"]
-        return regex
-
-    return FALLBACK_STATIC_REGEX
-
-
-def get_audit_fields(cache_key: str | None, resource: str | None = None) -> dict[str, Any]:
-    """
-    Return cached audit event names for the given cache key.
-
-    Paths are always audit.<event>.at and audit.<event>.by.
-    If resource is provided, return { "resource": resource, "events": [...] } or error.
-    If resource is None, return
-    { "by_resource": { resource_id: ["event1", "event2", ...], ... } } for all resources.
-    """
-    if not cache_key or cache_key not in _audit_cache:
-        if resource:
-            return {"error": "Audit fields not available (spec not loaded)", "resource": resource}
-
-        return {"by_resource": {}}
-
-    by_resource = _audit_cache[cache_key]["by_resource"]
-    if resource is not None:
-        if resource not in by_resource:
-            return {
-                "resource": resource,
-                "events": [],
-                "hint": "No audit fields found for this resource",
-            }
-
-        return {"resource": resource, "events": by_resource[resource]}
-
-    return {"by_resource": by_resource}

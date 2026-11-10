@@ -1,5 +1,4 @@
 import json
-from unittest.mock import patch
 
 import pytest
 from fastmcp.exceptions import ToolError
@@ -10,12 +9,6 @@ from mpt_mcp.tools.resources.tool import (
     marketplace_resource_schema,
     marketplace_resources,
 )
-
-
-@pytest.fixture
-def audit_fields_loader():
-    with patch("mpt_mcp.tools.resources.tool.get_audit_fields") as get_audit_fields:
-        yield get_audit_fields
 
 
 @pytest.mark.parametrize("tool", [marketplace_resource_info, marketplace_resource_schema])
@@ -56,20 +49,24 @@ def test_resource_schema_describes_response(spec_factory, openapi_spec):
     assert list(result["fields"]) == ["id", "status", "audit"]
 
 
-def test_audit_fields_returns_events(spec_factory, audit_fields_loader):
-    audit_fields_loader.return_value = {"resource": "commerce.orders", "events": ["created"]}
+@pytest.mark.parametrize(
+    ("resource", "expected"),
+    [
+        ("commerce.orders", {"resource": "commerce.orders", "events": ["created"]}),
+        (
+            "catalog.products",
+            {
+                "resource": "catalog.products",
+                "events": [],
+                "hint": "No audit fields found for this resource",
+            },
+        ),
+        (None, {"by_resource": {"commerce.orders": ["created"]}}),
+    ],
+)
+def test_audit_fields_returns_events(spec_factory, resource, expected):
+    spec = spec_factory(audit_events={"commerce.orders": ["created"]})
 
-    result = marketplace_audit_fields("commerce.orders", spec=spec_factory()).model_dump()
+    result = marketplace_audit_fields(resource, spec=spec).model_dump()
 
-    assert result == {"resource": "commerce.orders", "events": ["created"]}
-    audit_fields_loader.assert_called_once_with("https://api.test.com", "commerce.orders")
-
-
-def test_audit_fields_reports_error(spec_factory, audit_fields_loader):
-    audit_fields_loader.return_value = {"error": "No audit fields", "hint": "Load the spec"}
-
-    with pytest.raises(ToolError, match="No audit fields") as error:
-        marketplace_audit_fields("commerce.orders", spec=spec_factory())
-
-    _, error_details = str(error.value).split("\n", 1)
-    assert json.loads(error_details) == {"hint": "Load the spec"}
+    assert result == expected

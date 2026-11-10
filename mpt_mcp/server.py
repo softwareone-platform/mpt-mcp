@@ -12,6 +12,7 @@ from mpt_mcp.runtime.middleware import RequestContextMiddleware
 from mpt_mcp.tools.debug import DEBUG_TAG, debug_tools
 from mpt_mcp.tools.query import query_tools
 from mpt_mcp.tools.resources import resource_tools
+from mpt_mcp.tools.spec_store import spec_lifespan
 
 SERVER_NAME = "softwareone-marketplace"
 type Transport = Literal["http", "stdio"]
@@ -57,13 +58,14 @@ def create_mcp_server(*, transport: Transport) -> FastMCP:
         mcp = FastMCP(
             SERVER_NAME,
             instructions=SERVER_INSTRUCTIONS,
-            lifespan=documentation_lifespan | analytics_lifespan,
+            lifespan=documentation_lifespan | analytics_lifespan | spec_lifespan,
             middleware=[RequestContextMiddleware(), AnalyticsMiddleware()],
         )
     else:
         mcp = FastMCP(
             SERVER_NAME,
             instructions=SERVER_INSTRUCTIONS,
+            lifespan=spec_lifespan,
             middleware=[RequestContextMiddleware()],
         )
     for provider in (
