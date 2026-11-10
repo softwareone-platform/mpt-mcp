@@ -11,55 +11,45 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-type AuditPaths = list[dict[str, str]]
-
 # Fallback when spec not available: include "failed" so audit.failed.at triggers auto-add
 FALLBACK_STATIC_REGEX = re.compile(
     r"audit\.(created|updated|completed|processing|quoted|failed)\.(at|by)"
 )
+# An audit event says when (.at) or who (.by); the spec may name those fields differently
+AUDIT_EVENT_FIELDS = frozenset(("actor", "at", "by", "date", "timestamp", "user"))
 
 
-def collect_audit_events_and_paths_from_props(
-    spec: OpenAPISpec,
-    properties: dict[str, Any],
-) -> tuple[set[str], AuditPaths]:
+def build_audit_regex(events: set[str]) -> re.Pattern[str]:
+    r"""Build regex audit\.(event1|event2|...).(at|by) from event names."""
+    if not events:
+        return FALLBACK_STATIC_REGEX
+
+    part = "|".join(re.escape(error) for error in sorted(events))
+    return re.compile(rf"audit\.({part})\.(at|by)")
+
+
+def collect_audit_events(spec: OpenAPISpec, properties: dict[str, Any]) -> set[str]:
     """
-    Find the audit property in a flat 'properties' dict and collect its events and paths.
+    Find the audit properties of an item schema and collect the names of their events.
 
-    Events are names like created, updated or failed; paths are audit.<event>.at and .by.
     The API always uses 'audit' as segment; the spec may use orderAudit etc.
+
+    Args:
+        spec: OpenAPI spec the schemas belong to, to resolve their references
+        properties: Properties of the item schema
+
+    Returns:
+        Event names, such as created, updated or failed, that have a when or a who field
     """
     events: set[str] = set()
-    paths: AuditPaths = []
-    for prop_name, prop_schema in (properties or {}).items():
-        if "audit" not in prop_name.lower():
-            continue
-        audit_schema = (
-            spec.resolve_schema(prop_schema) if isinstance(prop_schema, dict) else prop_schema
-        )
-        if not isinstance(audit_schema, dict):
-            continue
-        nested = audit_schema.get("properties") or {}
-        for event_name, event_schema in nested.items():
-            if not isinstance(event_schema, dict):
-                continue
-            resolved_schema = spec.resolve_schema(event_schema)
-            event_props = (
-                (resolved_schema.get("properties") or {})
-                if isinstance(resolved_schema, dict)
-                else {}
+    for prop_name, prop_schema in properties.items():
+        if "audit" in prop_name.lower():
+            events.update(
+                event_name
+                for event_name, event_schema in get_schema_properties(spec, prop_schema).items()
+                if AUDIT_EVENT_FIELDS & get_schema_properties(spec, event_schema).keys()
             )
-            # .at = when (spec may use "at", "timestamp", or "date"), .by = who (spec may use "by",
-            # "actor", or "user")
-            has_when = "at" in event_props or "timestamp" in event_props or "date" in event_props
-            has_who = "by" in event_props or "actor" in event_props or "user" in event_props
-            if has_when:
-                events.add(event_name)
-                paths.append({"path": f"audit.{event_name}.at", "event": event_name, "type": "at"})
-            if has_who:
-                events.add(event_name)
-                paths.append({"path": f"audit.{event_name}.by", "event": event_name, "type": "by"})
-    return events, paths
+    return events
 
 
 def get_audit_data_from_spec(
@@ -82,43 +72,80 @@ def get_audit_data_from_spec(
     Paths are always audit.<event>.at and audit.<event>.by; we store only event names to keep
     payloads small.
     """
-    all_events: set[str] = set()
-    by_resource: dict[str, list[str]] = {}
-    paths = spec.paths
-    get_paths = [path for path, path_item in paths.items() if "get" in path_item]
-    logger.debug("audit_fields: scanning %d GET paths for audit schemas", len(get_paths))
-    for path, path_item in paths.items():
-        if "get" not in path_item:
-            continue
-        schema = spec.get_response_schema(path_item["get"])
-        if not schema:
-            continue
-        schema = spec.get_item_schema(schema)
-        properties = schema.get("properties")
-        if not properties:
-            continue
-        if not any("audit" in name.lower() for name in properties):
-            continue
-        events, _ = collect_audit_events_and_paths_from_props(spec, properties)
-        if not events:
-            continue
-        all_events |= events
-        resource_id = path_to_resource_id(path)
-        existing_events = set(by_resource.get(resource_id) or [])
-        existing_events |= events
-        by_resource[resource_id] = sorted(existing_events)
+    by_resource = get_audit_events_by_resource(spec, path_to_resource_id)
+    all_events = set().union(*by_resource.values())
     logger.info(
         "audit_fields: total resources with audit: %d, events: %s",
         len(by_resource),
         sorted(all_events),
     )
-    return {"events": all_events, "by_resource": by_resource}
+    return {
+        "events": all_events,
+        "by_resource": {resource: sorted(events) for resource, events in by_resource.items()},
+    }
 
 
-def build_audit_regex(events: set[str]) -> re.Pattern[str]:
-    r"""Build regex audit\.(event1|event2|...).(at|by) from event names."""
-    if not events:
-        return FALLBACK_STATIC_REGEX
+def get_audit_events_by_resource(
+    spec: OpenAPISpec,
+    path_to_resource_id: Callable[[str], str],
+) -> dict[str, set[str]]:
+    """
+    Collect the audit events of every resource that has them.
 
-    part = "|".join(re.escape(error) for error in sorted(events))
-    return re.compile(rf"audit\.({part})\.(at|by)")
+    Args:
+        spec: OpenAPI spec of a Marketplace endpoint
+        path_to_resource_id: Function that names the resource of an API path
+
+    Returns:
+        Audit event names by resource; resources without events are left out
+    """
+    by_resource: dict[str, set[str]] = {}
+    for path, path_item in spec.paths.items():
+        events = get_path_audit_events(spec, path_item)
+        if events:
+            by_resource.setdefault(path_to_resource_id(path), set()).update(events)
+    return by_resource
+
+
+def get_path_audit_events(spec: OpenAPISpec, path_item: dict[str, Any]) -> set[str]:
+    """
+    Collect the audit events of the items a path returns.
+
+    Args:
+        spec: OpenAPI spec the path belongs to
+        path_item: OpenAPI path item
+
+    Returns:
+        Audit event names of the items of the GET 200 response, empty when it has none
+    """
+    operation = path_item.get("get")
+    if operation is None:
+        return set()
+
+    schema = spec.get_response_schema(operation)
+    if not schema:
+        return set()
+
+    return collect_audit_events(spec, spec.get_item_schema(schema).get("properties") or {})
+
+
+def get_schema_properties(spec: OpenAPISpec, schema: Any) -> dict[str, Any]:
+    """
+    Resolve a schema and return its properties.
+
+    Args:
+        spec: OpenAPI spec the schema belongs to, to resolve its references
+        schema: Schema, or any other value found where a schema was expected
+
+    Returns:
+        Properties of the resolved schema, empty when it is not an object schema
+    """
+    if not isinstance(schema, dict):
+        return {}
+
+    resolved_schema = spec.resolve_schema(schema)
+    if not isinstance(resolved_schema, dict):
+        return {}
+
+    properties: dict[str, Any] = resolved_schema.get("properties") or {}
+    return properties

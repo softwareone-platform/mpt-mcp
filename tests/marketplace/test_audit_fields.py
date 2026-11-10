@@ -3,7 +3,7 @@ import pytest
 from mpt_mcp.marketplace.audit_fields import (
     FALLBACK_STATIC_REGEX,
     build_audit_regex,
-    collect_audit_events_and_paths_from_props,
+    collect_audit_events,
     get_audit_data_from_spec,
 )
 from mpt_mcp.marketplace.endpoint_registry import path_to_resource_id
@@ -81,7 +81,7 @@ def audit_spec():
     }
 
 
-def test_collect_audit_events_and_paths():
+def test_collect_audit_events():
     properties = {
         "orderAudit": {
             "properties": {
@@ -93,15 +93,9 @@ def test_collect_audit_events_and_paths():
         "name": {"type": "string"},
     }
 
-    result = collect_audit_events_and_paths_from_props(OpenAPISpec({}), properties)
+    result = collect_audit_events(OpenAPISpec({}), properties)
 
-    events, paths = result
-    assert events == {"created", "updated"}
-    assert [audit_path["path"] for audit_path in paths] == [
-        "audit.created.at",
-        "audit.created.by",
-        "audit.updated.at",
-    ]
+    assert result == {"created", "updated"}
 
 
 def test_get_audit_data_from_spec(audit_spec):
@@ -119,9 +113,9 @@ def test_get_audit_data_from_spec(audit_spec):
 def test_collect_skips_audit_props_without_schema():
     properties = {"audit": "not a schema", "lineAudit": {"properties": {"created": "x"}}}
 
-    result = collect_audit_events_and_paths_from_props(OpenAPISpec({}), properties)
+    result = collect_audit_events(OpenAPISpec({}), properties)
 
-    assert result == (set(), [])
+    assert result == set()
 
 
 @pytest.mark.parametrize("path_item", [{"post": {}}, {"get": {"responses": {}}}])
