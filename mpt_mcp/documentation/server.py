@@ -3,7 +3,12 @@ from fastmcp.server.providers import LocalProvider
 
 from mpt_mcp.documentation import lifespan
 from mpt_mcp.tools.annotations import READ_ONLY_REMOTE
-from mpt_mcp.tools.responses import DocsIndexResponse, DocsListResponse, DocsReadResponse
+from mpt_mcp.tools.responses import (
+    DocsIndexResponse,
+    DocsListResponse,
+    DocsPage,
+    DocsReadResponse,
+)
 from mpt_mcp.tools.results import cut_text_to_budget, tool_error
 
 DOCUMENTATION_CACHE_UNAVAILABLE_MSG = (
@@ -58,12 +63,13 @@ async def marketplace_docs_list(
     resources = await dc.list_resources(
         section=section, subsection=subsection, search=search, limit=limit
     )
-    resources_for_response = []
-    for resource in resources:
-        entry = dict(resource)
-        if resource.get("metadata", {}).get("browser_url"):
-            entry["browser_url"] = resource["metadata"]["browser_url"]
-        resources_for_response.append(entry)
+    pages = [
+        DocsPage.model_validate({
+            **resource,
+            "browser_url": resource.get("metadata", {}).get("browser_url") or None,
+        })
+        for resource in resources
+    ]
     filters = []
     if section:
         filters.append(f"section={section}")
@@ -71,24 +77,23 @@ async def marketplace_docs_list(
         filters.append(f"subsection={subsection}")
     if search:
         filters.append(f"search='{search}'")
-    result = {
-        "total": len(resources_for_response),
-        "resources": resources_for_response,
-        "filters_applied": ", ".join(filters) if filters else "none",
-        "usage": (
+    tip = None
+    if len(resources) >= limit:
+        tip = f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
+    elif len(resources) > MANY_DOCS_RESULTS:
+        tip = "Consider using 'section' or 'subsection' filters to narrow down results."
+
+    return DocsListResponse(
+        total=len(pages),
+        resources=pages,
+        filters_applied=", ".join(filters) if filters else "none",
+        usage=(
             "Use marketplace_docs_read(uri='docs://path') to read a page. "
             "Prefer showing users the browser_url (public link) when present; "
             "do not show internal uri or id to end users."
         ),
-    }
-    if len(resources) >= limit:
-        result["tip"] = (
-            f"Showing first {limit} results. Use 'section' or 'search' parameters to narrow down."
-        )
-    elif len(resources) > MANY_DOCS_RESULTS:
-        result["tip"] = "Consider using 'section' or 'subsection' filters to narrow down results."
-
-    return DocsListResponse.model_validate(result)
+        tip=tip,
+    )
 
 
 @documentation_provider.tool(title="Read a documentation page", annotations=READ_ONLY_REMOTE)

@@ -11,8 +11,11 @@ from mpt_mcp.tools.annotations import READ_ONLY_LOCAL, REFRESHES_CACHE
 from mpt_mcp.tools.dependencies import get_api_client, get_spec_store
 from mpt_mcp.tools.responses import (
     CacheInfoResponse,
+    DocumentationCacheState,
     RefreshCacheResponse,
     ResourcesInfoResponse,
+    SpecCacheInfo,
+    TokenCacheState,
 )
 from mpt_mcp.tools.results import OPENAPI_SPEC_LOAD_ERROR, tool_error
 from mpt_mcp.tools.spec_store import MarketplaceSpecStore
@@ -33,12 +36,14 @@ def marketplace_cache_info() -> CacheInfoResponse:
     Returns:
         Cache statistics: cached files, their total size and how many are valid or expired
     """
-    return CacheInfoResponse.model_validate({
-        "cache_status": "enabled",
-        "cache_info": get_cache_manager().get_cache_info(),
-        "note": "Cache reduces startup time and allows offline operation. Cache is automatically "
-        "refreshed every 24 hours.",
-    })
+    return CacheInfoResponse(
+        cache_status="enabled",
+        cache_info=SpecCacheInfo.model_validate(get_cache_manager().get_cache_info()),
+        note=(
+            "Cache reduces startup time and allows offline operation. Cache is automatically "
+            "refreshed every 24 hours."
+        ),
+    )
 
 
 @debug_tools.tool(
@@ -92,26 +97,18 @@ def marketplace_resources_info() -> ResourcesInfoResponse:
     Returns:
         Whether each cache is enabled, with its statistics
     """
-    result = {
-        "documentation": {"enabled": False, "total_pages": 0, "cache_info": None},
-        "token_validation": {"enabled": False, "cache_stats": None},
-    }
+    documentation_state = DocumentationCacheState(enabled=False, total_pages=0)
     dc = documentation.documentation_state.cache
     if dc and dc.is_enabled:
         cache_info = dc.get_cache_info()
-        result["documentation"] = {
-            "enabled": True,
-            "total_pages": cache_info.get("resource_count", 0),
-            "cache_info": cache_info,
-        }
-    try:
-        token_cache = get_token_cache()
-        result["token_validation"] = {
-            "enabled": True,
-            "cache_stats": token_cache.get_stats(),
-            "description": "Token validation cache prevents repeated API calls for authentication",
-        }
-    except Exception as e_inner:
-        result["token_validation"] = {"enabled": False, "error": str(e_inner)}
-
-    return ResourcesInfoResponse.model_validate(result)
+        documentation_state = DocumentationCacheState(
+            enabled=True, total_pages=cache_info.get("resource_count", 0), cache_info=cache_info
+        )
+    return ResourcesInfoResponse(
+        documentation=documentation_state,
+        token_validation=TokenCacheState(
+            enabled=True,
+            cache_stats=get_token_cache().get_stats(),
+            description="Token validation cache prevents repeated API calls for authentication",
+        ),
+    )
