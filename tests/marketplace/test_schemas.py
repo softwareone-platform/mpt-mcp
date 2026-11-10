@@ -128,3 +128,20 @@ def test_get_item_schema_keeps_object_schema():
     result = OpenAPISpec({}).get_item_schema(schema)
 
     assert result == schema
+
+
+def test_document_properties():
+    document = {"openapi": "3.1.0", "info": {"title": "API"}, "paths": {ORDERS_PATH: {}}}
+    spec = OpenAPISpec(document)
+
+    result = (spec.version, spec.api_info, spec.paths)
+
+    assert result == ("3.1.0", {"title": "API"}, {ORDERS_PATH: {}})
+
+
+def test_document_properties_default():
+    spec = OpenAPISpec({})
+
+    result = (spec.version, spec.api_info, spec.paths)
+
+    assert result == ("3.0", {}, {})

@@ -5,10 +5,25 @@ MEDIA_TYPE_JSON = "application/json"
 
 
 @dataclass(frozen=True)
-class OpenAPISpec:
+class OpenAPISpec:  # noqa: WPS214
     """OpenAPI document of a Marketplace endpoint, with the lookups of its paths and schemas."""
 
     document: dict[str, Any]
+
+    @property
+    def api_info(self) -> dict[str, Any]:
+        """Return the info object of the spec: its title, version and description."""
+        return self.document.get("info") or {}
+
+    @property
+    def paths(self) -> dict[str, Any]:
+        """Return the path items of the spec, by API path."""
+        return self.document.get("paths") or {}
+
+    @property
+    def version(self) -> str:
+        """Return the OpenAPI version of the spec, 3.0 when it does not say."""
+        return self.document.get("openapi") or "3.0"
 
     def get_item_schema(self, schema: dict[str, Any]) -> dict[str, Any]:
         """
@@ -49,7 +64,7 @@ class OpenAPISpec:
         Returns:
             The operation, or None when the spec does not have it
         """
-        path_item = (self.document.get("paths") or {}).get(path)
+        path_item = self.paths.get(path)
         operation = path_item.get(method) if isinstance(path_item, dict) else None
         return operation if isinstance(operation, dict) else None
 

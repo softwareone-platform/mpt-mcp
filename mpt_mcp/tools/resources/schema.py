@@ -35,7 +35,7 @@ def describe_resource_schema(resource: str, spec: MarketplaceSpec) -> ResourceSc
         ToolError: The resource is unknown, or its path or GET operation is not in the spec
     """
     endpoint_path = spec.get_endpoint(resource)["path"]
-    if endpoint_path not in (spec.openapi.document.get("paths") or {}):
+    if endpoint_path not in spec.openapi.paths:
         raise tool_error(f"Path {endpoint_path} not found in OpenAPI spec", resource=resource)
 
     operation = spec.openapi.get_operation(endpoint_path)

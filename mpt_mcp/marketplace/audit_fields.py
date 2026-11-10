@@ -84,7 +84,7 @@ def get_audit_data_from_spec(
     """
     all_events: set[str] = set()
     by_resource: dict[str, list[str]] = {}
-    paths = spec.document.get("paths") or {}
+    paths = spec.paths
     get_paths = [path for path, path_item in paths.items() if "get" in path_item]
     logger.debug("audit_fields: scanning %d GET paths for audit schemas", len(get_paths))
     for path, path_item in paths.items():

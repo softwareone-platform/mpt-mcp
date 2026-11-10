@@ -54,7 +54,6 @@ async def read_openapi_spec(
     except OpenAPISpecFetchError as error:
         raise ResourceError(f"Failed to fetch the OpenAPI spec of {endpoint}: {error}") from error
 
-    openapi_spec = spec.openapi.document
     spec_with_metadata = {
         "api_endpoint": endpoint,
         "authenticated_as": token_info.get("account", {}).get("name", "Unknown")
@@ -63,8 +62,8 @@ async def read_openapi_spec(
         "account_id": token_info.get("account", {}).get("id", "Unknown")
         if token_info
         else "Unknown",
-        "openapi_version": openapi_spec.get("openapi", "3.0"),
-        "info": openapi_spec.get("info", {}),
-        "spec": openapi_spec,
+        "openapi_version": spec.openapi.version,
+        "info": spec.openapi.api_info,
+        "spec": spec.openapi.document,
     }
     return json.dumps(spec_with_metadata, indent=2)
