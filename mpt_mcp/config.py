@@ -26,7 +26,6 @@ class Config:
 
     # Server Configuration
     debug: bool = os.getenv("DEBUG", "false").lower() == "true"
-    request_timeout: float = float(os.getenv("REQUEST_TIMEOUT", "30"))
 
     # The HTTP server is multi-tenant: clients send their credentials in the X-MPT-* headers
     # Endpoint used when a client does not send the X-MPT-Endpoint header

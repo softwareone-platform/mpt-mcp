@@ -10,17 +10,19 @@ This document covers running the servers locally and connecting MCP clients to t
 
 ## Configuration
 
-Configuration is read from environment variables; [`compose.yaml`](../compose.yaml) also loads an optional `.env` file. Copy [`.env.example`](../.env.example) to `.env` when you need any of these values:
+Configuration is read from environment variables and from an optional `.env` file at the repository root, which both [`compose.yaml`](../compose.yaml) and the servers started with `uv` load. Copy [`.env.example`](../.env.example) to `.env` when you need any of these values:
 
 | Variable | Used by | Purpose |
 |---|---|---|
 | `MARKETPLACE_API_TOKEN` | stdio | API token (`idt:TKN-XXXX-XXXX:secret`) of the single tenant |
 | `MARKETPLACE_API_BASE_URL` | stdio | Marketplace API endpoint (default `https://api.platform.softwareone.com`) |
-| `HTTP_DEFAULT_BASE_URL` | HTTP | Endpoint used when a client does not send `X-MPT-Endpoint` |
-| `PORT` | HTTP | Listening port (default `8080`) |
-| `DEBUG` | both | `true` enables debug logging, uvicorn reload and the debug tools |
-| `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID`, `GITBOOK_PUBLIC_URL` | both | Documentation tools and `docs://` resources; disabled when not set |
-| `JWT_JWKS_URL`, `JWT_EXP_LEEWAY_SECONDS` | both | JWT verification; the JWKS URL is derived from the token's `iss` claim when not set |
+| `HTTP_DEFAULT_BASE_URL` | HTTP | Endpoint used when a client does not send `X-MPT-Endpoint` (default `https://api.platform.softwareone.com`) |
+| `PORT` | HTTP | Listening port (default `8080`); `compose.yaml` fixes it to `8080`, so it only applies without Docker |
+| `DEBUG` | both | `true` enables debug logging and the debug tools, and uvicorn reload in the HTTP server |
+| `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID` | both | Documentation tools and `docs://` resources; disabled when either is not set |
+| `GITBOOK_PUBLIC_URL` | both | Public documentation site, to add a browser link to each page |
+| `GITBOOK_API_BASE_URL`, `GITBOOK_CACHE_REFRESH_HOURS`, `GITBOOK_MAX_CONCURRENT_REQUESTS` | both | GitBook API URL (default `https://api.gitbook.com/v1`), page index refresh (default `24` hours) and concurrent requests (default `2`) |
+| `JWT_JWKS_URL`, `JWT_EXP_LEEWAY_SECONDS` | both | JWT verification; the JWKS URL is derived from the token's `iss` claim when not set, and the clock skew leeway defaults to `120` seconds |
 | `ANALYTICS_DATABASE_URL` | HTTP | PostgreSQL URL (`postgresql+asyncpg://…`); analytics is disabled when not set |
 
 `compose.yaml` sets `DEBUG=true` by default for local development; set `DEBUG=false` in `.env` to disable it.
