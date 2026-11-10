@@ -12,8 +12,10 @@ stop at the first failure, and do not ask me anything. Keep each answer to one l
 2. Call marketplace_resources with category="catalog", then with category="catalog" and
    search="listing". Without search, either every resource has a path or the result has a note
    saying it was shortened; with search, does every resource have a path and no note?
-3. Call marketplace_resource_info for catalog.products. Name two filterable fields and one example query.
-4. Call marketplace_resource_schema for catalog.products. How many fields does it describe?
+3. Call marketplace_resource_info for catalog.products. Give one example query and one child
+   resource.
+4. Call marketplace_resource_schema for catalog.products. How many fields does it describe? Give
+   two filters from its filtering hints.
 5. Call marketplace_audit_fields for commerce.orders. Which audit events does it have?
 6. Count the products with marketplace_query and limit=0. What is the total?
 7. List 5 products returning only id and name (select=-*,+id,+name). Do the items have only id,
