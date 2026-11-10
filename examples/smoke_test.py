@@ -55,7 +55,7 @@ class CheckSkippedError(Exception):
 type Check = Callable[[], Awaitable[str]]
 
 
-class SmokeTest:
+class SmokeTest:  # noqa: WPS214
     """Use cases of the MCP server, run one by one against a running server."""
 
     def __init__(self, client: Client[Any], *, http: bool, settings: argparse.Namespace) -> None:
@@ -515,7 +515,7 @@ class SmokeTestRunner:
     def __init__(self, settings: argparse.Namespace) -> None:
         self.settings = settings
 
-    async def run(self) -> int:
+    async def run(self) -> int:  # noqa: WPS210
         """
         Run the use cases and print a summary.
 
@@ -527,7 +527,8 @@ class SmokeTestRunner:
         async with Client(transport) as client:
             smoke_test = SmokeTest(client, http=not self.settings.stdio, settings=self.settings)
             for name, check in smoke_test.checks():
-                status, detail = await self._run_check(check)
+                # The use cases run one by one against a real server, in order
+                status, detail = await self._run_check(check)  # noqa: WPS476
                 failed += status == "FAIL"
                 sys.stdout.write(f"{status:<4}  {name:<40}  {detail}\n")
         summary = "FAILED" if failed else "OK"
