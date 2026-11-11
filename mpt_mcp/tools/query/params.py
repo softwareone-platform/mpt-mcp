@@ -1,13 +1,14 @@
 import logging
 import re
 from dataclasses import dataclass, replace
-from typing import Any
+from typing import Any, Self
 
 from mpt_mcp.tools.query.select_fields import sanitize_select, selects_audit
 from mpt_mcp.tools.spec import MarketplaceSpec
 
 logger = logging.getLogger(__name__)
 
+CATALOG_PRODUCTS_RESOURCE = "catalog.products"
 # Table-friendly fields: full products are huge and break markdown tables (URLs, "|" in values)
 CATALOG_PRODUCTS_SELECT = "-*,+id,+name,+shortDescription"
 DEFAULT_LIMIT = 10
@@ -40,16 +41,16 @@ class QueryParams:
             if param_value not in {None, ""}
         }
 
-    def with_allowed_select(self, allowed_fields: set[str]) -> QueryParams:
+    def with_allowed_select(self, allowed_fields: set[str]) -> Self:
         """Keep in select only the fields of the resource, plus id, status and name."""
         if not self.select:
             return self
 
         return replace(self, select=sanitize_select(self.select, allowed_fields) or self.select)
 
-    def with_default_select(self, resource: str) -> QueryParams:
+    def with_default_select(self, resource: str) -> Self:
         """Use the table-friendly select of catalog.products when no select is given."""
-        if resource != "catalog.products" or (self.select or "").strip():
+        if resource != CATALOG_PRODUCTS_RESOURCE or (self.select or "").strip():
             return self
 
         logger.info(
@@ -58,7 +59,7 @@ class QueryParams:
         )
         return replace(self, select=CATALOG_PRODUCTS_SELECT)
 
-    def with_page_for(self, resource: str, endpoint_path: str) -> QueryParams:
+    def with_page_for(self, resource: str, endpoint_path: str) -> Self:
         """Drop limit and offset for a path that ends in a parameter: it returns a single item."""
         if not endpoint_path.endswith("}"):
             return self
@@ -67,7 +68,7 @@ class QueryParams:
             logger.info("Ignored limit and offset: %s returns a single item", resource)
         return replace(self, limit=None, offset=None)
 
-    def with_used_audit_fields(self, audit_pattern: re.Pattern[str]) -> QueryParams:
+    def with_used_audit_fields(self, audit_pattern: re.Pattern[str]) -> Self:
         """
         Select the audit fields rql or order use, so the result shows their values.
 

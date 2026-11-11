@@ -32,6 +32,8 @@ class Config:
     http_default_base_url: str = os.getenv(
         "HTTP_DEFAULT_BASE_URL", "https://api.platform.softwareone.com"
     )
+    # Interface the HTTP server listens on: 127.0.0.1 accepts only local requests, 0.0.0.0 any
+    http_host: str = os.getenv("HTTP_HOST", "127.0.0.1")
 
     # GitBook Documentation Integration (Optional)
     gitbook_api_key: str = os.getenv("GITBOOK_API_KEY", "")

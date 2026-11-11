@@ -30,4 +30,4 @@ GitHub secrets used by the workflow:
 | `ANALYTICS_DATABASE_URL` | Optional; enables analytics. A `?host=/cloudsql/<project>:<region>:<instance>` URL also attaches the Cloud SQL instance |
 | `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID`, `GITBOOK_PUBLIC_URL` | Optional; enable the documentation tools |
 
-Cloud Run sets `PORT`, which the server listens on. Analytics migrations run when the new revision starts, see [migrations.md](migrations.md).
+Cloud Run sets `PORT`, which the server listens on, and the image sets `HTTP_HOST=0.0.0.0` so the server accepts requests from outside the container. Analytics migrations run when the new revision starts, see [migrations.md](migrations.md).

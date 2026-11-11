@@ -17,6 +17,7 @@ Configuration is read from environment variables and from an optional `.env` fil
 | `MARKETPLACE_API_TOKEN` | stdio | API token (`idt:TKN-XXXX-XXXX:secret`) of the single tenant |
 | `MARKETPLACE_API_BASE_URL` | stdio | Marketplace API endpoint (default `https://api.platform.softwareone.com`) |
 | `HTTP_DEFAULT_BASE_URL` | HTTP | Endpoint used when a client does not send `X-MPT-Endpoint` (default `https://api.platform.softwareone.com`) |
+| `HTTP_HOST` | HTTP | Interface the server listens on (default `127.0.0.1`); the Docker image sets `0.0.0.0`, so it only applies without Docker |
 | `PORT` | HTTP | Listening port (default `8080`); `compose.yaml` fixes it to `8080`, so it only applies without Docker |
 | `DEBUG` | both | `true` enables debug logging and the debug tools, and uvicorn reload in the HTTP server |
 | `GITBOOK_API_KEY`, `GITBOOK_SPACE_ID` | both | Documentation tools and `docs://` resources; disabled when either is not set |

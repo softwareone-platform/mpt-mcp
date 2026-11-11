@@ -155,10 +155,10 @@ async def test_create_api_client_for_caller_endpoint(token_validator):
 
 
 async def test_missing_auth_error_message_is_clear(token_validator):
+    call_context = CallContext(endpoint="https://api.test.com", token=None)
+
     with pytest.raises(ValueError) as exc_info:
-        await CallContext(endpoint="https://api.test.com", token=None).create_api_client(
-            token_validator
-        )
+        await call_context.create_api_client(token_validator)
 
     error_message = str(exc_info.value)
     assert "Missing" in error_message

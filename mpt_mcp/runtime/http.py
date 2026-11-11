@@ -44,17 +44,15 @@ class MCPPathMiddleware:
 
 
 # FastMCP custom routes must be coroutines, although this one awaits nothing
-async def health(request: Request) -> JSONResponse:  # ruff: ignore[unused-async]
+async def health(request: Request) -> JSONResponse:  # ruff: ignore[unused-async]  # NOSONAR
     """Report that the server is up and where its MCP endpoint is."""
     return JSONResponse(dict(HEALTH_RESPONSE))
 
 
 def not_found(request: Request, exc: Exception) -> JSONResponse:
     """Return a hint to the MCP endpoint for unknown paths, and the detail of other errors."""
-    status_code = exc.status_code if isinstance(exc, HTTPException) else HTTPStatus.NOT_FOUND
-    if status_code != HTTPStatus.NOT_FOUND:
-        detail = exc.detail if isinstance(exc, HTTPException) else str(exc)
-        return JSONResponse({"detail": detail}, status_code=status_code)
+    if isinstance(exc, HTTPException) and exc.status_code != HTTPStatus.NOT_FOUND:
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
 
     # Logged so the deployment shows the path that arrived, e.g. when a proxy strips it
     logger.warning(

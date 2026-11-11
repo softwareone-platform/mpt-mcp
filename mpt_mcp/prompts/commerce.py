@@ -5,18 +5,22 @@ from pydantic import Field
 
 from mpt_mcp.prompts.base import marketplace_prompts, query_request
 
+AGREEMENTS_RESOURCE = "commerce.agreements"
+ORDERS_RESOURCE = "commerce.orders"
+SUBSCRIPTIONS_RESOURCE = "commerce.subscriptions"
 ORDER_STATUSES = (
     "New, Draft, Querying, Processing, Quoted, Scheduled, Completed, Failed, Cancelling, Cancelled"
 )
 DUE_DAYS_DEFAULT = 30
+ORDER_NEWEST_FIRST = "-audit.created.at"
 
 
 @marketplace_prompts.prompt(title="Recent orders")
 def recent_orders() -> str:
     """List the most recently created Marketplace orders, in any status."""
     return query_request(
-        resource="commerce.orders",
-        order="-audit.created.at",
+        resource=ORDERS_RESOURCE,
+        order=ORDER_NEWEST_FIRST,
         select="-*,+id,+status,+product.name,+client.name",
         summary="as a table with their id, status, product, client and creation date",
     )
@@ -28,7 +32,7 @@ def orders_by_status(
 ) -> str:
     """List the Marketplace orders in one status, the last updated first."""
     return query_request(
-        resource="commerce.orders",
+        resource=ORDERS_RESOURCE,
         rql=f"eq(status,{status})",
         order="-audit.updated.at",
         select="-*,+id,+status,+product.name,+client.name",
@@ -42,9 +46,9 @@ def orders_for_product(
 ) -> str:
     """List the most recent Marketplace orders of a product."""
     return query_request(
-        resource="commerce.orders",
+        resource=ORDERS_RESOURCE,
         rql=f"eq(product.id,{product_id})",
-        order="-audit.created.at",
+        order=ORDER_NEWEST_FIRST,
         select="-*,+id,+status,+client.name",
         summary="as a table with their id, status, client and creation date",
     )
@@ -56,9 +60,9 @@ def agreements_for_client(
 ) -> str:
     """List the Marketplace agreements of a client, newest first."""
     return query_request(
-        resource="commerce.agreements",
+        resource=AGREEMENTS_RESOURCE,
         rql=f"eq(client.id,{client_id})",
-        order="-audit.created.at",
+        order=ORDER_NEWEST_FIRST,
         select="-*,+id,+name,+status,+product.name",
         summary="as a table with their id, name, status, product and creation date",
     )
@@ -70,9 +74,9 @@ def subscriptions_for_product(
 ) -> str:
     """List the Marketplace subscriptions of a product."""
     return query_request(
-        resource="commerce.subscriptions",
+        resource=SUBSCRIPTIONS_RESOURCE,
         rql=f"eq(product.id,{product_id})",
-        order="-audit.created.at",
+        order=ORDER_NEWEST_FIRST,
         select="-*,+id,+name,+status,+agreement.id,+commitmentDate",
         summary="as a table with their id, name, status, agreement and commitment date",
     )
@@ -88,7 +92,7 @@ def subscriptions_due(
     today = dt.datetime.now(dt.UTC).date()
     until = today + dt.timedelta(days=days)
     return query_request(
-        resource="commerce.subscriptions",
+        resource=SUBSCRIPTIONS_RESOURCE,
         rql=(
             f"and(eq(status,Active),ge(commitmentDate,{today}T00:00:00.000Z),"
             f"lt(commitmentDate,{until}T00:00:00.000Z))"

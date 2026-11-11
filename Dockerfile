@@ -15,6 +15,8 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv
 ENV PATH=/opt/venv/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV PYTHONPATH=/app
+# Listen on every interface, so requests from outside the container reach the HTTP server
+ENV HTTP_HOST=0.0.0.0
 
 FROM base AS build
 

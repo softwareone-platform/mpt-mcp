@@ -44,9 +44,11 @@ async def test_query_sends_resource_query(api_client, spec_factory):
 
 
 async def test_query_unknown_resource_sends_nothing(api_client, spec_factory):
+    spec = spec_factory()
+
     with pytest.raises(ToolError, match="Unknown resource"):
         await marketplace_query(
-            "invalid.resource", api_client=api_client, spec=spec_factory(), analytics_logger=None
+            "invalid.resource", api_client=api_client, spec=spec, analytics_logger=None
         )
 
     api_client.get.assert_not_called()

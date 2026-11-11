@@ -40,7 +40,7 @@ def test_run_uvicorn_reloads_only_with_debug(monkeypatch, uvicorn_run, debug, ex
 
     kwargs = uvicorn_run.call_args.kwargs
     assert uvicorn_run.call_args.args == (runner.APP_IMPORT_PATH,)
-    assert (kwargs["host"], kwargs["port"]) == (runner.SERVER_HOST, PORT)
+    assert (kwargs["host"], kwargs["port"]) == (runner.config.http_host, PORT)
     assert {key: kwargs[key] for key in expected} == expected
 
 

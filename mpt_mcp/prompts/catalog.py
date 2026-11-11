@@ -4,6 +4,8 @@ from pydantic import Field
 
 from mpt_mcp.prompts.base import marketplace_prompts, query_request
 
+PRODUCTS_RESOURCE = "catalog.products"
+
 
 @marketplace_prompts.prompt(title="Search products")
 def search_products(
@@ -11,7 +13,7 @@ def search_products(
 ) -> str:
     """Find Marketplace products by name."""
     return query_request(
-        resource="catalog.products",
+        resource=PRODUCTS_RESOURCE,
         rql=f"ilike(name,*{name}*)",
         order="+name",
         select="-*,+id,+name,+status,+vendor.id,+vendor.name",
@@ -25,7 +27,7 @@ def products_by_vendor(
 ) -> str:
     """List the Marketplace products of a vendor."""
     return query_request(
-        resource="catalog.products",
+        resource=PRODUCTS_RESOURCE,
         rql=f"eq(vendor.id,{vendor_id})",
         order="+name",
         select="-*,+id,+name,+status",

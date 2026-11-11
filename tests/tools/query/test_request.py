@@ -82,11 +82,12 @@ async def test_failed_retry_reports_first_error(
     first_error = http_error_factory(HTTPStatus.BAD_REQUEST, {"message": "Invalid select"})
     retry_error = http_error_factory(HTTPStatus.NOT_FOUND, ValueError("Not JSON"))
     api_client.get = AsyncMock(side_effect=[first_error, retry_error])
+    query_request = request_factory()
+    audit_query = query_params_factory(select=AUDIT_SELECT)
+    fallback_query = query_params_factory()
 
     with pytest.raises(ToolError) as error:
-        await request_factory().send(
-            query_params_factory(select=AUDIT_SELECT), query_params_factory()
-        )
+        await query_request.send(audit_query, fallback_query)
 
     _, error_details = str(error.value).split("\n", 1)
     details = json.loads(error_details)
@@ -100,9 +101,11 @@ async def test_sends_once_without_fallback_retry(
 ):
     api_client.get = AsyncMock(side_effect=http_error_factory(status, {"message": "Failed"}))
     fallback_query = query_params_factory() if status == HTTPStatus.NOT_FOUND else None
+    query_request = request_factory()
+    query_params = query_params_factory()
 
     with pytest.raises(ToolError):
-        await request_factory().send(query_params_factory(), fallback_query)
+        await query_request.send(query_params, fallback_query)
 
     api_client.get.assert_awaited_once()
 
@@ -146,10 +149,10 @@ async def test_records_api_error_in_analytics(
 
 
 async def test_records_invalid_response_in_analytics(analytics_logger, failed_send_factory):
+    invalid_response = ValueError("Response is not JSON")
+
     with pytest.raises(ToolError):
-        await failed_send_factory(
-            ValueError("Response is not JSON"), analytics_logger=analytics_logger
-        )
+        await failed_send_factory(invalid_response, analytics_logger=analytics_logger)
 
     recorded = analytics_logger.record.call_args.args[0]
     assert recorded.api_status_code == HTTPStatus.INTERNAL_SERVER_ERROR

@@ -53,6 +53,15 @@ def test_unknown_path_returns_mcp_hint(http_client, method, path):
     assert "POST /mcp" in result.json()["hint"]
 
 
+def test_other_http_error_returns_detail(http_client):
+    result = http_client.post("/health")
+
+    assert (result.status_code, result.json()) == (
+        HTTPStatus.METHOD_NOT_ALLOWED,
+        {"detail": "Method Not Allowed"},
+    )
+
+
 @pytest.mark.parametrize("path", ["/mcp/", "/"])
 def test_post_is_rewritten_to_mcp_endpoint(http_client, initialize_request, path):
     result = http_client.post(

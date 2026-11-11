@@ -13,8 +13,10 @@ from mpt_mcp.tools.resources.tool import (
 
 @pytest.mark.parametrize("tool", [marketplace_resource_info, marketplace_resource_schema])
 def test_unknown_resource_suggests_similar(spec_factory, tool):
+    spec = spec_factory()
+
     with pytest.raises(ToolError, match=r"Unknown resource: 'commerce\.order'") as error:
-        tool("commerce.order", spec=spec_factory())
+        tool("commerce.order", spec=spec)
 
     _, error_details = str(error.value).split("\n", 1)
     details = json.loads(error_details)

@@ -4,6 +4,8 @@ from pydantic import Field
 
 from mpt_mcp.prompts.base import marketplace_prompts, query_request
 
+BUYERS_RESOURCE = "accounts.buyers"
+
 
 @marketplace_prompts.prompt(title="Search buyers")
 def search_buyers(
@@ -11,7 +13,7 @@ def search_buyers(
 ) -> str:
     """Find Marketplace buyers by name."""
     return query_request(
-        resource="accounts.buyers",
+        resource=BUYERS_RESOURCE,
         rql=f"ilike(name,*{name}*)",
         order="+name",
         select="-*,+id,+name,+status",
