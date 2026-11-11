@@ -1,26 +1,24 @@
-"""
-Alembic migration environment for MCP analytics database.
-
-Supports both online (sync) and offline migrations.
-"""
-
 import os
 from logging.config import fileConfig
+from typing import TYPE_CHECKING
+
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-from sqlalchemy import engine_from_config, pool
-from sqlalchemy.engine import Connection
 
 # Import your models metadata
-from src.analytics.models import metadata
+from mpt_mcp.analytics.models import metadata
+
+if TYPE_CHECKING:
+    from sqlalchemy.engine import Connection
 
 # this is the Alembic Config object, which provides
 # access to the values within the .ini file in use.
 config = context.config
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
-if config.config_file_name is not None:
+# Interpret the config file for Python logging, unless the caller (the MCP server) configures
+# logging itself
+if config.config_file_name is not None and config.attributes.get("configure_logger", True):
     fileConfig(config.config_file_name)
 
 # Set target metadata for autogenerate support

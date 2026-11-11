@@ -2,115 +2,228 @@
 name = "mpt-mcp"
 version = "0.1.0"
 description = "Multi-tenant MCP server for the SoftwareOne Marketplace API (stdio + HTTP streamable)"
+authors = [{ name = "SoftwareOne AG" }]
 readme = "README.md"
+license = {text = "Apache-2.0 license"}
 requires-python = ">=3.14"
 dependencies = [
-    "fastmcp>=3.0.0b2",  # 3.0 line (3.0.0 final not on PyPI yet; upgrade to >=3.0.0 when released)
-    "httpx[http2]>=0.25.0",
-    "rich>=13.0.0",
-    "requests>=2.31.0",
-    "pydantic>=2.0.0",
-    "python-dotenv>=1.0.0",
-    "pyyaml>=6.0",
-    "uvicorn>=0.27.0",
-    "starlette>=0.36.0",
-    "sse-starlette>=1.8.0",
+    "fastmcp==4.1.*",
+    "httpx[http2]==0.28.*",
+    "python-dotenv==1.2.*",
+    "uvicorn==0.40.*",
+    "starlette==1.10.*",
     # Analytics
-    "sqlalchemy[asyncio]>=2.0.0",
-    "asyncpg>=0.29.0",
-    "alembic>=1.13.0",
-    "psycopg2-binary>=2.9.0",
+    "sqlalchemy[asyncio]==2.0.*",
+    "asyncpg==0.31.*",
+    "alembic==1.18.*",
+    "psycopg2-binary==2.9.*",
     # Auth
-    "python-jose[cryptography]>=3.3.0",
+    "pyjwt[crypto]==2.15.*",
 ]
 
 [dependency-groups]
 dev = [
-    "pytest>=7.4.0",
-    "pytest-asyncio>=0.21.0",
-    "pytest-cov>=4.1.0",
-    "pytest-ruff>=0.2.0",
-    "ruff>=0.14.0",
+    "flake8==7.4.*",
+    "flake8-aaa==0.17.*",
+    "flake8-pyproject==1.2.*",
+    "mypy==2.4.*",
+    "pre-commit==4.7.*",
+    "pytest==9.0.*",
+    "pytest-asyncio==1.3.*",
+    "pytest-cov==7.0.*",
+    "ruff==0.17.*",
+    "wemake-python-styleguide==1.8.*",
+]
+
+[tool.pytest.ini_options]
+testpaths = "tests"
+pythonpath = "."
+addopts = "--cov=mpt_mcp --cov-report=term-missing --cov-report=xml --import-mode=importlib -ra"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+branch = true
+relative_files = true
+
+[tool.coverage.report]
+exclude_also = [
+    "if __name__ == \"__main__\":",
+    "raise NotImplementedError",
+]
+omit = [
+    "*/__init__.py"
+]
+
+[tool.flake8]
+allowed-domain-names = ["data", "result"]
+allowed-module-metadata = ["__all__"]
+aaa_act_block_style = "large"
+doctests = true
+extend-ignore = [
+  "WPS226",
+  "WPS412",
+]
+extend-exclude = [
+  ".coverage",
+  ".github",
+  ".idea",
+  ".mypy_cache",
+  ".pytest_cache",
+  ".ruff_cache",
+  "uv.lock",
+  ".venv",
+]
+format = "wemake"
+max-imports = 17
+max-line-length = 100
+select = ["AAA", "E999", "WPS"]
+show-source = true
+statistics = false
+per-file-ignores = [
+  "*alembic/versions/**:WPS102,WPS221,WPS432",
+  "*mpt_mcp/analytics/models.py:WPS432",
+  # WPS210: tests build their nested inputs step by step, one local per level
+  # WPS441: with AAA the asserts read the with targets (pytest.raises, patch) after the act block
+  "*tests/**:WPS202,WPS210,WPS441",
 ]
 
 [tool.ruff]
-# Python version
+# Ruff config: https://docs.astral.sh/ruff/settings
+preview = true
 target-version = "py314"
-
-# Line length
-line-length = 180
-
-# Enable specific rule sets
-lint.select = [
-    "E",   # pycodestyle errors
-    "W",   # pycodestyle warnings
-    "F",   # pyflakes
-    "I",   # isort (import sorting)
-    "N",   # pep8-naming
-    "UP",  # pyupgrade
-    "B",   # flake8-bugbear
-    "C4",  # flake8-comprehensions
-    "SIM", # flake8-simplify
-    "TCH", # flake8-type-checking
-    "PTH", # flake8-use-pathlib
-]
-
-# Ignore specific rules
-lint.ignore = [
-    "UP017", # the alias on UTC, gives me problems in python 3.12
-    "PTH",    # flake8-use-pathlib - would require extensive refactoring
-    "SIM102", # Use a single if statement instead of nested if statements
-    "SIM108", # Use ternary operator instead of if-else-block
-    "B904",   # Raise from within except - we intentionally create new exceptions
-]
-
-# Exclude directories
-extend-exclude = [
-    "__pycache__",
-    "*.pyc",
-    ".git",
-    ".pytest_cache",
-    ".ruff_cache",
-    "venv",
-    "env",
-    ".env",
-    "build",
-    "dist",
-]
-
-# Allow autofix for all enabled rules
-lint.fixable = ["ALL"]
-lint.unfixable = []
-
-# Allow unused variables when underscore-prefixed
-lint.dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
-
-[tool.ruff.lint.per-file-ignores]
-# Test files can have more flexible rules
-"tests/**/*.py" = [
-    "N802",  # Function name should be lowercase (test methods can use mixed case)
-    "N806",  # Variable in function should be lowercase (test fixtures can use mixed case)
-    "SIM",   # Simplify rules (tests can be verbose for clarity)
-]
-
-[tool.ruff.lint.isort]
-# Import sorting configuration
-combine-as-imports = true
-force-wrap-aliases = true
-known-first-party = ["src"]
+output-format = "full"
+line-length = 100
 
 [tool.ruff.format]
-# Use double quotes
 quote-style = "double"
 
-# Indent with 4 spaces
-indent-style = "space"
+[tool.ruff.lint]
+select = [
+    "A",    # flake8-builtins
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "C90",  # maccabe
+    "COM",  # flake8-commas
+    "D",    # pydocstyle
+    "DTZ",  # flake8-datetimez
+    "E",    # pycodestyle
+    "ERA",  # flake8-eradicate
+    "EXE",  # flake8-executable
+    "F",    # pyflakes
+    "FBT",  # flake8-boolean-trap
+    "FLY",  # pyflint
+    "FURB", # refurb
+    "G",    # flake8-logging-format
+    "I",    # isort
+    "ICN",  # flake8-import-conventions
+    "ISC",  # flake8-implicit-str-concat
+    "LOG",  # flake8-logging
+    "N",    # pep8-naming
+    "PERF", # perflint
+    "PIE",  # flake8-pie
+    "PL",   # pylint
+    "PT",   # flake8-pytest-style
+    "PTH",  # flake8-use-pathlib
+    "Q",    # flake8-quotes
+    "RET",  # flake8-return
+    "RSE",  # flake8-raise
+    "RUF",  # ruff
+    "S",    # flake8-bandit
+    "SIM",  # flake8-simpify
+    "SLF",  # flake8-self
+    "SLOT", # flake8-slots
+    "debugger", # flake8-debugger
+    "TRY",  # tryceratops
+    "UP",   # pyupgrade
+    "W",    # pycodestyle
+    "YTT",  # flake8-2020
+]
+ignore = [
+    "stdlib-module-shadowing",   # allow to shadow stdlib and builtin module names
+    "raise-without-from-inside-except",  # Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+    "missing-trailing-comma", # trailing comma, conflicts with `ruff format`
+    # Different doc rules that we don't really care about:
+    "undocumented-public-module",
+    "undocumented-public-package",
+    "undocumented-magic-method", # docstring for magic methods
+    "undocumented-public-nested-class",
+    "undocumented-public-init",
+    "incorrect-blank-line-before-class",
+    "multi-line-summary-first-line",
+    "non-imperative-mood",
+    "docstring-starts-with-this",
+    "non-capitalized-section-name",
+    "single-line-implicit-string-concatenation",  # implicit string concat conflicts with `ruff format`
+    "explicit-string-concatenation",  # prefer explicit string concat over implicit concat
+    "PLR09",   # we have our own complexity rules
+    "magic-value-comparison", # do not report magic numbers
+    "no-self-use", # do not require classmethod / staticmethod when self not used
+    "pytest-raises-too-broad", # pytest.raises({exception}) is too broad, set the match parameter or use a more specific exception
+    "raise-vanilla-args",  # long exception messages from `tryceratops`
+]
+external = [ "AAA", "WPS" ]
 
-# Unix line endings
-line-ending = "lf"
+# Plugin configs:
+[tool.ruff.lint.flake8-bugbear]
+# FastMCP dependency markers are meant to be used as argument defaults
+extend-immutable-calls = [
+  "fastmcp.dependencies.CurrentContext",
+  "fastmcp.dependencies.Depends",
+  "mpt_mcp.analytics.events.AnalyticsContext",
+]
 
-# Format docstrings
-docstring-code-format = true
+[tool.ruff.lint.flake8-import-conventions]
+banned-from = ["ast", "datetime"]
+aliases = { datetime = "dt" }
 
-# Pytest configuration is in pytest.ini (pytest.ini takes precedence)
-# This section is kept for reference but pytest.ini is used
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+
+[tool.ruff.lint.isort]
+known-first-party = ["mpt_mcp"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 6
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+ignore-decorators = ["property"]
+
+[tool.ruff.lint.per-file-ignores]
+"alembic/versions/*.py" = [
+  "missing-terminal-punctuation", # revision messages are generated by alembic
+]
+"tests/**/*.py" = [
+  "undocumented-public-class", # missing docstring in public class
+  "undocumented-public-method", # missing docstring in public method
+  "undocumented-public-function", # missing docstring in a public function
+  "assert", # asserts
+  "hardcoded-password-string", # hardcoded passwords
+  "hardcoded-password-func-arg", # fake tokens passed to clients and contexts
+  "suspicious-subprocess-import", # subprocess calls are for tests
+  "subprocess-without-shell-equals-true", # do not require `shell=True`
+  "start-process-with-partial-path", # partial executable paths
+  "pytest-fixture-autouse", # autouse fixtures are an accepted pattern in tests
+]
+
+[tool.mypy]
+# The mypy configurations: http://bit.ly/2zEl9WI
+enable_error_code = [
+  "truthy-bool",
+  "truthy-iterable",
+  "redundant-expr",
+  "unused-awaitable",
+  "ignore-without-code",
+  "possibly-undefined",
+  "redundant-self",
+  "explicit-override",
+  "mutable-override",
+  "unimported-reveal",
+  "deprecated",
+]
+exclude = ["tests"]
+exclude_gitignore = true
+ignore_missing_imports = true
+local_partial_types = true
+strict = true
+warn_unreachable = true
